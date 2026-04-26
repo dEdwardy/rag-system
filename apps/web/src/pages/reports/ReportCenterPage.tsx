@@ -41,6 +41,7 @@ import {
   getRegressionReasonLabel,
   getReportCenterResultNextAction
 } from './report-center-page-helpers';
+import { AgentSurfaceEntry } from './AgentSurfaceEntry';
 
 const ReportResultsTable = lazy(async () => {
   const module = await import('./ReportResultsTable');
@@ -3681,6 +3682,14 @@ export function ReportCenterPage() {
                 : 'This section gives the run summary, the main regression signals, and the next recommended action. Read this first before drilling into details.'}
             </p>
           </div>
+
+          <AgentSurfaceEntry
+            primaryHref="/traces"
+            primaryLabel={
+              locale === 'zh' ? '打开 trace 列表' : 'Open trace list'
+            }
+            showRouteShortcuts
+          />
 
           <Suspense fallback={<ReportAnalysisPanelsFallback locale={locale} />}>
             <ReportAnalysisPanels

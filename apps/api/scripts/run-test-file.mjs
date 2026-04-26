@@ -11,6 +11,8 @@ const rawArgs = process.argv.slice(2).filter((argument) => argument !== '--');
 const fastTestFiles = new Set([
   'test/answering.test.js',
   'test/ask-failures.test.js',
+  'test/ask-route-decision.test.js',
+  'test/ask-reuse.test.js',
   'test/ask-stream-controller.test.js',
   'test/ask-stream-retrieval-failure.test.js',
   'test/ask-stream-service.test.js',
@@ -20,6 +22,7 @@ const fastTestFiles = new Set([
   'test/external-source-sync.test.js',
   'test/fetch-with-retry.test.js',
   'test/http-exception-filter.test.js',
+  'test/agent-tools.controller.test.js',
   'test/ingestion.orchestrator.test.js',
   'test/llm-answer-stream.test.js',
   'test/llm.test.js',

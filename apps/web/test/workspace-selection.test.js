@@ -13,15 +13,34 @@ async function loadWorkspaceSelectionHelpers() {
   return import(helperModuleUrl);
 }
 
-test('workspace selection picks the first knowledge base as the primary workspace', async () => {
+test('workspace selection prefers the canonical default knowledge base as the primary workspace', async () => {
   const { getPrimaryKnowledgeBase } = await loadWorkspaceSelectionHelpers();
 
   const knowledgeBase = getPrimaryKnowledgeBase([
-    { id: 'kb-1', name: 'Primary KB' },
-    { id: 'kb-2', name: 'Secondary KB' }
+    { id: 'kb-2', name: 'Secondary KB', status: 'active' },
+    { id: 'kb-1', name: 'Default Knowledge Base', status: 'inactive' }
   ]);
 
   assert.equal(knowledgeBase?.id, 'kb-1');
+});
+
+test('workspace selection prefers the active canonical default knowledge base when duplicate-looking defaults exist', async () => {
+  const { getPrimaryKnowledgeBase } = await loadWorkspaceSelectionHelpers();
+
+  const knowledgeBase = getPrimaryKnowledgeBase([
+    {
+      id: 'kb-z-empty',
+      name: 'Default Knowledge Base',
+      status: 'inactive'
+    },
+    {
+      id: 'kb-a-filled',
+      name: ' default knowledge base ',
+      status: 'active'
+    }
+  ]);
+
+  assert.equal(knowledgeBase?.id, 'kb-a-filled');
 });
 
 test('workspace selection aligns the active assistant to the primary knowledge base', async () => {

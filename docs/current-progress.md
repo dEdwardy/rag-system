@@ -2,9 +2,33 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-> 更新时间：2026-04-17
+> 更新时间：2026-04-26
 
 ## Current Snapshot
+
+- `agent-tools contract wave` is now closed out on the OpenCode-backed loop queue
+  - `POST /agent-tools/rag_search` returns a retrieval-only payload with query, chunks, citations, sources, and diagnostics instead of calling the answer path
+  - `POST /agent-tools/rag_answer` now normalizes the answer contract for agent callers: answer, citations, confidence, missingInformation, diagnostics, and trace identifiers
+  - ask route decision, trace/metadata surface, and external-source route detection are now landed on the bounded agentization path, so route choice is visible without opening a separate agent platform surface
+  - agent tool requests can carry a bounded `boundedMultiStep` option; when a rewritten query or explicit second-pass request is present, the backend now performs at most one extra retrieval pass and reports first-pass, second-pass, and merged-result diagnostics while default requests stay single-pass
+  - `trace_lookup` and `document_lookup` now return stable found/not-found payloads with diagnostics and support header-derived agent scope
+  - the existing agent inspection surface now has focused web Vitest coverage in `apps/web/test/agent-surface.test.js`
+  - focused validation:
+    - `pnpm test:api:file -- test/agent-tools.controller.test.js`
+    - `pnpm --filter @rag-system/api exec tsc --noEmit`
+    - `pnpm --filter @rag-system/web exec vitest run test/agent-surface.test.js`
+    - `pnpm --filter @rag-system/web exec tsc --noEmit`
+    - `pnpm check:encoding`
+
+- loop control now accepts `--executor opencode|codex` on `loop:start`, and the repository scripts include `loop:start:codex` / `loop:start:opencode` shortcuts so backend selection is explicit instead of relying on ad hoc environment variables.
+- loop queue consumption is now pointed at the actual runner directory: `loop-runtime/materialized/` instead of the older `.opencode/loop/materialized/` snapshot area. The active agentic follow-up wave is visible to `pnpm loop:status` and the loop runner has begun consuming it again.
+- loop runtime now has a split layout: `loop-runtime/core/` for the main loop, `loop-runtime/adapters/` for backend execution, and `loop-runtime/tests/` for validation. The Codex backend adapter is wired as SDK-first with a CLI fallback path for environments that do not yet have `@openai/codex-sdk` installed.
+- loop runtime now also writes a compact timeout recovery artifact under `loop-runtime/runtime/recovery/` and accepts per-item timeout overrides from queue item metadata without changing the default execution path.
+- loop recovery/validation guidance is now tightened around one-item/one-command focused checks, with queue test validation kept on focused Vitest commands and legacy `node:test` entry points explicitly excluded from new queue items.
+- root `package.json` now keeps `test:harness` marked as a legacy alias (`test:harness:legacy`) so queue and loop docs can explicitly treat it as migration-only, not as a valid validation path for future agentic queue work.
+- queue docs now also make the recovery rule more explicit: retries should shrink back to one small explicit Vitest command, and any remaining legacy `node:test` gap should be handled as a Vitest-migration task before new queue work depends on it.
+- a future follow-up direction is now documented for the loop runtime: use an LLM to expand coarse requests into detailed plans, optionally split them into sequential and parallel queue items, and feed failures back into a replanning step after the current rag-system mainline is done.
+- loop runtime docs now call out the current idle-progress env key (`LOOP_ITEM_IDLE_TIMEOUT_MS`, legacy `OPENCODE_LOOP_PROGRESS_IDLE_TIMEOUT_MS`), recommend `180000` ms for long OpenCode queue tasks, and document the current failure mode where a long silent code-reading turn can be killed as `idle_progress_timeout` with no visible executor output.
 
 - 当前默认方式仍是：单线推进、小步增量、每轮收口。
 - 代码现实已明显前于旧计划表述：
@@ -16,9 +40,189 @@
 - 当前更合适的下一步是：
   - 在已完成区域内继续做 bounded maintenance
   - 继续收紧 canonical default assistant 行为和默认路径文案
-  - 或从新的明确产品波次里选一个最小增量
+  - 并在现有 RAG 主链路上补一个最小 agent 化增量
+
+## Current Chosen Next Increment
+
+- 当前明确选择的下一步不是再开新平台波次，而是补一个最小 agent 化能力。
+- 目标是让 ask 入口从固定单路径处理，升级为“先判断问题类型，再走对应处理链路”。
+- 当前新增了固定实现约束：高内聚、低耦合。后续最小 agent 化实现会把 route decision、source fetch、route-specific orchestration、trace 回写拆开，不继续把分支堆进一个大方法。
+- 当前约束已经明确：
+  - 优先做轻量 route decision / classifier
+  - 优先复用现有 KB ask、external-source family、deterministic reply 能力
+  - 优先把 route decision 写进 trace / metadata
+  - 不扩成 planner、multi-agent、复杂 memory 或自治任务系统
+- 活动队列现实也已进一步收口：最小 agent 化主干、默认助手 repair、默认路径 copy、默认 ask-path orchestration thin pass，以及 trace / report / chat inspection surface 的 closeout 补位均已完成；当前只保留 docs freshness 和 bounded maintenance follow-up。
 
 ## Recent Landed Increments
+
+- `ask reuse Vitest migration` moved one more low-risk assistant fast test off the legacy `node:test` path
+  - `apps/api/test/ask-reuse.test.js` now runs under the existing Vitest fast-lane globals, so this ask/reuse slice no longer depends on the legacy source-test runner
+  - `apps/api/scripts/run-test-file.mjs` now routes `test/ask-reuse.test.js` through the focused Vitest path, so the queue validation command no longer falls back to the legacy source-test runner for this ask/reuse slice
+
+- `external-source workflow mode` now marks the multi-source external route as a workflow-style execution plan while keeping the single-source path manual
+  - `packages/shared/src/trace-contracts.ts` now returns `executionMode: workflow` when `external_source` fans out across more than one source URL
+  - `apps/api/test/ask-success.test.js` now locks the multi-source external routing case so the trace metadata keeps the workflow label visible on fan-out paths
+  - this keeps the minimal agentization contract aligned with the actual multi-hop shape without introducing a planner or a broader agent runtime
+
+- `markdown-link external source recognition` widened the explicit-source branch to handle a more realistic copy/paste pattern
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now extracts URLs from markdown links before falling back to bare URL matching
+  - `apps/api/test/ask-success.test.js` now covers the markdown-link form so a pasted `[title](url)` still routes through external-source instead of default KB ask
+
+- `external-source route precedence regression` now protects the explicit-source branch and the source-family split with focused tests
+  - `apps/api/test/ask-success.test.js` adds a regression that checks sitemap URLs still route to `sitemap` and feed URLs route to `feed`
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now treats sitemap matching more narrowly, so generic `.xml` URLs do not automatically fall into the sitemap branch
+
+- `multi-source external routing` now lets explicit source questions fan out to multiple source URLs instead of collapsing them into one synthetic chunk
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now recognizes multiple markdown links / URLs, fetches them in parallel, and forwards one chunk per fetched source into answering
+  - `apps/api/test/ask-success.test.js` now covers the multi-source path so a single question with two explicit links produces two fetched sources and a two-chunk answer path
+  - `apps/api/src/modules/traces/traces.service.ts` and `packages/shared/src/trace-contracts.ts` already carry the `explicit_source_urls` route reason so multi-source routing stays observable in trace metadata
+  - the external-source path remains intentionally conservative: it only fans out when explicit source URLs are present, so the minimal agentization split stays high cohesion / low coupling
+
+- `structured source labels` now make explicit source inputs more readable without changing the conservative route boundary
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now preserves markdown link text as a source label when present, so route metadata can surface human-readable source names instead of only raw URLs
+  - bare URLs still work as before, so existing copy/paste flows remain compatible
+
+- `trace detail external-source panel` now surfaces the labeled explicit sources directly in the UI
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now renders an `External sources` section from `retrievalMetadataJson.externalSources`
+  - multi-source and labeled single-source traces are easier to inspect without opening the raw payload block
+
+- `trace list route summary` now exposes the routing decision at the conversation-card level
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now shows `routeType / routeReason` from `traceSummary.routeDecisionSummary`
+  - external-source traces also show a compact source-chunk count, which makes route behavior visible before entering detail view
+  - the same list view now accepts `routeType` and `routeReason` query params, and the API trace list endpoint honors the same route filters without changing the existing keyword search behavior
+  - the trace list hero now includes explicit route filter buttons, so the route decision can be narrowed without manually editing the URL
+  - `apps/web/src/pages/reports/ReportCenterPage.tsx` now adds a small route-view shortcut block that jumps directly to the filtered trace list for knowledge-base, policy-reply, or external-source routes
+  - `apps/web/src/pages/reports/ReportResultsTable.tsx` now includes the same route-view shortcuts in the results toolbar so route inspection stays close to the per-row review flow
+  - the repeated route shortcut buttons are now centralized in `apps/web/src/pages/reports/ReportRouteViewShortcuts.tsx` so both report surfaces stay coupled to the same small navigation widget instead of duplicating the link set
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now reuses the same route shortcut widget, so the trace list and report surfaces stay aligned on a single small navigation entry point
+  - `apps/web/src/pages/traces/TraceRouteFilterPanel.tsx` now bundles the trace-page route filter hint with the shared navigation widget, keeping the trace list hero focused while preserving the same route controls
+  - the trace filter panel now includes a clear-filters action so route-specific trace views can fall back to the full list without manual URL edits
+  - the trace filter panel now also surfaces the active route type / reason as badges, making the current trace-view context readable at a glance
+
+- `route metadata base extraction` further reduced duplication inside the minimal agentization path by centralizing the shared non-KB metadata scaffold
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `buildRouteMetadataBase(...)` helper for the common `queryRewrite / strategySummary / execution` scaffold
+  - `buildPolicyRouteMetadata(...)` and `buildExternalSourceRouteMetadata(...)` now stay focused on their route-specific payloads instead of re-declaring the same base shape
+
+- `trace route readability follow-up` cleaned up a couple of diagnostic labels and kept execution mode visible in the trace detail view
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now shows readable Chinese labels for route decision and external-source rows instead of mojibake text
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now surfaces the execution mode badge next to the execution-step heading so `manual / workflow` remains visible in detail view
+
+- `trace execution overview follow-up` added a compact execution-plan summary on top of the step list
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now shows the total step count alongside the `manual / workflow` execution-mode badge
+  - this keeps the agentic execution shape readable at a glance before drilling into each step row
+
+- `agent-facing surface and docs follow-up` added the smallest shared demo readout across chat, reports, and traces
+  - `apps/web/src/pages/reports/AgentSurfaceEntry.tsx` now spells out the concrete route examples, execution modes, and tool-name examples instead of only showing generic badges
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now uses the canonical execution-mode readability label and shows human-readable tool names next to the compact tool badge on each trace card
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now adds a short demo-oriented hint that explicitly ties route, mode, and tools together in the detail sidebar
+  - focused validation:
+    - `pnpm --filter @rag-system/web run test:vitest:file test/trace-summary-contract.test.js`
+
+- `inspection docs closeout follow-up` refreshed the active-status docs to match the landed inspection surfaces
+  - `docs/current-context.md` and `docs/next_steps_rag_project_plan.md` now describe the closeout target as the shared trace / report / chat inspection surface instead of only the trace slice
+  - this keeps the route / execution-mode / tool-name demo story aligned with the actual web entry points without opening a new product direction
+
+- `demo surface docs coherence follow-up` tightened the wording around the landed inspection surfaces so the story stays bounded
+  - `apps/web/src/pages/reports/AgentSurfaceEntry.tsx` now frames the UI as an inspection entry point layered onto existing trace / report / chat surfaces, instead of sounding like a separate agent area
+  - `README.md`, `docs/current-context.md`, and `docs/next_steps_rag_project_plan.md` now use the same route-choice / execution-mode / tool-name wording and explicitly keep this work out of a separate agent-platform framing
+  - focused validation:
+    - `pnpm --filter @rag-system/web run test:vitest:file test/trace-summary-contract.test.js`
+
+- `execution mode summary contract` promoted the execution mode into the shared trace summary so every consumer can read one canonical field
+  - `packages/shared/src/trace-contracts.ts` now includes `executionMode` and its readability fields on `TraceSummary`
+  - `apps/api/src/modules/traces/traces.service.ts` now derives the execution mode from the execution plan once and exposes it through the summary contract
+  - `apps/web/src/pages/traces/TraceListPage.tsx` and `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now read the canonical execution mode from summary instead of reaching back into the nested execution plan
+
+- `execution tool name contract` started the minimal tool abstraction by attaching a canonical tool name to each execution step
+  - `packages/shared/src/trace-contracts.ts` now lets execution steps carry `toolName` values such as `knowledge_base_search`, `external_source_fetch`, and `policy_reply`
+  - `apps/api/src/modules/traces/traces.service.ts` now preserves the step-level tool name when reading trace metadata
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now renders the tool name badge for each execution step when present, making the execution layer easier to compare with future workflow executors
+
+- `execution tool label registry` centralized the visible tool labels so trace consumers do not have to invent their own text
+  - `packages/shared/src/trace-contracts.ts` now exports `TRACE_EXECUTION_TOOL_LABELS` and `buildTraceExecutionToolLabel(...)` as the shared registry
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now resolves the label from the shared registry before falling back to the raw tool name
+
+- `execution tool summary contract` promoted the unique tool list into trace summary so route cards can show the tool surface at a glance
+  - `packages/shared/src/trace-contracts.ts` now exposes `executionToolNames` on `TraceSummary` and a small helper to collect the names from the execution plan
+  - `apps/api/src/modules/traces/traces.service.ts` now populates the summary-level tool list from the execution plan once
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now shows a compact execution-tools badge when a trace used routed tools, without expanding the full step list in the card body
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now shows the same summary-level execution-tool label above the detailed step rows so list and detail views stay aligned
+
+- `special route executor registry` tightened the ask-path dispatch boundary so the special routes are selected from a small registry instead of chained conditionals
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now dispatches `policy_reply` and `external_source` through a tiny executor map
+  - the change keeps the minimal agentization path more extensible without changing the underlying behavior or adding a broader runtime layer
+
+- `external source title helper` removed one more nested ternary from the external-source execution path
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one small helper to normalize external-source step titles and trace labels
+  - this keeps the multi-source path easier to read while preserving the same route and trace behavior
+
+- `external source kind label helper` consolidated the remaining web/feed/sitemap fallback labels into one place
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses a tiny `buildExternalSourceKindLabel(...)` helper for source-kind fallback names
+  - the external-source chunk/title path stays functionally the same but is less repetitive and easier to extend
+
+- `external source section title helper` removed the last inline section-title branch from the external-source chunk builder
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now derives the chunk section title through a dedicated helper instead of a ternary inside the chunk literal
+  - this keeps the external-source chunk builder focused on wiring rather than label selection
+
+- `external source fetch helper` consolidated the source-kind fetch branches into a single local executor helper
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now routes sitemap/feed/web fetching through `fetchResolvedExternalSource(...)`
+  - this keeps the explicit-source fan-out path thinner and makes the source-kind branching easier to scan and extend
+
+- `external source view helper` centralized the repeated source-to-view mapping used by chunks and trace metadata
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now derives the external-source chunk view and trace metadata view from one small helper
+  - the external-source fan-out path stays functionally the same while keeping the repeated title/diagnostics wiring in one place
+
+- `external source summary helper` centralized the single-source vs multi-source response summary
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now derives title, diagnostics, and sources from one summary helper before returning the external-source payload
+  - this removes the last repeated `buildExternalSourceTitle(...)` wiring in the fan-out response assembly
+  - the helper now uses the actual source `url` field consistently so the summary view stays type-safe as well as readable
+
+- `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
+  - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling
+
+- `route-result payload extraction` further reduced coupling inside the minimal agentization path by centralizing policy/external route result assembly
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `buildRouteResultPayload(...)` helper to assemble route result output for the non-KB paths instead of repeating the payload shape in each handler
+  - the route handlers still stay separate, so the split remains high cohesion / low coupling rather than collapsing into another oversized orchestration block
+
+- `minimal agentization route split` 已落地第一版 ask 路由分流，并按高内聚、低耦合约束收口
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` 现在会先做 route decision，再在 `knowledge_base / policy_reply / external_source` 三条路径之间分流
+  - `policy_reply` 继续保留为系统策略类问题的确定性回复路径
+  - `external_source` 第一版只覆盖“问题中包含显式 URL”的保守场景，并复用现有 `web page / feed / sitemap` source family 能力，而不是引入自治抓取
+  - route decision 已写入 trace metadata，并进入 trace summary 契约
+  - focused validation:
+    - `pnpm test:api:file -- test/ask-success.test.js`
+    - `pnpm test:api:file -- test/ask-stream-service.test.js`
+    - `pnpm test:api:file -- test/traces.service.test.js`
+    - `pnpm check:encoding`
+
+## Recent Landed Increments
+
+- `default-path first-token thin pass final follow-up` tightened the same ask-stream orchestration slice without changing retrieval semantics or stage judgment
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now emits the `generating` status event eagerly and only awaits it at first answer emission boundaries, removing one avoidable pre-token wait on the default path
+  - `apps/api/test/ask-stream-service.test.js` now locks this with a focused regression so `generating` status dispatch remains non-blocking for first-token timing
+  - focused validation:
+    - `pnpm test:api:file -- test/ask-stream-service.test.js`
+
+- `default-assistant repair fallback canonicalization` closed a remaining bootstrap/repair drift edge on the same single-primary-KB path
+  - `apps/api/src/modules/auth/auth.service.ts` fallback selection now prefers the canonical default-assistant identity before generic first-record fallback when read capabilities are constrained
+  - `apps/api/test/auth-provider-boundary.test.js` now covers this repair-fallback ordering so duplicate/legacy assistant drift does not silently pick a non-canonical binding first
+  - focused validation:
+    - `pnpm --filter @rag-system/api exec vitest run test/auth-provider-boundary.test.js`
+
+- `default-assistant repair next-action copy` clarified the same bounded path guidance for users waiting on bootstrap/repair completion
+  - `apps/web/src/i18n/messages.en.ts` and `apps/web/src/i18n/messages.zh.ts` now keep the assistant-repair next action wording aligned with the current default-path behavior
+  - focused validation:
+    - `pnpm --filter @rag-system/web test:vitest:file -- test/i18n-copy.test.js`
+
+- `default knowledge base canonical selection alignment` tightened the current single-primary-KB path so both API reads and web workspace selection prefer the canonical active `Default Knowledge Base` instead of blindly accepting the first returned item
+  - `apps/api/src/modules/knowledge-bases/knowledge-bases.service.ts` now reorders scoped knowledge-base list reads so the canonical active default KB stays ahead of same-owner duplicates and drifted naming variants
+  - `apps/web/src/features/api/workspace-selection.ts` now applies the same canonical default-KB priority before choosing the current primary workspace on the client
+  - `apps/api/test/knowledge-bases-auth-write-path.test.js` and `apps/web/test/workspace-selection.test.js` now cover the canonical default-KB priority rule and the duplicate-looking default drift case
+  - focused validation:
+    - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js`
+    - `pnpm --filter @rag-system/web exec vitest run test/workspace-selection.test.js`
 
 - `default-path maintenance next wave follow-up` kept the same bounded stage judgment and tightened the current single-primary-KB default path with one more small pass across API latency, default-assistant drift coverage, and documents-to-chat clarity
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now overlaps retrieval work with early stream status delivery so first-token pre-generation orchestration cost is thinner without changing retrieval semantics
@@ -472,6 +676,16 @@
 - The trace list page now shows a compact slowest-stage preview on each conversation card so slow runs can be spotted without opening the detail page.
 - Summary/list answer prompts now use a tighter compact context mode once the retrieved chunk set gets larger, trimming prompt size to reduce first-token latency.
 
+## Recent Default KB Selection Hardening
+
+- Fixed a main-path regression where duplicate owner-scoped default knowledge bases could cause the newest empty default KB to win primary selection.
+  - `apps/api` knowledge-base listing now prioritizes the canonical active `Default Knowledge Base` ahead of newer non-canonical or inactive duplicates.
+  - `apps/web` workspace selection now applies the same canonical primary-KB priority instead of blindly using the first returned knowledge base.
+- Focused validation:
+  - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js`
+  - `pnpm --filter @rag-system/web exec vitest run test/workspace-selection.test.js`
+  - `pnpm --filter @rag-system/web typecheck`
+
 ## Recent Retrieval / Answering Alignment
 
 - The current default local retrieval profile is intentionally conservative and should be treated as the repository-aligned baseline:
@@ -492,3 +706,101 @@
 - Follow-up posture remains bounded:
   - answer quality is now good enough to leave main-wave status and move into maintenance
   - the next best retrieval investments are replayable smoke checks and light adaptive retrieval, not globally larger defaults or broad chunking rewrites
+
+## Route View Helper Extraction
+
+- `route view shortcut helper extraction` now centralizes the shared route labels and trace-list links for the report and trace surfaces
+  - `apps/web/src/pages/reports/route-view-helpers.ts` now owns the shared route target type, button labels, and `/traces?routeType=...` link builder
+  - `apps/web/src/pages/reports/ReportRouteViewShortcuts.tsx` now consumes the shared helper instead of re-declaring its own route mapping
+  - `apps/web/src/pages/traces/TraceRouteFilterPanel.tsx` now reuses the same shared labels for the active route badges, so the trace filter panel and report shortcuts stay coupled to one small navigation contract
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `trace route filter helper extraction` now centralizes the trace-list route matching and active-filter summary
+  - `apps/web/src/pages/traces/trace-route-helpers.ts` now owns the route-matching predicate plus the active-filter summary formatter
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now delegates its route filtering to the shared helper instead of re-declaring the same predicate inline
+  - `apps/web/src/pages/traces/TraceRouteFilterPanel.tsx` now uses the same helper for the current filter summary, keeping the trace route UI coherent around one small contract
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `external-source readable label fallback` now gives bare URLs a stable display title inside the external-source route
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now derives a readable fallback label from the URL host/path when the source has no explicit title
+  - external-source combined content, diagnostics, and per-source chunks now carry that readable label instead of only raw URLs
+  - `apps/api/test/ask-success.test.js` now covers the bare-URL path so a source without a fetched title still gets a deterministic document title in the route flow
+  - focused validation:
+    - `pnpm test:api:file -- test/ask-success.test.js`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `report route navigation improvement` now adds a direct return path from the shared route shortcuts back to the full trace list
+  - `apps/web/src/pages/reports/route-view-helpers.ts` now includes `buildAllTracesLink()` alongside the route-specific helpers
+  - `apps/web/src/pages/reports/ReportRouteViewShortcuts.tsx` now shows an explicit `All traces` / `全部 trace` button before the three route-specific shortcuts, so report users can jump back to the unfiltered trace list without leaving the shared navigation block
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `trace detail route decision readability` now shows the route decision as a visible badge plus reason in the diagnostic sidebar
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now renders route type as a badge and route reason as a separate explanation block inside the diagnostic metadata card
+  - this makes the agent-like decision path easier to scan at a glance without opening the raw payload
+
+- `trace list route decision readability` now mirrors the same readable route labels on the conversation cards
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now renders the route type as a shared label badge and keeps the route reason visible beside it
+  - the list view and the detail view now agree on the same route label contract, which reduces scan-time mismatch between summary and detail
+
+- `trace detail route label reuse` now consumes the shared route label map instead of keeping a separate route-name helper
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now uses the same shared route label contract as the list and report surfaces
+  - the route label contract is now a single small UI mapping, which makes future platform handoff easier because the visible route names stay centralized
+
+- `trace list execution mode visibility` now makes the step contract easier to read at a glance
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now shows `manual / workflow` beside the execution step count when a trace carries an execution plan
+  - this keeps the list view aligned with the new contract without changing the backend shape or the existing route summary wording
+
+- `trace execution plan contract` now exposes a small execution-plan shape that can carry future multi-step agent flows without changing current behavior
+  - `packages/shared/src/trace-contracts.ts` now keeps `TraceExecutionPlan` as the shared contract for future step-by-step summaries
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` and `apps/web/src/pages/traces/TraceListPage.tsx` now render the plan only when it is present, so current traces stay unchanged
+  - `apps/api/src/modules/traces/traces.service.ts` now keeps the summary contract aligned by explicitly carrying `executionPlan` in the returned `TraceSummary`
+
+- `step contract abstraction` now records a small execution plan alongside the existing route decision metadata
+  - `packages/shared/src/trace-contracts.ts` now exports `TraceExecutionPlan` and `TraceExecutionStep` plus a tiny `buildTraceExecutionPlan(...)` helper
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now writes the execution plan into retrieval metadata for knowledge-base, policy, and external-source paths
+  - `apps/api/src/modules/traces/traces.service.ts` now reads the execution plan back into `TraceSummary`, so the trace contract has a stable place for future multi-step / workflow handoff
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `trace step plan preview` now shows the execution plan in the trace list and detail surfaces
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now shows the number of execution steps on each conversation card
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now renders the execution steps with status badges and labels
+  - the route/step contract now stays visible from summary to detail, which makes the current manual flow easier to compare with a future workflow engine
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `conversation answer reuse` now short-circuits exact same-question repeats inside the same conversation
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now checks the current conversation history before creating new messages, and reuses the latest assistant response when the same question already has a completed answer
+  - this keeps the chat path from writing duplicate messages / traces for the same turn and makes repeated submits behave like cache hits instead of reruns
+  - focused validation:
+    - `pnpm --filter @rag-system/api exec vitest run test/ask-reuse.test.js --config vitest.config.mjs`
+    - `pnpm --filter @rag-system/api test:file -- test/ask-stream-service.test.js`
+    - `pnpm --filter @rag-system/api typecheck`
+
+## Agentic RAG Status Note
+
+The main RAG path is already stable enough to treat as the base. The next meaningful increment is the thin agent layer:
+
+1. tool APIs
+2. tool gateway auth
+3. bounded multi-step retrieval flow
+4. confidence / missingInformation / citations
+5. inspection helpers
+6. `/agent` demo UI
+
+This is the current follow-up target, not planner or multi-agent.

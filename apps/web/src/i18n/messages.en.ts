@@ -150,7 +150,7 @@ export const messages = {
       currentAssistantHintHasAssistant:
         'This assistant is the active answer setup for the current workspace library.',
       currentAssistantHintNoAssistant:
-        'The default assistant is still being prepared or repaired for the current workspace library. Wait a moment, then try again.',
+        'The default assistant is still being prepared or repaired for the current workspace library. Finish the current library setup first, then try again.',
       currentWorkspace: 'Current workspace',
       newConversationDraft: 'New conversation draft',
       noActiveKnowledgeBase: 'Workspace library unavailable',
@@ -166,14 +166,14 @@ export const messages = {
       askStatusHintHasAssistant:
         'This status now follows the current library readiness before sending questions.',
       askStatusHintNoAssistant:
-        'Answer settings are still being prepared or repaired for the current workspace library before new questions can be sent.',
+        'Answer settings are still being prepared or repaired for the current workspace library. If the library is still empty, add the first items first before sending questions.',
       citationsCount:
         '{conversationCount} conversations, {citationCount} current citations.',
       inputSection: 'Ask composer',
       inputHelpCanAsk:
         'Press Enter to send. Sources stay visible on the right, with diagnostics available when needed.',
       inputHelpDisabled:
-        'The default assistant is being prepared or repaired for this library, so the composer is temporarily unavailable.',
+        'Chat stays locked until this library has ready source material and the default assistant finishes preparing.',
       askInputPlaceholder: 'Ask a question and press Enter...',
       enterHint: 'Press Enter to send, Shift + Enter for a new line',
       fileUploadComingSoon: 'File upload coming soon',
@@ -221,7 +221,7 @@ export const messages = {
         'Ask the assistant to create the first conversation.',
       noActiveConversationTitle: 'No active conversation',
       noActiveConversationDescription:
-        'At least one library item is ready. Pick a starter question and send it now, or select a past conversation to continue.',
+        'At least one library item is ready. Pick a starter question to demo the default flow now, or select a past conversation to continue.',
       loadingMessagesTitle: 'Loading messages',
       loadingMessagesDescription: 'Loading messages and trace references.',
       messagesErrorTitle: 'Failed to load messages.',
@@ -235,7 +235,7 @@ export const messages = {
       noAssistantForKnowledgeBaseTitle:
         'Default assistant is still being prepared',
       noAssistantForKnowledgeBaseDescription:
-        'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the default assistant for this library. Refresh this page in a moment if it does not appear automatically.',
+        'The current workspace library is {knowledgeBaseName}. Chat already becomes available as soon as this library has ready source material, but the system still needs to prepare or repair the canonical default assistant for it. If the library is still empty, add the first library items first. Otherwise, if it does not appear automatically, use "Refresh default path" and wait for it to show up before chatting.',
       noAssistantForKnowledgeBaseAction: 'Open answer settings',
       noAssistantForKnowledgeBaseRefreshAction: 'Refresh default path',
       noDocumentsTitle: 'Add library items before chatting',
@@ -293,6 +293,7 @@ export const messages = {
     workspaceStatusNoActiveKnowledgeBase: 'Create a workspace library first',
     workspaceStatusNeedsAttention: 'Failed items need review',
     workspaceStatusProcessing: 'Items are updating',
+    workspaceStatusReadyWithIssues: 'Ready items available',
     workspaceStatusReady: 'Library ready',
     workspaceNextActionNoActiveKnowledgeBase:
       'Create a workspace library before adding files, saving links, or reviewing library status.',
@@ -300,6 +301,8 @@ export const messages = {
       'Open the failed item first, check the latest error summary, then retry or clean it up if needed.',
     workspaceNextActionProcessing:
       'Wait for the current updates to finish, then review the refreshed item states.',
+    workspaceNextActionReadyWithIssues:
+      'Ready items can already support chat. Start asking now, then come back to review the failed items afterward.',
     workspaceNextActionProcessingWithReady:
       'Some items are still processing, but ready items can already support chat. Start asking now and come back for the remaining updates.',
     workspaceNextActionReady:
@@ -504,7 +507,7 @@ export const messages = {
       chatWhileProcessing:
         'Some library items are still updating, but ready items can already support chat. Start asking now and return to library status as updates finish.',
       prepareDefaultAssistant:
-        'The library is ready. Open answer settings so the default assistant can finish preparing or repairing before chat.',
+        'At least one library item is ready. The system should finish preparing or repairing the default assistant automatically; if it does not appear, refresh the default path first, then wait for it to show up before chat.',
       workspaceReady:
         'This workspace is ready. The best next step is to move on to chat.'
     },
@@ -663,7 +666,7 @@ export const messages = {
     noAssistantForKnowledgeBaseTitle:
       'Default assistant is still being prepared',
     noAssistantForKnowledgeBaseDescription:
-      'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the default assistant for this library. Refresh this page in a moment if it does not appear automatically.',
+      'The current workspace library is {knowledgeBaseName}. Chat already becomes available as soon as this library has ready source material, but the system is still preparing or repairing the default assistant for it. If the library is still empty, add the first library items first. Otherwise, if it does not appear automatically, use "Refresh default path" and wait for it to show up automatically.',
     noAssistantForKnowledgeBaseAction: 'Open answer settings',
     noAssistantForKnowledgeBaseRefreshAction: 'Refresh default path',
     noAssistantDocumentsPrimaryAction: 'Add library items first',

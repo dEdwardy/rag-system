@@ -33,6 +33,14 @@ type WelcomeCopy = {
   steps?: WelcomeStep[];
 };
 
+type OauthWelcomeMessageSection = Record<string, string>;
+
+type OauthWelcomeMessageSource = {
+  knowledge: OauthWelcomeMessageSection;
+  assistant: OauthWelcomeMessageSection;
+  chat: OauthWelcomeMessageSection;
+};
+
 export function OauthWorkspaceWelcome({
   context,
   documentCount,
@@ -153,7 +161,7 @@ export function OauthWorkspaceWelcome({
 }
 
 function buildOauthWelcomeCopy(
-  source: any,
+  source: OauthWelcomeMessageSource,
   input: {
     context: OauthWorkspaceWelcomeProps['context'];
     providerLabel: string;

@@ -140,7 +140,7 @@ export const messages = {
       currentAssistantHintHasAssistant:
         '这个助手就是当前工作区资料库的回答配置。',
       currentAssistantHintNoAssistant:
-        '当前资料库的默认助手仍在补建或修复中，请稍候后再试。',
+        '当前资料库的默认助手仍在补建或修复中。请先完成当前资料库准备，再回来提问。',
       currentWorkspace: '当前工作区',
       newConversationDraft: '新的会话草稿',
       noActiveKnowledgeBase: '工作区资料库不可用',
@@ -155,13 +155,14 @@ export const messages = {
       askStatusHintHasAssistant:
         '这里会根据当前资料库准备情况，显示提问前的状态。',
       askStatusHintNoAssistant:
-        '当前资料库的回答设置仍在补建或修复中，暂时还不能发起提问。',
+        '当前资料库的回答设置仍在补建或修复中；如果资料库还是空的，请先添加第一批资料，再开始提问。',
       citationsCount:
         '共 {conversationCount} 个会话，当前有 {citationCount} 条引用。',
       inputSection: '提问输入区',
       inputHelpCanAsk:
         '按 Enter 发送。来源会固定显示在右侧，需要时可展开诊断。',
-      inputHelpDisabled: '默认助手仍在补建或修复中，输入区暂时不可用。',
+      inputHelpDisabled:
+        '只有当资料库里已经有可用资料，且默认助手完成准备后，输入区才会开放。',
       askInputPlaceholder: '输入问题后按 Enter 发送...',
       enterHint: 'Enter 发送，Shift + Enter 换行',
       fileUploadComingSoon: '文件上传即将支持',
@@ -205,7 +206,7 @@ export const messages = {
       noConversationsDescription: '向助手提问后，这里会出现第一个会话。',
       noActiveConversationTitle: '当前没有激活会话',
       noActiveConversationDescription:
-        '当前至少有一条资料已就绪。现在直接点击首问并发送，或先选择历史会话继续。',
+        '当前至少有一条资料已就绪。现在直接点击首问演示默认路径，或先选择历史会话继续。',
       loadingMessagesTitle: '正在加载消息',
       loadingMessagesDescription: '加载消息与对应的诊断引用。',
       messagesErrorTitle: '加载消息失败。',
@@ -218,7 +219,7 @@ export const messages = {
       noActiveKnowledgeBaseAction: '打开工作区设置',
       noAssistantForKnowledgeBaseTitle: '默认助手仍在准备中',
       noAssistantForKnowledgeBaseDescription:
-        '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果它没有自动出现，请稍后刷新当前页面。',
+        '当前工作区资料库是 {knowledgeBaseName}。只要这个资料库已经有可提问资料，对话就会开放；但系统仍在为它补建或修复规范默认助手。如果资料库还是空的，请先添加第一批资料。否则，如果它没有自动出现，请先点击“刷新默认路径”，再等待它出现后开始对话。',
       noAssistantForKnowledgeBaseAction: '打开回答设置',
       noAssistantForKnowledgeBaseRefreshAction: '刷新默认路径',
       noDocumentsTitle: '先补充资料，再开始对话',
@@ -274,12 +275,15 @@ export const messages = {
     workspaceStatusNoActiveKnowledgeBase: '请先创建工作区资料库',
     workspaceStatusNeedsAttention: '失败资料需要处理',
     workspaceStatusProcessing: '资料更新中',
+    workspaceStatusReadyWithIssues: '已有可提问资料',
     workspaceStatusReady: '资料库已就绪',
     workspaceNextActionNoActiveKnowledgeBase:
       '请先创建工作区资料库，再添加文件、保存链接或查看资料状态。',
     workspaceNextActionNeedsAttention:
       '先打开失败资料，查看最近一次错误摘要，再决定重试或清理。',
     workspaceNextActionProcessing: '等待当前更新完成，然后回来查看最新状态。',
+    workspaceNextActionReadyWithIssues:
+      '已就绪资料已经可以支持对话。现在可以先提问，之后再回来处理失败项。',
     workspaceNextActionProcessingWithReady:
       '还有资料在处理中，但已就绪资料已经可以支持对话。现在可以先提问，剩余更新完成后再回来查看。',
     workspaceNextActionReady:
@@ -463,7 +467,7 @@ export const messages = {
       chatWhileProcessing:
         '还有资料在更新中，但已就绪资料已经可以支持对话。现在可以先提问，更新完成后再回资料库确认状态。',
       prepareDefaultAssistant:
-        '资料已经就绪。接下来建议打开回答设置，让默认助手完成准备或修复，再开始提问。',
+        '当前至少已有资料可用。系统应自动完成默认助手的补建或修复；如果没有出现，先刷新默认路径，再等它出现后开始提问。',
       workspaceReady: '这个工作区已经就绪。下一步最合适的是直接进入对话。'
     },
     feedback: {
@@ -607,7 +611,7 @@ export const messages = {
     noKnowledgeBaseAction: '打开工作区设置',
     noAssistantForKnowledgeBaseTitle: '默认助手仍在准备中',
     noAssistantForKnowledgeBaseDescription:
-      '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果它没有自动出现，请稍后刷新当前页面。',
+      '当前工作区资料库是 {knowledgeBaseName}。只要这个资料库已经有可提问资料，对话就会开放；但系统仍在为它补建或修复默认助手。如果资料库还是空的，请先添加第一批资料。否则，如果它没有自动出现，请先点击“刷新默认路径”，再等它自动出现。',
     noAssistantForKnowledgeBaseAction: '打开回答设置',
     noAssistantForKnowledgeBaseRefreshAction: '刷新默认路径',
     noAssistantDocumentsPrimaryAction: '先添加资料',

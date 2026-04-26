@@ -1,4 +1,3 @@
-import { Alert, Badge } from '@mantine/core';
 import { FormEvent, startTransition, useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import {
@@ -6,14 +5,13 @@ import {
   useAuthProviders,
   useLogin
 } from '../../features/api/hooks';
+import { BackendUnavailableScreen } from '../../components/BackendUnavailableScreen';
 import { useI18n } from '../../i18n/I18nProvider';
 import { isApiUnavailableError, resolveApiUrl } from '../../lib/api';
 import {
   getPrivateBetaDefaultCredentials,
   isInviteGateAccepted
 } from '../../lib/invite-gate';
-import { consumeLoginRedirectNotice } from '../../lib/login-redirect-notice';
-import { BackendUnavailableScreen } from '../../components/BackendUnavailableScreen';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -26,9 +24,6 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [transitionTarget, setTransitionTarget] = useState<
     null | 'github' | 'google' | 'oidc' | 'password'
-  >(null);
-  const [sessionNotice, setSessionNotice] = useState<
-    null | 'expired' | 'missing'
   >(null);
   const isBusy = transitionTarget != null || loginMutation.isPending;
   const githubOauthStartUrl = resolveApiUrl('/auth/oauth/github/start');
@@ -57,10 +52,6 @@ export function LoginPage() {
       current.length > 0 ? current : defaultCredentials.password
     );
   }, [defaultCredentials]);
-
-  useEffect(() => {
-    setSessionNotice(consumeLoginRedirectNotice(window.sessionStorage));
-  }, []);
 
   if (!hasInviteAccess) {
     return <Navigate replace to="/invite" />;
@@ -162,26 +153,7 @@ export function LoginPage() {
           <p className="mt-2 text-sm leading-6 text-[var(--app-text-muted)]">
             {t('auth.login.subtitle')}
           </p>
-          {hasInviteAccess ? (
-            <Badge className="mt-3" color="indigo" radius="sm" variant="light">
-              {locale === 'zh' ? '邀请码已验证' : 'Invite verified'}
-            </Badge>
-          ) : null}
         </div>
-
-        {sessionNotice === 'expired' ? (
-          <Alert color="yellow" mb="md" radius="xl" variant="light">
-            {locale === 'zh'
-              ? '刚才的登录会话已经失效，请重新登录后继续。'
-              : 'Your previous session expired. Please sign in again to continue.'}
-          </Alert>
-        ) : sessionNotice === 'missing' ? (
-          <Alert color="yellow" mb="md" radius="xl" variant="light">
-            {locale === 'zh'
-              ? '刚才的登录状态已经丢失，请重新登录后继续。'
-              : 'Your previous sign-in state was lost. Please sign in again to continue.'}
-          </Alert>
-        ) : null}
 
         {defaultCredentials ? (
           <div className="mt-4 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-3 text-sm text-[var(--app-text-secondary)]">
@@ -211,8 +183,8 @@ export function LoginPage() {
           {t('auth.login.email')}
         </label>
         <input
-          className="mt-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-[var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
           autoComplete="email"
+          className="mt-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-[var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isBusy}
           id="email"
           name="email"
@@ -230,8 +202,8 @@ export function LoginPage() {
           {t('auth.login.password')}
         </label>
         <input
-          className="mt-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-[var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
           autoComplete="current-password"
+          className="mt-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-[var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isBusy}
           id="password"
           name="password"

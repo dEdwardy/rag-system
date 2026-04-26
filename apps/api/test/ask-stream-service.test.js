@@ -272,6 +272,225 @@ test('AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(typeof events[5].data.timingReadabilitySentence, 'string');
 });
 
+test('AskAssistantService stream uses deterministic policy route for policy questions', async () => {
+  const events = [];
+  const retrievalCalls = [];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async (input) => {
+        retrievalCalls.push(input);
+        throw new Error('policy route should not call retrieval');
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-policy-stream-1' }),
+      updateTrace: async () => ({})
+    }
+  });
+
+  const result = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Explain your assistant policy for unsupported answers.',
+    onEvent: (event) => {
+      events.push(event);
+    }
+  });
+
+  assert.equal(retrievalCalls.length, 0);
+  assert.equal(result.routeType, 'policy_reply');
+  assert.equal(result.routeReason, 'policy_question');
+  assert.deepEqual(
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'final'
+    ]
+  );
+  assert.equal(events[3].delta, result.answer);
+  assert.equal(events[4].data.routeType, 'policy_reply');
+  assert.equal(
+    events[4].data.retrievalMetadata.routeDecision.routeReason,
+    'policy_question'
+  );
+});
+
+test('AskAssistantService stream skips KB reuse for policy questions in an existing conversation', async () => {
+  const events = [];
+  let listConversationMessagesCalled = false;
+
+  const service = createAskAssistantService({
+    conversations: {
+      getConversation: async () => ({ id: 'conversation-1' })
+    },
+    messages: {
+      listConversationMessagesForReuse: async () => {
+        listConversationMessagesCalled = true;
+        return [
+          {
+            id: 'user-message-1',
+            conversationId: 'conversation-1',
+            role: 'user',
+            content: 'Explain your assistant policy for unsupported answers.',
+            traceId: null
+          },
+          {
+            id: 'assistant-message-1',
+            conversationId: 'conversation-1',
+            role: 'assistant',
+            content: 'Cached KB answer that should not be reused.',
+            traceId: 'trace-kb-stream-1'
+          }
+        ];
+      }
+    },
+    traces: {
+      getTrace: async () => ({
+        id: 'trace-kb-stream-1',
+        assistantId: 'assistant-1',
+        citationsJson: [],
+        modelName: 'cached-model',
+        retrievalMetadataJson: null,
+        answeringMetadataJson: null,
+        qualityEvaluationJson: null,
+        traceSummary: {
+          routeType: 'knowledge_base',
+          routeReason: 'default_kb_ask'
+        }
+      }),
+      createTrace: async () => ({ id: 'trace-policy-stream-conversation-1' }),
+      updateTrace: async () => ({})
+    },
+    retrieval: {
+      retrieve: async () => {
+        throw new Error('policy route should not call retrieval');
+      }
+    }
+  });
+
+  const result = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    conversationId: 'conversation-1',
+    question: 'Explain your assistant policy for unsupported answers.',
+    onEvent: (event) => {
+      events.push(event);
+    }
+  });
+
+  assert.equal(listConversationMessagesCalled, false);
+  assert.equal(result.traceId, 'trace-policy-stream-conversation-1');
+  assert.equal(result.routeType, 'policy_reply');
+  assert.equal(events.at(-1)?.type, 'final');
+});
+
+test('AskAssistantService stream uses external-source route for explicit URLs', async () => {
+  const events = [];
+  const retrievalCalls = [];
+  const webFetchCalls = [];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async (input) => {
+        retrievalCalls.push(input);
+        throw new Error('external source route should not call retrieval');
+      }
+    },
+    webPage: {
+      fetchWebPage: async (url) => {
+        webFetchCalls.push(url);
+        return {
+          title: 'Example source',
+          content:
+            'External source content says the marker is on the landing page.',
+          diagnostics: null
+        };
+      }
+    },
+    answering: {
+      generateAnswer: async (input) => ({
+        answer: 'The marker is on the landing page.',
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: 'answer.v3',
+          usedFallback: false,
+          answerPolicy: input.answerPolicy,
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
+          inputChunkCount: 1,
+          promptContextCount: 1,
+          contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 0,
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
+          insufficientContextReason: null,
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
+        },
+        modelName: 'test-model',
+        answerStatus: 'grounded',
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
+          flags: [],
+          summary: 'Answer is grounded in cited sources with no reported gaps.'
+        }
+      })
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-external-stream-1' }),
+      updateTrace: async () => ({})
+    }
+  });
+
+  const result = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Summarize https://example.com/article for me.',
+    onEvent: (event) => {
+      events.push(event);
+    }
+  });
+
+  assert.equal(retrievalCalls.length, 0);
+  assert.deepEqual(webFetchCalls, ['https://example.com/article']);
+  assert.equal(result.routeType, 'external_source');
+  assert.equal(result.routeReason, 'explicit_source_url');
+  assert.deepEqual(
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'final'
+    ]
+  );
+  assert.equal(events[3].delta, 'The marker is on the landing page.');
+  assert.equal(events[4].data.routeType, 'external_source');
+  assert.equal(events[4].data.retrievalMetadata.externalSource.kind, 'web');
+  assert.equal(
+    events[4].data.retrievalMetadata.routeDecision.routeReason,
+    'explicit_source_url'
+  );
+});
+
 test('AskAssistantService stream still emits a consistent final payload when provider returns without deltas', async () => {
   const events = [];
 
@@ -681,6 +900,150 @@ test('AskAssistantService stream does not block retrieval on retrieving-status d
   assert.equal(result.traceId, 'trace-1');
 });
 
+test('AskAssistantService stream does not block generation on retrieving-status delivery', async () => {
+  let resolveRetrievingStatus;
+  let llmGenerationStarted = false;
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks: [
+          {
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            chunkIndex: 0,
+            content: 'marker content',
+            score: 0.9,
+            isPrimary: true,
+            pageNo: 1,
+            sectionTitle: 'Facts'
+          }
+        ],
+        contextGroups: [],
+        execution: {
+          actualMode: 'vector',
+          usedFallback: false
+        }
+      })
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        llmGenerationStarted = true;
+        input.onDelta('Alpha');
+        return {
+          rawAnswer: 'Alpha',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const askPromise = service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
+      if (event.type === 'status' && event.phase === 'retrieving') {
+        return new Promise((resolve) => {
+          resolveRetrievingStatus = resolve;
+        });
+      }
+    }
+  });
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (llmGenerationStarted) {
+      break;
+    }
+    await Promise.resolve();
+  }
+
+  assert.equal(llmGenerationStarted, true);
+  assert.equal(typeof resolveRetrievingStatus, 'function');
+  resolveRetrievingStatus();
+
+  const result = await askPromise;
+  assert.equal(result.traceId, 'trace-1');
+});
+
+test('AskAssistantService stream does not block LLM start on generating-status delivery', async () => {
+  let resolveGeneratingStatus;
+  let llmGenerationStarted = false;
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks: [
+          {
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            chunkIndex: 0,
+            content: 'marker content',
+            score: 0.9,
+            isPrimary: true,
+            pageNo: 1,
+            sectionTitle: 'Facts'
+          }
+        ],
+        contextGroups: [],
+        execution: {
+          actualMode: 'vector',
+          usedFallback: false
+        }
+      })
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        llmGenerationStarted = true;
+        input.onDelta('Alpha');
+        return {
+          rawAnswer: 'Alpha',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const askPromise = service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
+      if (event.type === 'status' && event.phase === 'generating') {
+        return new Promise((resolve) => {
+          resolveGeneratingStatus = resolve;
+        });
+      }
+    }
+  });
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (llmGenerationStarted) {
+      break;
+    }
+    await Promise.resolve();
+  }
+
+  assert.equal(llmGenerationStarted, true);
+  assert.equal(typeof resolveGeneratingStatus, 'function');
+  resolveGeneratingStatus();
+
+  const result = await askPromise;
+  assert.equal(result.traceId, 'trace-1');
+});
+
 test('AskAssistantService stream scopes existing conversation lookup to current identity', async () => {
   const getConversationCalls = [];
 
@@ -743,6 +1106,175 @@ test('AskAssistantService stream scopes existing conversation lookup to current 
       }
     ]
   ]);
+});
+
+test('AskAssistantService stream skips reuse lookup when creating a new conversation', async () => {
+  let listConversationMessagesForReuseCalled = false;
+
+  const service = createAskAssistantService({
+    messages: {
+      listConversationMessagesForReuse: async () => {
+        listConversationMessagesForReuseCalled = true;
+        return [];
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        input.onDelta('delta');
+        return {
+          rawAnswer: 'delta',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const result = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'new conversation should skip reuse lookup',
+    onEvent: () => {}
+  });
+
+  assert.equal(listConversationMessagesForReuseCalled, false);
+  assert.equal(result.traceId, 'trace-1');
+});
+
+test('AskAssistantService stream uses the dedicated reuse lookup query for existing conversations', async () => {
+  let legacyLookupCalled = false;
+  let dedicatedLookupCalled = false;
+
+  const service = createAskAssistantService({
+    conversations: {
+      getConversation: async () => ({ id: 'conversation-1' })
+    },
+    messages: {
+      listConversationMessages: async () => {
+        legacyLookupCalled = true;
+        return [];
+      },
+      listConversationMessagesForReuse: async () => {
+        dedicatedLookupCalled = true;
+        return [];
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        await input.onDelta('delta');
+        return {
+          rawAnswer: 'delta',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const result = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    conversationId: 'conversation-1',
+    question: 'Where is the marker?',
+    onEvent: () => {}
+  });
+
+  assert.equal(dedicatedLookupCalled, true);
+  assert.equal(legacyLookupCalled, false);
+  assert.equal(result.traceId, 'trace-1');
+});
+
+test('AskAssistantService stream starts reuse lookup before retrieval resolves for existing conversations', async () => {
+  let resolveRetrieval;
+  let retrievalResolved = false;
+  let reuseLookupStarted = false;
+
+  const service = createAskAssistantService({
+    conversations: {
+      createConversation: async () => {
+        throw new Error('should reuse the provided conversation in this test');
+      },
+      getConversation: async () => ({ id: 'conversation-1' })
+    },
+    messages: {
+      listConversationMessagesForReuse: async () => {
+        reuseLookupStarted = !retrievalResolved;
+        return [];
+      }
+    },
+    retrieval: {
+      retrieve: async () =>
+        await new Promise((resolve) => {
+          resolveRetrieval = () => {
+            retrievalResolved = true;
+            resolve({
+              retrievedChunks: [
+                {
+                  chunkId: 'chunk-1',
+                  documentId: 'document-1',
+                  documentTitle: 'Document 1',
+                  chunkIndex: 0,
+                  content: 'marker content',
+                  score: 0.9,
+                  isPrimary: true,
+                  pageNo: 1,
+                  sectionTitle: 'Facts'
+                }
+              ],
+              contextGroups: [],
+              execution: {
+                actualMode: 'vector',
+                usedFallback: false
+              }
+            });
+          };
+        })
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        await input.onDelta('delta');
+        return {
+          rawAnswer: 'delta',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const askPromise = service.askAssistantStream({
+    assistantId: 'assistant-1',
+    conversationId: 'conversation-1',
+    question: 'Where is the marker?',
+    onEvent: () => {}
+  });
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (typeof resolveRetrieval === 'function') {
+      break;
+    }
+    await Promise.resolve();
+  }
+
+  assert.equal(typeof resolveRetrieval, 'function');
+  assert.equal(reuseLookupStarted, true);
+  resolveRetrieval();
+
+  const result = await askPromise;
+  assert.equal(result.traceId, 'trace-1');
 });
 
 test('AskAssistantService stream rethrows AbortError without marking the trace as failed', async () => {

@@ -1,7 +1,30 @@
-import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from "@nestjs/common";
-import { type Observable, tap } from "rxjs";
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  Logger,
+  NestInterceptor
+} from '@nestjs/common';
+import { type Observable, tap } from 'rxjs';
 
 const SLOW_REQUEST_THRESHOLD_MS = 200;
+
+function formatIdentityLabel(
+  identity:
+    | {
+        userId?: string;
+        authSource?: string;
+      }
+    | undefined
+) {
+  if (identity?.userId == null) {
+    return 'anonymous';
+  }
+
+  return identity.authSource
+    ? `${identity.userId}@${identity.authSource}`
+    : identity.userId;
+}
 
 @Injectable()
 export class RequestTimingInterceptor implements NestInterceptor {
@@ -19,7 +42,9 @@ export class RequestTimingInterceptor implements NestInterceptor {
         };
       };
     }>();
-    const response = context.switchToHttp().getResponse<{ statusCode?: number }>();
+    const response = context
+      .switchToHttp()
+      .getResponse<{ statusCode?: number }>();
     const startedAt = process.hrtime.bigint();
 
     return next.handle().pipe(
@@ -48,11 +73,12 @@ export class RequestTimingInterceptor implements NestInterceptor {
     startedAt: bigint
   ) {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
-    const method = request.method ?? "GET";
-    const path = request.originalUrl ?? request.url ?? "unknown";
+    const method = request.method ?? 'GET';
+    const path = request.originalUrl ?? request.url ?? 'unknown';
     const statusCode = response.statusCode ?? 200;
-    const identity = request.authContext?.currentIdentity;
-    const identityLabel = identity?.userId != null ? `${identity.userId}${identity.authSource ? `@${identity.authSource}` : ""}` : "anonymous";
+    const identityLabel = formatIdentityLabel(
+      request.authContext?.currentIdentity
+    );
     const message = `HTTP ${statusCode} ${method} ${path} ${durationMs.toFixed(1)}ms (${identityLabel})`;
 
     if (statusCode >= 500 || durationMs >= SLOW_REQUEST_THRESHOLD_MS) {

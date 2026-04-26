@@ -1,23 +1,27 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma, type EvalQuestionSetStatus } from "@prisma/client";
-import { PrismaService } from "../../infra/database/prisma.service";
-import type { AuthIdentity } from "../auth/auth-identity.contract";
-import { AskAssistantService } from "../assistants/ask-assistant.service";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException
+} from '@nestjs/common';
+import { Prisma, type EvalQuestionSetStatus } from '@prisma/client';
+import { PrismaService } from '../../infra/database/prisma.service';
+import type { AuthIdentity } from '../auth/auth-identity.contract';
+import { AskAssistantService } from '../assistants/ask-assistant.service';
 import {
   type ChooseEvalQuestionSetBaselineInput,
   type CreateEvalQuestionSetInput,
   type RunEvalQuestionSetInput,
   type UpdateEvalQuestionSetInput
-} from "./eval-question-set.schemas";
+} from './eval-question-set.schemas';
 
 type EvalRunSummaryMetricKey =
-  | "succeeded"
-  | "failed"
-  | "successRate"
-  | "groundedRate"
-  | "strongRate"
-  | "fallbackRate"
-  | "averageCitationCount";
+  | 'succeeded'
+  | 'failed'
+  | 'successRate'
+  | 'groundedRate'
+  | 'strongRate'
+  | 'fallbackRate'
+  | 'averageCitationCount';
 
 type EvalRunSummary = {
   total: number;
@@ -30,36 +34,36 @@ type EvalRunSummary = {
   averageCitationCount: number;
 };
 
-type EvalRunQualityGateMode = "warn" | "fail";
+type EvalRunQualityGateMode = 'warn' | 'fail';
 
 type EvalRunQualityGateMetricKey =
-  | "successRate"
-  | "groundedRate"
-  | "strongRate"
-  | "fallbackRate"
-  | "averageCitationCount";
+  | 'successRate'
+  | 'groundedRate'
+  | 'strongRate'
+  | 'fallbackRate'
+  | 'averageCitationCount';
 
 type EvalRunQualityGateMetricLimit =
   | {
       metric: EvalRunQualityGateMetricKey;
-      limitType: "min";
+      limitType: 'min';
       limit: number;
     }
   | {
       metric: EvalRunQualityGateMetricKey;
-      limitType: "max";
+      limitType: 'max';
       limit: number;
     };
 
 type EvalRunQualityGateThreshold = {
   metric: EvalRunQualityGateMetricKey;
-  limitType: "min" | "max";
+  limitType: 'min' | 'max';
   limit: number;
 };
 
 type EvalRunQualityGateBreach = {
   metric: EvalRunQualityGateMetricKey;
-  limitType: "min" | "max";
+  limitType: 'min' | 'max';
   limit: number;
   current: number;
   delta: number;
@@ -67,7 +71,7 @@ type EvalRunQualityGateBreach = {
 
 type EvalRunQualityGate = {
   mode: EvalRunQualityGateMode;
-  status: "passed" | "warning" | "failed";
+  status: 'passed' | 'warning' | 'failed';
   limitVersion: string;
   thresholds: EvalRunQualityGateThreshold[];
   breachedMetricCount: number;
@@ -82,7 +86,7 @@ type EvalRunComparisonMetric = {
   delta: number;
 };
 
-type EvalRunDiffMetricDirection = "regressed" | "improved";
+type EvalRunDiffMetricDirection = 'regressed' | 'improved';
 
 type EvalRunDiffReasonCount = {
   reasonCode: EvalRunRegressionReasonCode;
@@ -101,14 +105,14 @@ type EvalRunDiffSummary = {
 };
 
 type EvalRunRegressionReasonCode =
-  | "became_failed"
-  | "became_insufficient_context"
-  | "quality_degraded"
-  | "fallback_introduced"
-  | "citations_decreased";
+  | 'became_failed'
+  | 'became_insufficient_context'
+  | 'quality_degraded'
+  | 'fallback_introduced'
+  | 'citations_decreased';
 
 type EvalRunQuestionSnapshot = {
-  status: "succeeded" | "failed";
+  status: 'succeeded' | 'failed';
   answerStatus: string | null;
   qualityOverall: string | null;
   qualityPrimaryIssue: string | null;
@@ -116,10 +120,19 @@ type EvalRunQuestionSnapshot = {
   usedFallback: boolean | null;
 };
 
+type EvalQuestionAskResultView = {
+  traceId?: unknown;
+  conversationId?: unknown;
+  answerStatus?: unknown;
+  qualityEvaluation?: unknown;
+  answeringMetadata?: unknown;
+  citations?: unknown;
+};
+
 type EvalRunQuestionRegression = {
   index: number;
   question: string;
-  severity: "critical" | "high" | "medium";
+  severity: 'critical' | 'high' | 'medium';
   reasonCodes: EvalRunRegressionReasonCode[];
   baseline: EvalRunQuestionSnapshot;
   current: EvalRunQuestionSnapshot & {
@@ -139,7 +152,7 @@ type EvalQuestionSetDriftSummary = {
 type EvalRunItem = {
   index: number;
   question: string;
-  status: "succeeded" | "failed";
+  status: 'succeeded' | 'failed';
   traceId: string | null;
   conversationId: string | null;
   answerStatus: string | null;
@@ -183,7 +196,7 @@ type EvalQuestionSetRunResultPayload = {
   };
 };
 
-type EvalRunReportExportFormat = "markdown" | "json" | "html";
+type EvalRunReportExportFormat = 'markdown' | 'json' | 'html';
 
 type EvalRunReportExport = {
   format: EvalRunReportExportFormat;
@@ -192,28 +205,53 @@ type EvalRunReportExport = {
   content: string;
 };
 
-type EvalRunReportExports = Record<EvalRunReportExportFormat, EvalRunReportExport>;
+type EvalRunReportExports = Record<
+  EvalRunReportExportFormat,
+  EvalRunReportExport
+>;
 
 type EvalPinnedBaselineRunPayload = {
   summary: EvalRunSummary;
   items: EvalRunQuestionSnapshot[];
 };
 
-const P5_V1_DEMO_REPLAY_NAME = "p5-v1-demo-replay";
-const P5_V1_DEMO_REPLAY_ASSISTANT_ID = "default-assistant";
-const P5_V1_QUALITY_GATE_LIMIT_VERSION = "p5_v1_core_quality_gate_v1";
+const P5_V1_DEMO_REPLAY_NAME = 'p5-v1-demo-replay';
+const P5_V1_DEMO_REPLAY_ASSISTANT_ID = 'default-assistant';
+const P5_V1_QUALITY_GATE_LIMIT_VERSION = 'p5_v1_core_quality_gate_v1';
 const P5_V1_QUALITY_GATE_LIMITS: EvalRunQualityGateMetricLimit[] = [
-  { metric: "successRate", limitType: "min", limit: 0.8 },
-  { metric: "groundedRate", limitType: "min", limit: 0.75 },
-  { metric: "strongRate", limitType: "min", limit: 0.6 },
-  { metric: "fallbackRate", limitType: "max", limit: 0.35 },
-  { metric: "averageCitationCount", limitType: "min", limit: 0.8 }
+  { metric: 'successRate', limitType: 'min', limit: 0.8 },
+  { metric: 'groundedRate', limitType: 'min', limit: 0.75 },
+  { metric: 'strongRate', limitType: 'min', limit: 0.6 },
+  { metric: 'fallbackRate', limitType: 'max', limit: 0.35 },
+  { metric: 'averageCitationCount', limitType: 'min', limit: 0.8 }
 ];
-const P5_V1_DEMO_REPLAY_QUESTIONS = [
-  "Summarize one key capability of this knowledge base and cite evidence.",
-  "What source families are currently supported for external ingestion?",
-  "Ask a likely no-hit question and explain why the answer may be insufficient."
-];
+const P5_V1_AGENTIC_EVAL_BASELINE = {
+  description:
+    'Reusable agentic RAG baseline covering knowledge-base ask, deterministic policy ask, and explicit external-source ask.',
+  scenarios: [
+    {
+      id: 'knowledge-base-ask',
+      routeType: 'knowledge_base',
+      question:
+        'Summarize one key capability of this knowledge base and cite evidence.'
+    },
+    {
+      id: 'policy-ask',
+      routeType: 'policy_reply',
+      question:
+        'When should this system answer with a deterministic policy reply instead of searching the knowledge base?'
+    },
+    {
+      id: 'external-source-ask',
+      routeType: 'external_source',
+      question:
+        'Use https://example.com/agentic-eval-baseline as an external source and summarize the page.'
+    }
+  ]
+} as const;
+const P5_V1_DEMO_REPLAY_QUESTIONS = P5_V1_AGENTIC_EVAL_BASELINE.scenarios.map(
+  (scenario) => scenario.question
+);
 
 @Injectable()
 export class EvalQuestionSetsService {
@@ -222,7 +260,10 @@ export class EvalQuestionSetsService {
     private readonly askAssistantService: AskAssistantService
   ) {}
 
-  async createQuestionSet(input: CreateEvalQuestionSetInput, identity: AuthIdentity) {
+  async createQuestionSet(
+    input: CreateEvalQuestionSetInput,
+    identity: AuthIdentity
+  ) {
     await this.ensureTenant(identity.tenantId);
     await this.ensureOwner(identity.userId);
 
@@ -231,7 +272,9 @@ export class EvalQuestionSetsService {
         tenantId: identity.tenantId,
         ownerId: identity.userId,
         name: input.name,
-        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.description !== undefined
+          ? { description: input.description }
+          : {}),
         questionsJson: input.questions as Prisma.InputJsonValue
       }
     });
@@ -246,10 +289,7 @@ export class EvalQuestionSetsService {
         tenantId: identity.tenantId,
         ownerId: identity.userId
       },
-      orderBy: [
-        { updatedAt: "desc" },
-        { createdAt: "desc" }
-      ],
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         baselineSnapshot: {
           select: {
@@ -266,7 +306,7 @@ export class EvalQuestionSetsService {
       }
     });
 
-    return questionSets.map(questionSet => ({
+    return questionSets.map((questionSet) => ({
       id: questionSet.id,
       name: questionSet.name,
       description: questionSet.description,
@@ -276,7 +316,8 @@ export class EvalQuestionSetsService {
       baselineSnapshotId: questionSet.baselineSnapshotId,
       baselineChosenAt: questionSet.baselineChosenAt,
       baselineVersion: questionSet.baselineSnapshot?.version ?? null,
-      baselineSnapshotCreatedAt: questionSet.baselineSnapshot?.createdAt ?? null,
+      baselineSnapshotCreatedAt:
+        questionSet.baselineSnapshot?.createdAt ?? null,
       latestEvalRanAt: questionSet.latestEvalRanAt,
       snapshotCount: questionSet.snapshots.length,
       createdAt: questionSet.createdAt,
@@ -287,19 +328,17 @@ export class EvalQuestionSetsService {
   async listBaselineSnapshots(id: string, identity: AuthIdentity) {
     await this.getOwnedQuestionSet(id, identity);
 
-    const snapshots = await this.prisma.evalQuestionSetBaselineSnapshot.findMany({
-      where: {
-        questionSetId: id,
-        tenantId: identity.tenantId,
-        ownerId: identity.userId
-      },
-      orderBy: [
-        { version: "desc" },
-        { createdAt: "desc" }
-      ]
-    });
+    const snapshots =
+      await this.prisma.evalQuestionSetBaselineSnapshot.findMany({
+        where: {
+          questionSetId: id,
+          tenantId: identity.tenantId,
+          ownerId: identity.userId
+        },
+        orderBy: [{ version: 'desc' }, { createdAt: 'desc' }]
+      });
 
-    return snapshots.map(snapshot => ({
+    return snapshots.map((snapshot) => ({
       id: snapshot.id,
       questionSetId: snapshot.questionSetId,
       version: snapshot.version,
@@ -310,12 +349,18 @@ export class EvalQuestionSetsService {
     }));
   }
 
-  async updateQuestionSet(id: string, input: UpdateEvalQuestionSetInput, identity: AuthIdentity) {
+  async updateQuestionSet(
+    id: string,
+    input: UpdateEvalQuestionSetInput,
+    identity: AuthIdentity
+  ) {
     const questionSet = await this.getOwnedQuestionSet(id, identity);
     this.assertEditable(questionSet.status, id);
 
     const hasEditableInput =
-      input.name !== undefined || input.description !== undefined || input.questions !== undefined;
+      input.name !== undefined ||
+      input.description !== undefined ||
+      input.questions !== undefined;
 
     if (!hasEditableInput) {
       return questionSet;
@@ -346,14 +391,15 @@ export class EvalQuestionSetsService {
     const questionSet = await this.getOwnedQuestionSet(id, identity);
     this.assertNotArchived(questionSet.status, id);
 
-    const existingSnapshot = await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
-      where: {
-        questionSetId: id,
-        tenantId: identity.tenantId,
-        ownerId: identity.userId,
-        version: questionSet.currentVersion
-      }
-    });
+    const existingSnapshot =
+      await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
+        where: {
+          questionSetId: id,
+          tenantId: identity.tenantId,
+          ownerId: identity.userId,
+          version: questionSet.currentVersion
+        }
+      });
 
     if (existingSnapshot) {
       return existingSnapshot;
@@ -372,21 +418,28 @@ export class EvalQuestionSetsService {
     });
   }
 
-  async chooseBaselineSnapshot(id: string, input: ChooseEvalQuestionSetBaselineInput, identity: AuthIdentity) {
+  async chooseBaselineSnapshot(
+    id: string,
+    input: ChooseEvalQuestionSetBaselineInput,
+    identity: AuthIdentity
+  ) {
     const questionSet = await this.getOwnedQuestionSet(id, identity);
     this.assertNotArchived(questionSet.status, id);
 
-    const snapshot = await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
-      where: {
-        id: input.snapshotId,
-        questionSetId: id,
-        tenantId: identity.tenantId,
-        ownerId: identity.userId
-      }
-    });
+    const snapshot =
+      await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
+        where: {
+          id: input.snapshotId,
+          questionSetId: id,
+          tenantId: identity.tenantId,
+          ownerId: identity.userId
+        }
+      });
 
     if (!snapshot) {
-      throw new NotFoundException(`Eval question set baseline snapshot ${input.snapshotId} not found.`);
+      throw new NotFoundException(
+        `Eval question set baseline snapshot ${input.snapshotId} not found.`
+      );
     }
 
     return this.prisma.evalQuestionSet.update({
@@ -412,28 +465,38 @@ export class EvalQuestionSetsService {
       };
     }
 
-    const snapshot = await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
-      where: {
-        id: questionSet.baselineSnapshotId,
-        questionSetId: id,
-        tenantId: identity.tenantId,
-        ownerId: identity.userId
-      }
-    });
+    const snapshot =
+      await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
+        where: {
+          id: questionSet.baselineSnapshotId,
+          questionSetId: id,
+          tenantId: identity.tenantId,
+          ownerId: identity.userId
+        }
+      });
 
     if (!snapshot) {
-      throw new NotFoundException(`Eval question set baseline snapshot ${questionSet.baselineSnapshotId} not found.`);
+      throw new NotFoundException(
+        `Eval question set baseline snapshot ${questionSet.baselineSnapshotId} not found.`
+      );
     }
 
     const currentQuestions = this.readQuestions(questionSet.questionsJson);
     const baselineQuestions = this.readQuestions(snapshot.questionsJson);
-    const questionSetDrift = this.buildQuestionSetDrift(currentQuestions, baselineQuestions);
+    const questionSetDrift = this.buildQuestionSetDrift(
+      currentQuestions,
+      baselineQuestions
+    );
 
     const nameChanged = questionSet.name !== snapshot.name;
     const descriptionChanged = questionSet.description !== snapshot.description;
     const questionsChanged = questionSetDrift.hasDrift;
-    const latestEvalSummary = this.readEvalRunSummary(questionSet.latestEvalResultSummaryJson);
-    const pinnedBaselineEvalSummary = this.readEvalRunSummary(questionSet.pinnedBaselineResultJson);
+    const latestEvalSummary = this.readEvalRunSummary(
+      questionSet.latestEvalResultSummaryJson
+    );
+    const pinnedBaselineEvalSummary = this.readEvalRunSummary(
+      questionSet.pinnedBaselineResultJson
+    );
     const baselineComparison =
       latestEvalSummary && pinnedBaselineEvalSummary
         ? this.buildRunComparison(latestEvalSummary, pinnedBaselineEvalSummary)
@@ -465,57 +528,73 @@ export class EvalQuestionSetsService {
     };
   }
 
-  async runQuestionSet(id: string, input: RunEvalQuestionSetInput, identity: AuthIdentity) {
+  async runQuestionSet(
+    id: string,
+    input: RunEvalQuestionSetInput,
+    identity: AuthIdentity
+  ) {
     const questionSet = await this.getOwnedQuestionSet(id, identity);
-    const baselineSnapshotId = input.baselineSnapshotId ?? questionSet.baselineSnapshotId;
-    const qualityGateMode: EvalRunQualityGateMode = input.qualityGateMode ?? "warn";
+    const baselineSnapshotId =
+      input.baselineSnapshotId ?? questionSet.baselineSnapshotId;
+    const qualityGateMode: EvalRunQualityGateMode =
+      input.qualityGateMode ?? 'warn';
     if (!baselineSnapshotId) {
-      throw new ConflictException(`Eval question set ${id} has no selected baseline snapshot.`);
+      throw new ConflictException(
+        `Eval question set ${id} has no selected baseline snapshot.`
+      );
     }
 
-    const snapshot = await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
-      where: {
-        id: baselineSnapshotId,
-        questionSetId: id,
-        tenantId: identity.tenantId,
-        ownerId: identity.userId
-      }
-    });
+    const snapshot =
+      await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
+        where: {
+          id: baselineSnapshotId,
+          questionSetId: id,
+          tenantId: identity.tenantId,
+          ownerId: identity.userId
+        }
+      });
 
     if (!snapshot) {
-      throw new NotFoundException(`Eval question set baseline snapshot ${baselineSnapshotId} not found.`);
+      throw new NotFoundException(
+        `Eval question set baseline snapshot ${baselineSnapshotId} not found.`
+      );
     }
 
     const questions = this.readQuestions(snapshot.questionsJson);
     const currentQuestions = this.readQuestions(questionSet.questionsJson);
-    const questionSetDrift = this.buildQuestionSetDrift(currentQuestions, questions);
+    const questionSetDrift = this.buildQuestionSetDrift(
+      currentQuestions,
+      questions
+    );
     const comparisonMeaningful = !questionSetDrift.hasDrift;
     const startedAt = new Date();
     const items: EvalRunItem[] = [];
 
     for (const [index, question] of questions.entries()) {
       try {
-        const result = await this.askAssistantService.askAssistant({
+        const result = (await this.askAssistantService.askAssistant({
           assistantId: input.assistantId,
           question,
           authContext: {
             identity,
             currentIdentity: identity
           }
-        });
+        })) as EvalQuestionAskResultView;
         const qualityEvaluation = this.readObject(result.qualityEvaluation);
         const answeringMetadata = this.readObject(result.answeringMetadata);
 
         items.push({
           index: index + 1,
           question,
-          status: "succeeded",
+          status: 'succeeded',
           traceId: this.readString(result.traceId),
           conversationId: this.readString(result.conversationId),
           answerStatus: this.readString(result.answerStatus),
           qualityOverall: this.readString(qualityEvaluation?.overall),
           qualityPrimaryIssue: this.readString(qualityEvaluation?.primaryIssue),
-          citationCount: Array.isArray(result.citations) ? result.citations.length : 0,
+          citationCount: Array.isArray(result.citations)
+            ? result.citations.length
+            : 0,
           usedFallback: this.readBoolean(answeringMetadata?.usedFallback),
           error: null
         });
@@ -523,7 +602,7 @@ export class EvalQuestionSetsService {
         items.push({
           index: index + 1,
           question,
-          status: "failed",
+          status: 'failed',
           traceId: this.readRunErrorTraceId(error),
           conversationId: null,
           answerStatus: null,
@@ -540,16 +619,28 @@ export class EvalQuestionSetsService {
     }
 
     const finishedAt = new Date();
-    const succeededCount = items.filter(item => item.status === "succeeded").length;
+    const succeededCount = items.filter(
+      (item) => item.status === 'succeeded'
+    ).length;
     const runSummary = this.buildRunSummary(items);
     const qualityGate = this.evaluateQualityGate(runSummary, qualityGateMode);
-    const pinnedBaselineSummary = this.readEvalRunSummary(questionSet.pinnedBaselineResultJson);
-    const pinnedBaselineItems = this.readPinnedBaselineRunItems(questionSet.pinnedBaselineResultJson);
-    const shouldCapturePinnedBaseline = snapshot.id === questionSet.baselineSnapshotId && pinnedBaselineSummary == null;
+    const pinnedBaselineSummary = this.readEvalRunSummary(
+      questionSet.pinnedBaselineResultJson
+    );
+    const pinnedBaselineItems = this.readPinnedBaselineRunItems(
+      questionSet.pinnedBaselineResultJson
+    );
+    const shouldCapturePinnedBaseline =
+      snapshot.id === questionSet.baselineSnapshotId &&
+      pinnedBaselineSummary == null;
     const baselineComparison =
-      pinnedBaselineSummary && comparisonMeaningful ? this.buildRunComparison(runSummary, pinnedBaselineSummary) : null;
+      pinnedBaselineSummary && comparisonMeaningful
+        ? this.buildRunComparison(runSummary, pinnedBaselineSummary)
+        : null;
     const failureDrilldown =
-      pinnedBaselineItems && comparisonMeaningful ? this.buildFailureDrilldown(items, pinnedBaselineItems) : null;
+      pinnedBaselineItems && comparisonMeaningful
+        ? this.buildFailureDrilldown(items, pinnedBaselineItems)
+        : null;
     const diffSummary = baselineComparison
       ? this.buildRunDiffSummary(baselineComparison.metrics, failureDrilldown)
       : null;
@@ -603,10 +694,10 @@ export class EvalQuestionSetsService {
       reportExports: this.buildRunReportExports(runResult)
     };
 
-    if (qualityGate.status === "failed") {
+    if (qualityGate.status === 'failed') {
       throw new ConflictException({
-        message: "Eval quality gate failed.",
-        code: "EVAL_QUALITY_GATE_FAILED",
+        message: 'Eval quality gate failed.',
+        code: 'EVAL_QUALITY_GATE_FAILED',
         qualityGate,
         runResult: runResponse
       });
@@ -639,10 +730,10 @@ export class EvalQuestionSetsService {
 
     return {
       replayEntry: {
-        id: "p5-v1",
+        id: 'p5-v1',
         name: P5_V1_DEMO_REPLAY_NAME,
         assistantId: P5_V1_DEMO_REPLAY_ASSISTANT_ID,
-        questionCount: P5_V1_DEMO_REPLAY_QUESTIONS.length
+        questionCount: P5_V1_AGENTIC_EVAL_BASELINE.scenarios.length
       },
       ...runResult
     };
@@ -651,18 +742,20 @@ export class EvalQuestionSetsService {
   async lockQuestionSet(id: string, identity: AuthIdentity) {
     const questionSet = await this.getOwnedQuestionSet(id, identity);
 
-    if (questionSet.status === "archived") {
-      throw new ConflictException(`Eval question set ${id} is archived and cannot be locked.`);
+    if (questionSet.status === 'archived') {
+      throw new ConflictException(
+        `Eval question set ${id} is archived and cannot be locked.`
+      );
     }
 
-    if (questionSet.status === "locked") {
+    if (questionSet.status === 'locked') {
       return questionSet;
     }
 
     return this.prisma.evalQuestionSet.update({
       where: { id },
       data: {
-        status: "locked",
+        status: 'locked',
         lockedAt: new Date()
       }
     });
@@ -671,14 +764,14 @@ export class EvalQuestionSetsService {
   async archiveQuestionSet(id: string, identity: AuthIdentity) {
     const questionSet = await this.getOwnedQuestionSet(id, identity);
 
-    if (questionSet.status === "archived") {
+    if (questionSet.status === 'archived') {
       return questionSet;
     }
 
     return this.prisma.evalQuestionSet.update({
       where: { id },
       data: {
-        status: "archived",
+        status: 'archived',
         archivedAt: new Date()
       }
     });
@@ -713,7 +806,7 @@ export class EvalQuestionSetsService {
       return this.createQuestionSet(
         {
           name: P5_V1_DEMO_REPLAY_NAME,
-          description: "Fixed P5 v1 demo replay scenario for stable end-to-end demonstration.",
+          description: P5_V1_AGENTIC_EVAL_BASELINE.description,
           questions: P5_V1_DEMO_REPLAY_QUESTIONS
         },
         identity
@@ -725,12 +818,12 @@ export class EvalQuestionSetsService {
         id: existing.id
       },
       data: {
-        description: "Fixed P5 v1 demo replay scenario for stable end-to-end demonstration.",
+        description: P5_V1_AGENTIC_EVAL_BASELINE.description,
         questionsJson: P5_V1_DEMO_REPLAY_QUESTIONS as Prisma.InputJsonValue,
         currentVersion: {
           increment: 1
         },
-        status: "draft"
+        status: 'draft'
       }
     });
   }
@@ -754,18 +847,24 @@ export class EvalQuestionSetsService {
   }
 
   private assertEditable(status: EvalQuestionSetStatus, id: string) {
-    if (status === "locked") {
-      throw new ConflictException(`Eval question set ${id} is locked and cannot be edited.`);
+    if (status === 'locked') {
+      throw new ConflictException(
+        `Eval question set ${id} is locked and cannot be edited.`
+      );
     }
 
-    if (status === "archived") {
-      throw new ConflictException(`Eval question set ${id} is archived and cannot be edited.`);
+    if (status === 'archived') {
+      throw new ConflictException(
+        `Eval question set ${id} is archived and cannot be edited.`
+      );
     }
   }
 
   private assertNotArchived(status: EvalQuestionSetStatus, id: string) {
-    if (status === "archived") {
-      throw new ConflictException(`Eval question set ${id} is archived and cannot be changed.`);
+    if (status === 'archived') {
+      throw new ConflictException(
+        `Eval question set ${id} is archived and cannot be changed.`
+      );
     }
   }
 
@@ -774,23 +873,29 @@ export class EvalQuestionSetsService {
       return [];
     }
 
-    return input.filter(question => typeof question === "string");
+    return input.filter((question) => typeof question === 'string');
   }
 
   private readObject(value: unknown): Record<string, unknown> | null {
-    return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+    return typeof value === 'object' && value !== null
+      ? (value as Record<string, unknown>)
+      : null;
   }
 
   private readString(value: unknown): string | null {
-    return typeof value === "string" ? value : null;
+    return typeof value === 'string' ? value : null;
   }
 
   private readBoolean(value: unknown): boolean | null {
-    return typeof value === "boolean" ? value : null;
+    return typeof value === 'boolean' ? value : null;
   }
 
   private readRunErrorResponse(error: unknown): Record<string, unknown> | null {
-    if (!(error instanceof Error) || !("getResponse" in error) || typeof error.getResponse !== "function") {
+    if (
+      !(error instanceof Error) ||
+      !('getResponse' in error) ||
+      typeof error.getResponse !== 'function'
+    ) {
       return null;
     }
 
@@ -802,18 +907,20 @@ export class EvalQuestionSetsService {
     const response = this.readRunErrorResponse(error);
     if (response) {
       const rawMessage = response.message;
-      if (typeof rawMessage === "string") {
+      if (typeof rawMessage === 'string') {
         return rawMessage;
       }
       if (Array.isArray(rawMessage)) {
-        const firstStringMessage = rawMessage.find(item => typeof item === "string");
-        if (typeof firstStringMessage === "string") {
+        const firstStringMessage = rawMessage.find(
+          (item) => typeof item === 'string'
+        );
+        if (typeof firstStringMessage === 'string') {
           return firstStringMessage;
         }
       }
     }
 
-    return error instanceof Error ? error.message : "Unknown eval run failure.";
+    return error instanceof Error ? error.message : 'Unknown eval run failure.';
   }
 
   private readRunErrorCode(error: unknown): string | null {
@@ -828,7 +935,7 @@ export class EvalQuestionSetsService {
 
   private buildRunSummary(
     items: Array<{
-      status: "succeeded" | "failed";
+      status: 'succeeded' | 'failed';
       answerStatus: string | null;
       qualityOverall: string | null;
       citationCount: number;
@@ -836,12 +943,23 @@ export class EvalQuestionSetsService {
     }>
   ): EvalRunSummary {
     const total = items.length;
-    const succeeded = items.filter(item => item.status === "succeeded").length;
+    const succeeded = items.filter(
+      (item) => item.status === 'succeeded'
+    ).length;
     const failed = total - succeeded;
-    const grounded = items.filter(item => item.answerStatus === "grounded").length;
-    const strong = items.filter(item => item.qualityOverall === "strong").length;
-    const fallbackUsed = items.filter(item => item.usedFallback === true).length;
-    const totalCitationCount = items.reduce((acc, item) => acc + item.citationCount, 0);
+    const grounded = items.filter(
+      (item) => item.answerStatus === 'grounded'
+    ).length;
+    const strong = items.filter(
+      (item) => item.qualityOverall === 'strong'
+    ).length;
+    const fallbackUsed = items.filter(
+      (item) => item.usedFallback === true
+    ).length;
+    const totalCitationCount = items.reduce(
+      (acc, item) => acc + item.citationCount,
+      0
+    );
 
     return {
       total,
@@ -851,25 +969,31 @@ export class EvalQuestionSetsService {
       groundedRate: this.toRate(grounded, total),
       strongRate: this.toRate(strong, total),
       fallbackRate: this.toRate(fallbackUsed, total),
-      averageCitationCount: this.roundMetric(total > 0 ? totalCitationCount / total : 0)
+      averageCitationCount: this.roundMetric(
+        total > 0 ? totalCitationCount / total : 0
+      )
     };
   }
 
-  private evaluateQualityGate(summary: EvalRunSummary, mode: EvalRunQualityGateMode): EvalRunQualityGate {
-    const thresholds: EvalRunQualityGateThreshold[] = P5_V1_QUALITY_GATE_LIMITS.map(limit => ({
-      metric: limit.metric,
-      limitType: limit.limitType,
-      limit: limit.limit
-    }));
+  private evaluateQualityGate(
+    summary: EvalRunSummary,
+    mode: EvalRunQualityGateMode
+  ): EvalRunQualityGate {
+    const thresholds: EvalRunQualityGateThreshold[] =
+      P5_V1_QUALITY_GATE_LIMITS.map((limit) => ({
+        metric: limit.metric,
+        limitType: limit.limitType,
+        limit: limit.limit
+      }));
     const breachedMetrics: EvalRunQualityGateBreach[] = [];
 
     for (const limit of P5_V1_QUALITY_GATE_LIMITS) {
       const current = summary[limit.metric];
-      if (limit.limitType === "min") {
+      if (limit.limitType === 'min') {
         if (current < limit.limit) {
           breachedMetrics.push({
             metric: limit.metric,
-            limitType: "min",
+            limitType: 'min',
             limit: limit.limit,
             current,
             delta: this.roundMetric(current - limit.limit)
@@ -881,7 +1005,7 @@ export class EvalQuestionSetsService {
       if (current > limit.limit) {
         breachedMetrics.push({
           metric: limit.metric,
-          limitType: "max",
+          limitType: 'max',
           limit: limit.limit,
           current,
           delta: this.roundMetric(current - limit.limit)
@@ -892,18 +1016,18 @@ export class EvalQuestionSetsService {
     if (breachedMetrics.length === 0) {
       return {
         mode,
-        status: "passed",
+        status: 'passed',
         limitVersion: P5_V1_QUALITY_GATE_LIMIT_VERSION,
         thresholds,
         breachedMetricCount: 0,
         breachedMetrics,
-        message: "All core quality metrics are within P5 v1 limits."
+        message: 'All core quality metrics are within P5 v1 limits.'
       };
     }
 
     return {
       mode,
-      status: mode === "fail" ? "failed" : "warning",
+      status: mode === 'fail' ? 'failed' : 'warning',
       limitVersion: P5_V1_QUALITY_GATE_LIMIT_VERSION,
       thresholds,
       breachedMetricCount: breachedMetrics.length,
@@ -912,55 +1036,60 @@ export class EvalQuestionSetsService {
     };
   }
 
-  private buildRunComparison(current: EvalRunSummary, baseline: EvalRunSummary) {
+  private buildRunComparison(
+    current: EvalRunSummary,
+    baseline: EvalRunSummary
+  ) {
     const metrics: EvalRunComparisonMetric[] = [
       {
-        metric: "succeeded",
+        metric: 'succeeded',
         current: current.succeeded,
         baseline: baseline.succeeded,
         delta: current.succeeded - baseline.succeeded
       },
       {
-        metric: "failed",
+        metric: 'failed',
         current: current.failed,
         baseline: baseline.failed,
         delta: current.failed - baseline.failed
       },
       {
-        metric: "successRate",
+        metric: 'successRate',
         current: current.successRate,
         baseline: baseline.successRate,
         delta: this.roundMetric(current.successRate - baseline.successRate)
       },
       {
-        metric: "groundedRate",
+        metric: 'groundedRate',
         current: current.groundedRate,
         baseline: baseline.groundedRate,
         delta: this.roundMetric(current.groundedRate - baseline.groundedRate)
       },
       {
-        metric: "strongRate",
+        metric: 'strongRate',
         current: current.strongRate,
         baseline: baseline.strongRate,
         delta: this.roundMetric(current.strongRate - baseline.strongRate)
       },
       {
-        metric: "fallbackRate",
+        metric: 'fallbackRate',
         current: current.fallbackRate,
         baseline: baseline.fallbackRate,
         delta: this.roundMetric(current.fallbackRate - baseline.fallbackRate)
       },
       {
-        metric: "averageCitationCount",
+        metric: 'averageCitationCount',
         current: current.averageCitationCount,
         baseline: baseline.averageCitationCount,
-        delta: this.roundMetric(current.averageCitationCount - baseline.averageCitationCount)
+        delta: this.roundMetric(
+          current.averageCitationCount - baseline.averageCitationCount
+        )
       }
     ];
 
     return {
       metrics,
-      meaningfulDeltas: metrics.filter(metric => metric.delta !== 0)
+      meaningfulDeltas: metrics.filter((metric) => metric.delta !== 0)
     };
   }
 
@@ -979,7 +1108,9 @@ export class EvalQuestionSetsService {
     const groundedRate = this.readNumber(rawSummary.groundedRate);
     const strongRate = this.readNumber(rawSummary.strongRate);
     const fallbackRate = this.readNumber(rawSummary.fallbackRate);
-    const averageCitationCount = this.readNumber(rawSummary.averageCitationCount);
+    const averageCitationCount = this.readNumber(
+      rawSummary.averageCitationCount
+    );
 
     if (
       total == null ||
@@ -1006,12 +1137,16 @@ export class EvalQuestionSetsService {
     };
   }
 
-  private readPinnedBaselineRunItems(value: Prisma.JsonValue): EvalRunQuestionSnapshot[] | null {
+  private readPinnedBaselineRunItems(
+    value: Prisma.JsonValue
+  ): EvalRunQuestionSnapshot[] | null {
     const payload = this.readPinnedBaselineRunPayload(value);
     return payload ? payload.items : null;
   }
 
-  private readPinnedBaselineRunPayload(value: Prisma.JsonValue): EvalPinnedBaselineRunPayload | null {
+  private readPinnedBaselineRunPayload(
+    value: Prisma.JsonValue
+  ): EvalPinnedBaselineRunPayload | null {
     const raw = this.readObject(value);
     if (!raw) {
       return null;
@@ -1024,7 +1159,7 @@ export class EvalQuestionSetsService {
     }
 
     const items = rawItems
-      .map(item => this.readPinnedBaselineRunItem(item))
+      .map((item) => this.readPinnedBaselineRunItem(item))
       .filter((item): item is EvalRunQuestionSnapshot => item != null);
 
     if (items.length === 0) {
@@ -1037,7 +1172,9 @@ export class EvalQuestionSetsService {
     };
   }
 
-  private readPinnedBaselineRunItem(value: unknown): EvalRunQuestionSnapshot | null {
+  private readPinnedBaselineRunItem(
+    value: unknown
+  ): EvalRunQuestionSnapshot | null {
     const raw = this.readObject(value);
     if (!raw) {
       return null;
@@ -1060,8 +1197,10 @@ export class EvalQuestionSetsService {
     };
   }
 
-  private toPinnedBaselineRunItems(items: EvalRunItem[]): EvalRunQuestionSnapshot[] {
-    return items.map(item => ({
+  private toPinnedBaselineRunItems(
+    items: EvalRunItem[]
+  ): EvalRunQuestionSnapshot[] {
+    return items.map((item) => ({
       status: item.status,
       answerStatus: item.answerStatus,
       qualityOverall: item.qualityOverall,
@@ -1074,13 +1213,17 @@ export class EvalQuestionSetsService {
   private buildFailureDrilldown(
     currentItems: EvalRunItem[],
     baselineItems: EvalRunQuestionSnapshot[]
-  ): EvalQuestionSetRunResultPayload["baselineComparison"]["failureDrilldown"] | null {
+  ):
+    | EvalQuestionSetRunResultPayload['baselineComparison']['failureDrilldown']
+    | null {
     if (currentItems.length !== baselineItems.length) {
       return null;
     }
 
     const regressedItems = currentItems
-      .map((currentItem, index) => this.buildQuestionRegression(currentItem, baselineItems[index]))
+      .map((currentItem, index) =>
+        this.buildQuestionRegression(currentItem, baselineItems[index])
+      )
       .filter((item): item is EvalRunQuestionRegression => item != null)
       .sort((left, right) => {
         const severityWeight = {
@@ -1089,7 +1232,8 @@ export class EvalQuestionSetsService {
           medium: 2
         } as const;
 
-        const severityDelta = severityWeight[left.severity] - severityWeight[right.severity];
+        const severityDelta =
+          severityWeight[left.severity] - severityWeight[right.severity];
         if (severityDelta !== 0) {
           return severityDelta;
         }
@@ -1104,13 +1248,22 @@ export class EvalQuestionSetsService {
 
   private buildRunDiffSummary(
     metrics: EvalRunComparisonMetric[],
-    failureDrilldown: EvalQuestionSetRunResultPayload["baselineComparison"]["failureDrilldown"] | null
+    failureDrilldown:
+      | EvalQuestionSetRunResultPayload['baselineComparison']['failureDrilldown']
+      | null
   ): EvalRunDiffSummary {
-    const regressedMetrics = metrics.filter(metric => this.readMetricDiffDirection(metric) === "regressed");
-    const improvedMetrics = metrics.filter(metric => this.readMetricDiffDirection(metric) === "improved");
-    const unchangedMetricCount = metrics.length - regressedMetrics.length - improvedMetrics.length;
-    const regressedQuestionCount = failureDrilldown?.regressedQuestionCount ?? 0;
-    const topRegressionReasons = this.summarizeRegressionReasons(failureDrilldown);
+    const regressedMetrics = metrics.filter(
+      (metric) => this.readMetricDiffDirection(metric) === 'regressed'
+    );
+    const improvedMetrics = metrics.filter(
+      (metric) => this.readMetricDiffDirection(metric) === 'improved'
+    );
+    const unchangedMetricCount =
+      metrics.length - regressedMetrics.length - improvedMetrics.length;
+    const regressedQuestionCount =
+      failureDrilldown?.regressedQuestionCount ?? 0;
+    const topRegressionReasons =
+      this.summarizeRegressionReasons(failureDrilldown);
 
     return {
       headline: this.buildRunDiffHeadline({
@@ -1130,7 +1283,9 @@ export class EvalQuestionSetsService {
   }
 
   private summarizeRegressionReasons(
-    failureDrilldown: EvalQuestionSetRunResultPayload["baselineComparison"]["failureDrilldown"] | null
+    failureDrilldown:
+      | EvalQuestionSetRunResultPayload['baselineComparison']['failureDrilldown']
+      | null
   ): EvalRunDiffReasonCount[] {
     if (!failureDrilldown) {
       return [];
@@ -1165,26 +1320,28 @@ export class EvalQuestionSetsService {
       `improved: ${input.improvedMetricCount}`,
       `unchanged: ${input.unchangedMetricCount}`,
       `regressed questions: ${input.regressedQuestionCount}`
-    ].join("; ");
+    ].join('; ');
   }
 
-  private readMetricDiffDirection(metric: EvalRunComparisonMetric): EvalRunDiffMetricDirection | null {
+  private readMetricDiffDirection(
+    metric: EvalRunComparisonMetric
+  ): EvalRunDiffMetricDirection | null {
     if (metric.delta === 0) {
       return null;
     }
 
     const higherIsBetter =
-      metric.metric === "succeeded" ||
-      metric.metric === "successRate" ||
-      metric.metric === "groundedRate" ||
-      metric.metric === "strongRate" ||
-      metric.metric === "averageCitationCount";
+      metric.metric === 'succeeded' ||
+      metric.metric === 'successRate' ||
+      metric.metric === 'groundedRate' ||
+      metric.metric === 'strongRate' ||
+      metric.metric === 'averageCitationCount';
 
     if (higherIsBetter) {
-      return metric.delta < 0 ? "regressed" : "improved";
+      return metric.delta < 0 ? 'regressed' : 'improved';
     }
 
-    return metric.delta > 0 ? "regressed" : "improved";
+    return metric.delta > 0 ? 'regressed' : 'improved';
   }
 
   private buildQuestionRegression(
@@ -1193,35 +1350,41 @@ export class EvalQuestionSetsService {
   ): EvalRunQuestionRegression | null {
     const reasonCodes: EvalRunRegressionReasonCode[] = [];
 
-    if (baseline.status === "succeeded" && current.status === "failed") {
-      reasonCodes.push("became_failed");
+    if (baseline.status === 'succeeded' && current.status === 'failed') {
+      reasonCodes.push('became_failed');
     }
 
-    if (baseline.answerStatus === "grounded" && current.answerStatus === "insufficient_context") {
-      reasonCodes.push("became_insufficient_context");
+    if (
+      baseline.answerStatus === 'grounded' &&
+      current.answerStatus === 'insufficient_context'
+    ) {
+      reasonCodes.push('became_insufficient_context');
     }
 
-    if (this.isQualityDegraded(baseline.qualityOverall, current.qualityOverall)) {
-      reasonCodes.push("quality_degraded");
+    if (
+      this.isQualityDegraded(baseline.qualityOverall, current.qualityOverall)
+    ) {
+      reasonCodes.push('quality_degraded');
     }
 
     if (baseline.usedFallback === false && current.usedFallback === true) {
-      reasonCodes.push("fallback_introduced");
+      reasonCodes.push('fallback_introduced');
     }
 
     if (current.citationCount < baseline.citationCount) {
-      reasonCodes.push("citations_decreased");
+      reasonCodes.push('citations_decreased');
     }
 
     if (reasonCodes.length === 0) {
       return null;
     }
 
-    const severity = reasonCodes.includes("became_failed")
-      ? "critical"
-      : reasonCodes.includes("became_insufficient_context") || reasonCodes.includes("quality_degraded")
-        ? "high"
-        : "medium";
+    const severity = reasonCodes.includes('became_failed')
+      ? 'critical'
+      : reasonCodes.includes('became_insufficient_context') ||
+          reasonCodes.includes('quality_degraded')
+        ? 'high'
+        : 'medium';
 
     return {
       index: current.index,
@@ -1241,15 +1404,22 @@ export class EvalQuestionSetsService {
     };
   }
 
-  private isQualityDegraded(baseline: string | null, current: string | null): boolean {
+  private isQualityDegraded(
+    baseline: string | null,
+    current: string | null
+  ): boolean {
     const qualityRank = {
       strong: 3,
       partial: 2,
       weak: 1
     } as const;
 
-    const baselineRank = baseline ? qualityRank[baseline as keyof typeof qualityRank] : undefined;
-    const currentRank = current ? qualityRank[current as keyof typeof qualityRank] : undefined;
+    const baselineRank = baseline
+      ? qualityRank[baseline as keyof typeof qualityRank]
+      : undefined;
+    const currentRank = current
+      ? qualityRank[current as keyof typeof qualityRank]
+      : undefined;
 
     if (baselineRank == null || currentRank == null) {
       return false;
@@ -1259,11 +1429,11 @@ export class EvalQuestionSetsService {
   }
 
   private readNumber(value: unknown): number | null {
-    return typeof value === "number" && Number.isFinite(value) ? value : null;
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
   }
 
-  private readRunItemStatus(value: unknown): EvalRunItem["status"] | null {
-    if (value === "succeeded" || value === "failed") {
+  private readRunItemStatus(value: unknown): EvalRunItem['status'] | null {
+    if (value === 'succeeded' || value === 'failed') {
       return value;
     }
     return null;
@@ -1280,12 +1450,21 @@ export class EvalQuestionSetsService {
     return Math.round(value * 1000) / 1000;
   }
 
-  private buildQuestionSetDrift(currentQuestions: string[], baselineQuestions: string[]): EvalQuestionSetDriftSummary {
+  private buildQuestionSetDrift(
+    currentQuestions: string[],
+    baselineQuestions: string[]
+  ): EvalQuestionSetDriftSummary {
     const currentQuestionSet = new Set(currentQuestions);
     const baselineQuestionSet = new Set(baselineQuestions);
-    const addedQuestionCount = currentQuestions.filter(question => !baselineQuestionSet.has(question)).length;
-    const removedQuestionCount = baselineQuestions.filter(question => !currentQuestionSet.has(question)).length;
-    const unchangedQuestionCount = baselineQuestions.filter(question => currentQuestionSet.has(question)).length;
+    const addedQuestionCount = currentQuestions.filter(
+      (question) => !baselineQuestionSet.has(question)
+    ).length;
+    const removedQuestionCount = baselineQuestions.filter(
+      (question) => !currentQuestionSet.has(question)
+    ).length;
+    const unchangedQuestionCount = baselineQuestions.filter((question) =>
+      currentQuestionSet.has(question)
+    ).length;
 
     return {
       hasDrift: addedQuestionCount > 0 || removedQuestionCount > 0,
@@ -1297,9 +1476,11 @@ export class EvalQuestionSetsService {
     };
   }
 
-  private buildRunReportExports(runResult: EvalQuestionSetRunResultPayload): EvalRunReportExports {
+  private buildRunReportExports(
+    runResult: EvalQuestionSetRunResultPayload
+  ): EvalRunReportExports {
     const reportPayload = {
-      schemaVersion: "p5_v1_report_export_v1",
+      schemaVersion: 'p5_v1_report_export_v1',
       exportedAt: runResult.finishedAt.toISOString(),
       questionSetId: runResult.questionSetId,
       baselineSnapshotId: runResult.baselineSnapshotId,
@@ -1314,33 +1495,39 @@ export class EvalQuestionSetsService {
       items: runResult.items
     };
 
-    const fileNameBase = this.buildReportFileNameBase(runResult.questionSetId, runResult.finishedAt);
+    const fileNameBase = this.buildReportFileNameBase(
+      runResult.questionSetId,
+      runResult.finishedAt
+    );
 
     return {
       markdown: {
-        format: "markdown",
+        format: 'markdown',
         fileName: `${fileNameBase}.md`,
-        mimeType: "text/markdown; charset=utf-8",
+        mimeType: 'text/markdown; charset=utf-8',
         content: this.renderMarkdownReport(reportPayload)
       },
       json: {
-        format: "json",
+        format: 'json',
         fileName: `${fileNameBase}.json`,
-        mimeType: "application/json; charset=utf-8",
+        mimeType: 'application/json; charset=utf-8',
         content: JSON.stringify(reportPayload, null, 2)
       },
       html: {
-        format: "html",
+        format: 'html',
         fileName: `${fileNameBase}.html`,
-        mimeType: "text/html; charset=utf-8",
+        mimeType: 'text/html; charset=utf-8',
         content: this.renderHtmlReport(reportPayload)
       }
     };
   }
 
-  private buildReportFileNameBase(questionSetId: string, finishedAt: Date): string {
-    const safeQuestionSetId = questionSetId.replace(/[^a-zA-Z0-9-_]/g, "-");
-    const timestamp = finishedAt.toISOString().replace(/[:.]/g, "-");
+  private buildReportFileNameBase(
+    questionSetId: string,
+    finishedAt: Date
+  ): string {
+    const safeQuestionSetId = questionSetId.replace(/[^a-zA-Z0-9-_]/g, '-');
+    const timestamp = finishedAt.toISOString().replace(/[:.]/g, '-');
     return `p5-v1-report-${safeQuestionSetId}-${timestamp}`;
   }
 
@@ -1360,13 +1547,13 @@ export class EvalQuestionSetsService {
     };
     summary: EvalRunSummary;
     qualityGate: EvalRunQualityGate;
-    baselineComparison: EvalQuestionSetRunResultPayload["baselineComparison"];
+    baselineComparison: EvalQuestionSetRunResultPayload['baselineComparison'];
     items: EvalRunItem[];
   }): string {
     const lines = [
-      "# P5 v1 eval report",
-      "",
-      "## Metadata",
+      '# P5 v1 eval report',
+      '',
+      '## Metadata',
       `- schemaVersion: ${report.schemaVersion}`,
       `- exportedAt: ${report.exportedAt}`,
       `- questionSetId: ${report.questionSetId}`,
@@ -1375,32 +1562,37 @@ export class EvalQuestionSetsService {
       `- assistantId: ${report.assistantId}`,
       `- startedAt: ${report.startedAt.toISOString()}`,
       `- finishedAt: ${report.finishedAt.toISOString()}`,
-      "",
-      "## Totals",
+      '',
+      '## Totals',
       `- total: ${report.totals.total}`,
       `- succeeded: ${report.totals.succeeded}`,
       `- failed: ${report.totals.failed}`,
-      "",
-      "## Summary",
+      '',
+      '## Summary',
       `- successRate: ${report.summary.successRate}`,
       `- groundedRate: ${report.summary.groundedRate}`,
       `- strongRate: ${report.summary.strongRate}`,
       `- fallbackRate: ${report.summary.fallbackRate}`,
       `- averageCitationCount: ${report.summary.averageCitationCount}`,
-      "",
-      "## Quality gate",
+      '',
+      '## Quality gate',
       `- mode: ${report.qualityGate.mode}`,
       `- status: ${report.qualityGate.status}`,
       `- limitVersion: ${report.qualityGate.limitVersion}`,
       `- breachedMetricCount: ${report.qualityGate.breachedMetricCount}`,
       `- message: ${report.qualityGate.message}`,
-      `- breachedMetrics: ${report.qualityGate.breachedMetrics
-        .map(metric => `${metric.metric}(${metric.current} vs ${metric.limit} ${metric.limitType})`)
-        .join(", ") || "none"}`,
-      "",
-      "## Baseline comparison",
+      `- breachedMetrics: ${
+        report.qualityGate.breachedMetrics
+          .map(
+            (metric) =>
+              `${metric.metric}(${metric.current} vs ${metric.limit} ${metric.limitType})`
+          )
+          .join(', ') || 'none'
+      }`,
+      '',
+      '## Baseline comparison',
       `- hasPinnedBaselineEvalResult: ${report.baselineComparison.hasPinnedBaselineEvalResult}`,
-      `- baselineCapturedAt: ${report.baselineComparison.baselineCapturedAt?.toISOString() ?? "none"}`,
+      `- baselineCapturedAt: ${report.baselineComparison.baselineCapturedAt?.toISOString() ?? 'none'}`,
       `- baselineInitialized: ${report.baselineComparison.baselineInitialized}`,
       `- comparisonMeaningful: ${report.baselineComparison.comparisonMeaningful}`,
       `- questionSetDrift.hasDrift: ${report.baselineComparison.questionSetDrift.hasDrift}`,
@@ -1409,8 +1601,8 @@ export class EvalQuestionSetsService {
       `- questionSetDrift.addedQuestionCount: ${report.baselineComparison.questionSetDrift.addedQuestionCount}`,
       `- questionSetDrift.removedQuestionCount: ${report.baselineComparison.questionSetDrift.removedQuestionCount}`,
       `- questionSetDrift.unchangedQuestionCount: ${report.baselineComparison.questionSetDrift.unchangedQuestionCount}`,
-      "",
-      "## Diff summary",
+      '',
+      '## Diff summary',
       ...(report.baselineComparison.diffSummary
         ? [
             `- headline: ${report.baselineComparison.diffSummary.headline}`,
@@ -1418,69 +1610,76 @@ export class EvalQuestionSetsService {
             `- improvedMetricCount: ${report.baselineComparison.diffSummary.improvedMetricCount}`,
             `- unchangedMetricCount: ${report.baselineComparison.diffSummary.unchangedMetricCount}`,
             `- regressedQuestionCount: ${report.baselineComparison.diffSummary.regressedQuestionCount}`,
-            `- regressedMetrics: ${report.baselineComparison.diffSummary.regressedMetrics
-              .map(metric => `${metric.metric}(${metric.delta})`)
-              .join(", ") || "none"}`,
-            `- improvedMetrics: ${report.baselineComparison.diffSummary.improvedMetrics
-              .map(metric => `${metric.metric}(${metric.delta})`)
-              .join(", ") || "none"}`,
-            `- topRegressionReasons: ${report.baselineComparison.diffSummary.topRegressionReasons
-              .map(reason => `${reason.reasonCode}(${reason.count})`)
-              .join(", ") || "none"}`
+            `- regressedMetrics: ${
+              report.baselineComparison.diffSummary.regressedMetrics
+                .map((metric) => `${metric.metric}(${metric.delta})`)
+                .join(', ') || 'none'
+            }`,
+            `- improvedMetrics: ${
+              report.baselineComparison.diffSummary.improvedMetrics
+                .map((metric) => `${metric.metric}(${metric.delta})`)
+                .join(', ') || 'none'
+            }`,
+            `- topRegressionReasons: ${
+              report.baselineComparison.diffSummary.topRegressionReasons
+                .map((reason) => `${reason.reasonCode}(${reason.count})`)
+                .join(', ') || 'none'
+            }`
           ]
-        : ["- headline: not_available"]),
-      "",
-      "## Failure drilldown",
+        : ['- headline: not_available']),
+      '',
+      '## Failure drilldown',
       ...(report.baselineComparison.failureDrilldown
         ? [
             `- regressedQuestionCount: ${report.baselineComparison.failureDrilldown.regressedQuestionCount}`,
-            "",
-            "| # | severity | reasonCodes | question | baselineStatus -> currentStatus | baselineQuality -> currentQuality | baselineCitations -> currentCitations |",
-            "| --- | --- | --- | --- | --- | --- | --- |",
-            ...report.baselineComparison.failureDrilldown.weakestItems.map(item =>
-              [
-                item.index,
-                item.severity,
-                item.reasonCodes.join(","),
-                item.question,
-                `${item.baseline.status} -> ${item.current.status}`,
-                `${item.baseline.qualityOverall ?? "-"} -> ${item.current.qualityOverall ?? "-"}`,
-                `${item.baseline.citationCount} -> ${item.current.citationCount}`
-              ]
-                .map(value => this.escapeMarkdownTableCell(String(value)))
-                .join(" | ")
-                .replace(/^/, "| ")
-                .concat(" |")
+            '',
+            '| # | severity | reasonCodes | question | baselineStatus -> currentStatus | baselineQuality -> currentQuality | baselineCitations -> currentCitations |',
+            '| --- | --- | --- | --- | --- | --- | --- |',
+            ...report.baselineComparison.failureDrilldown.weakestItems.map(
+              (item) =>
+                [
+                  item.index,
+                  item.severity,
+                  item.reasonCodes.join(','),
+                  item.question,
+                  `${item.baseline.status} -> ${item.current.status}`,
+                  `${item.baseline.qualityOverall ?? '-'} -> ${item.current.qualityOverall ?? '-'}`,
+                  `${item.baseline.citationCount} -> ${item.current.citationCount}`
+                ]
+                  .map((value) => this.escapeMarkdownTableCell(String(value)))
+                  .join(' | ')
+                  .replace(/^/, '| ')
+                  .concat(' |')
             )
           ]
-        : ["- regressedQuestionCount: not_available"]),
-      "",
-      "## Items",
-      "",
-      "| # | status | question | answerStatus | qualityOverall | primaryIssue | citations | usedFallback | traceId | errorCode | errorMessage |",
-      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-      ...report.items.map(item =>
+        : ['- regressedQuestionCount: not_available']),
+      '',
+      '## Items',
+      '',
+      '| # | status | question | answerStatus | qualityOverall | primaryIssue | citations | usedFallback | traceId | errorCode | errorMessage |',
+      '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+      ...report.items.map((item) =>
         [
           item.index,
           item.status,
           item.question,
-          item.answerStatus ?? "-",
-          item.qualityOverall ?? "-",
-          item.qualityPrimaryIssue ?? "-",
+          item.answerStatus ?? '-',
+          item.qualityOverall ?? '-',
+          item.qualityPrimaryIssue ?? '-',
           item.citationCount,
-          item.usedFallback == null ? "-" : item.usedFallback ? "yes" : "no",
-          item.traceId ?? "-",
-          item.error?.code ?? "-",
-          item.error?.message ?? "-"
+          item.usedFallback == null ? '-' : item.usedFallback ? 'yes' : 'no',
+          item.traceId ?? '-',
+          item.error?.code ?? '-',
+          item.error?.message ?? '-'
         ]
-          .map(value => this.escapeMarkdownTableCell(String(value)))
-          .join(" | ")
-          .replace(/^/, "| ")
-          .concat(" |")
+          .map((value) => this.escapeMarkdownTableCell(String(value)))
+          .join(' | ')
+          .replace(/^/, '| ')
+          .concat(' |')
       )
     ];
 
-    return lines.join("\n");
+    return lines.join('\n');
   }
 
   private renderHtmlReport(report: {
@@ -1499,57 +1698,60 @@ export class EvalQuestionSetsService {
     };
     summary: EvalRunSummary;
     qualityGate: EvalRunQualityGate;
-    baselineComparison: EvalQuestionSetRunResultPayload["baselineComparison"];
+    baselineComparison: EvalQuestionSetRunResultPayload['baselineComparison'];
     items: EvalRunItem[];
   }): string {
     const itemRows = report.items
-      .map(item => {
+      .map((item) => {
         const columns = [
           item.index,
           item.status,
           item.question,
-          item.answerStatus ?? "-",
-          item.qualityOverall ?? "-",
-          item.qualityPrimaryIssue ?? "-",
+          item.answerStatus ?? '-',
+          item.qualityOverall ?? '-',
+          item.qualityPrimaryIssue ?? '-',
           item.citationCount,
-          item.usedFallback == null ? "-" : item.usedFallback ? "yes" : "no",
-          item.traceId ?? "-",
-          item.error?.code ?? "-",
-          item.error?.message ?? "-"
+          item.usedFallback == null ? '-' : item.usedFallback ? 'yes' : 'no',
+          item.traceId ?? '-',
+          item.error?.code ?? '-',
+          item.error?.message ?? '-'
         ]
-          .map(value => `<td>${this.escapeHtml(String(value))}</td>`)
-          .join("");
+          .map((value) => `<td>${this.escapeHtml(String(value))}</td>`)
+          .join('');
 
         return `<tr>${columns}</tr>`;
       })
-      .join("\n");
+      .join('\n');
 
     const failureDrilldownRows = report.baselineComparison.failureDrilldown
       ? report.baselineComparison.failureDrilldown.weakestItems
-          .map(item => {
+          .map((item) => {
             const columns = [
               item.index,
               item.severity,
-              item.reasonCodes.join(","),
+              item.reasonCodes.join(','),
               item.question,
               `${item.baseline.status} -> ${item.current.status}`,
-              `${item.baseline.qualityOverall ?? "-"} -> ${item.current.qualityOverall ?? "-"}`,
+              `${item.baseline.qualityOverall ?? '-'} -> ${item.current.qualityOverall ?? '-'}`,
               `${item.baseline.citationCount} -> ${item.current.citationCount}`
             ]
-              .map(value => `<td>${this.escapeHtml(String(value))}</td>`)
-              .join("");
+              .map((value) => `<td>${this.escapeHtml(String(value))}</td>`)
+              .join('');
 
             return `<tr>${columns}</tr>`;
           })
-          .join("\n")
-      : "";
+          .join('\n')
+      : '';
 
     const diffSummary = report.baselineComparison.diffSummary;
     const diffSummaryReasonList = diffSummary
       ? diffSummary.topRegressionReasons
-          .map(reason => `<li><code>${this.escapeHtml(reason.reasonCode)}</code>: <code>${reason.count}</code></li>`)
-          .join("")
-      : "";
+          .map(
+            (reason) =>
+              `<li><code>${this.escapeHtml(reason.reasonCode)}</code>: <code>${reason.count}</code></li>`
+          )
+          .join('')
+      : '';
 
     return `<!doctype html>
 <html lang="en">
@@ -1607,15 +1809,18 @@ export class EvalQuestionSetsService {
       <li>message: <code>${this.escapeHtml(report.qualityGate.message)}</code></li>
       <li>breachedMetrics: <code>${this.escapeHtml(
         report.qualityGate.breachedMetrics
-          .map(metric => `${metric.metric}(${metric.current} vs ${metric.limit} ${metric.limitType})`)
-          .join(", ") || "none"
+          .map(
+            (metric) =>
+              `${metric.metric}(${metric.current} vs ${metric.limit} ${metric.limitType})`
+          )
+          .join(', ') || 'none'
       )}</code></li>
     </ul>
 
     <h2>Baseline comparison</h2>
     <ul>
       <li>hasPinnedBaselineEvalResult: <code>${report.baselineComparison.hasPinnedBaselineEvalResult}</code></li>
-      <li>baselineCapturedAt: <code>${this.escapeHtml(report.baselineComparison.baselineCapturedAt?.toISOString() ?? "none")}</code></li>
+      <li>baselineCapturedAt: <code>${this.escapeHtml(report.baselineComparison.baselineCapturedAt?.toISOString() ?? 'none')}</code></li>
       <li>baselineInitialized: <code>${report.baselineComparison.baselineInitialized}</code></li>
       <li>comparisonMeaningful: <code>${report.baselineComparison.comparisonMeaningful}</code></li>
       <li>questionSetDrift.hasDrift: <code>${report.baselineComparison.questionSetDrift.hasDrift}</code></li>
@@ -1628,32 +1833,44 @@ export class EvalQuestionSetsService {
 
     <h2>Diff summary</h2>
     <ul>
-      <li>headline: <code>${this.escapeHtml(diffSummary?.headline ?? "not_available")}</code></li>
-      <li>regressedMetricCount: <code>${diffSummary?.regressedMetricCount ?? "-"}</code></li>
-      <li>improvedMetricCount: <code>${diffSummary?.improvedMetricCount ?? "-"}</code></li>
-      <li>unchangedMetricCount: <code>${diffSummary?.unchangedMetricCount ?? "-"}</code></li>
-      <li>regressedQuestionCount: <code>${diffSummary?.regressedQuestionCount ?? "-"}</code></li>
+      <li>headline: <code>${this.escapeHtml(diffSummary?.headline ?? 'not_available')}</code></li>
+      <li>regressedMetricCount: <code>${diffSummary?.regressedMetricCount ?? '-'}</code></li>
+      <li>improvedMetricCount: <code>${diffSummary?.improvedMetricCount ?? '-'}</code></li>
+      <li>unchangedMetricCount: <code>${diffSummary?.unchangedMetricCount ?? '-'}</code></li>
+      <li>regressedQuestionCount: <code>${diffSummary?.regressedQuestionCount ?? '-'}</code></li>
       <li>regressedMetrics: <code>${this.escapeHtml(
-        diffSummary?.regressedMetrics.map(metric => `${metric.metric}(${metric.delta})`).join(", ") || "none"
+        diffSummary?.regressedMetrics
+          .map((metric) => `${metric.metric}(${metric.delta})`)
+          .join(', ') || 'none'
       )}</code></li>
       <li>improvedMetrics: <code>${this.escapeHtml(
-        diffSummary?.improvedMetrics.map(metric => `${metric.metric}(${metric.delta})`).join(", ") || "none"
+        diffSummary?.improvedMetrics
+          .map((metric) => `${metric.metric}(${metric.delta})`)
+          .join(', ') || 'none'
       )}</code></li>
     </ul>
-    ${diffSummary ? `<div>
+    ${
+      diffSummary
+        ? `<div>
       <div>topRegressionReasons</div>
-      <ul>${diffSummaryReasonList || "<li><code>none</code></li>"}</ul>
-    </div>` : ""}
+      <ul>${diffSummaryReasonList || '<li><code>none</code></li>'}</ul>
+    </div>`
+        : ''
+    }
 
     <h2>Failure drilldown</h2>
     <ul>
       <li>regressedQuestionCount: <code>${this.escapeHtml(
         report.baselineComparison.failureDrilldown
-          ? String(report.baselineComparison.failureDrilldown.regressedQuestionCount)
-          : "not_available"
+          ? String(
+              report.baselineComparison.failureDrilldown.regressedQuestionCount
+            )
+          : 'not_available'
       )}</code></li>
     </ul>
-    ${report.baselineComparison.failureDrilldown ? `<table>
+    ${
+      report.baselineComparison.failureDrilldown
+        ? `<table>
       <thead>
         <tr>
           <th>#</th>
@@ -1668,7 +1885,9 @@ export class EvalQuestionSetsService {
       <tbody>
         ${failureDrilldownRows}
       </tbody>
-    </table>` : ""}
+    </table>`
+        : ''
+    }
 
     <h2>Items</h2>
     <table>
@@ -1697,14 +1916,14 @@ export class EvalQuestionSetsService {
 
   private escapeHtml(value: string): string {
     return value
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 
   private escapeMarkdownTableCell(value: string): string {
-    return value.replaceAll("|", "\\|").replaceAll("\n", " ");
+    return value.replaceAll('|', '\\|').replaceAll('\n', ' ');
   }
 }

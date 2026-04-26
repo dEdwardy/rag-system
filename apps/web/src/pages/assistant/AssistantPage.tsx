@@ -45,12 +45,6 @@ export function AssistantPage() {
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
   const knowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
-  const assistantsForKnowledgeBaseCount =
-    knowledgeBase == null
-      ? 0
-      : (assistantsQuery.data ?? []).filter(
-          (candidate) => candidate.kbId === knowledgeBase.id
-        ).length;
   const documentsSummaryQuery = useKnowledgeBaseDocumentSummary(
     knowledgeBase?.id ?? '',
     knowledgeBase != null
@@ -71,6 +65,10 @@ export function AssistantPage() {
   );
   const { locale, t } = useI18n();
   const documentCount = documentsSummaryQuery.data?.totalDocuments ?? 0;
+  const readyDocumentCount = documentsSummaryQuery.data?.readyDocuments ?? 0;
+  const processingDocumentCount =
+    documentsSummaryQuery.data?.processingDocuments ?? 0;
+  const failedDocumentCount = documentsSummaryQuery.data?.failedDocuments ?? 0;
   const reportSource = searchParams.get('from') === 'report';
   const reportFocus = searchParams.get('focus');
   const reportReturnTo = searchParams.get('returnTo') ?? '/reports';
@@ -85,12 +83,9 @@ export function AssistantPage() {
     retrievalProfilesQuery.error instanceof Error
       ? retrievalProfilesQuery.error.message
       : undefined;
-  const hasSingleAssistantBinding =
-    assistant != null && assistantsForKnowledgeBaseCount === 1;
+  const hasAssistantBinding = assistant != null;
   const canRenderForm =
-    knowledgeBase != null &&
-    hasSingleAssistantBinding &&
-    retrievalProfile != null;
+    knowledgeBase != null && hasAssistantBinding && retrievalProfile != null;
 
   const refreshDefaultAssistantPath = async () => {
     await Promise.all([
@@ -120,7 +115,7 @@ export function AssistantPage() {
               >
                 {t('assistant.title')}
               </Title>
-              {hasSingleAssistantBinding ? (
+              {hasAssistantBinding ? (
                 <Text
                   c="var(--app-text-muted)"
                   data-testid="assistant-id"
@@ -129,7 +124,7 @@ export function AssistantPage() {
                   {assistant.id}
                 </Text>
               ) : null}
-              {hasSingleAssistantBinding ? (
+              {hasAssistantBinding ? (
                 <Text
                   c="var(--app-text)"
                   data-testid="assistant-name-text"
@@ -138,7 +133,7 @@ export function AssistantPage() {
                   {assistant.name}
                 </Text>
               ) : null}
-              {hasSingleAssistantBinding && retrievalProfile ? (
+              {hasAssistantBinding && retrievalProfile ? (
                 <Text
                   c="var(--app-text-muted)"
                   data-testid="assistant-retrieval-profile-name"
@@ -151,18 +146,30 @@ export function AssistantPage() {
                 {t('assistant.subtitle')}
               </Text>
               <Text c="var(--app-text-secondary)" mt="sm" size="sm">
-                {hasSingleAssistantBinding
+                {hasAssistantBinding
                   ? locale === 'zh'
                     ? '默认助手已经就绪。先确认回答策略，只有在默认路径表现不对时再继续调优。'
                     : 'Start with the assistant identity and answer policy, then move into retrieval tuning only when needed.'
                   : locale === 'zh'
-                    ? '当前资料库的默认助手仍在补建或修复中；它出现后再继续做必要的设置调整。'
-                    : 'The default assistant for the active library is still being prepared or repaired. Tune settings after it appears.'}
+                    ? readyDocumentCount > 0
+                      ? '当前资料库已经有可提问资料；默认助手仍在补建或修复中。等它出现后再回来确认回答设置。'
+                      : failedDocumentCount > 0 && processingDocumentCount === 0
+                        ? '当前资料库里还没有可提问资料，且有失败项需要先处理；处理后再等默认助手自动出现。'
+                        : documentCount > 0
+                          ? '当前资料库的默认助手仍在补建或修复中；先等资料就绪，再等它自动出现。'
+                          : '当前资料库的默认助手仍在补建或修复中；先添加第一批资料，再等它自动出现。'
+                    : readyDocumentCount > 0
+                      ? 'This library already has ready source material for asking questions, but the default assistant is still being prepared or repaired. Come back to review answer settings after it appears.'
+                      : failedDocumentCount > 0 && processingDocumentCount === 0
+                        ? 'This library still has no ready source material, and some failed items need review first. Fix those items, then wait for the default assistant to appear automatically.'
+                        : documentCount > 0
+                          ? 'The default assistant for the active library is still being prepared or repaired. Wait for ready source material first, then review settings after it appears.'
+                          : 'The default assistant for the active library is still being prepared or repaired. Add the first library items, then wait for it to appear automatically.'}
               </Text>
             </div>
           </Group>
 
-          {hasSingleAssistantBinding ? (
+          {hasAssistantBinding ? (
             <Stack align="flex-end" gap={8}>
               <Group gap="xs">
                 <Badge
@@ -196,7 +203,7 @@ export function AssistantPage() {
       </Paper>
 
       <OauthWorkspaceWelcome
-        assistantCount={hasSingleAssistantBinding ? 1 : 0}
+        assistantCount={hasAssistantBinding ? 1 : 0}
         context="assistant"
         conversationCount={conversationsQuery.data?.length ?? 0}
         documentCount={documentCount}
@@ -284,7 +291,7 @@ export function AssistantPage() {
       !assistantsQuery.isError &&
       !retrievalProfilesQuery.isError &&
       knowledgeBase != null &&
-      !hasSingleAssistantBinding ? (
+      !hasAssistantBinding ? (
         <StatePanel
           action={
             <Group gap="xs">
@@ -346,10 +353,7 @@ export function AssistantPage() {
         </Suspense>
       ) : null}
 
-      {!isLoading &&
-      hasSingleAssistantBinding &&
-      assistant &&
-      !retrievalProfile ? (
+      {!isLoading && hasAssistantBinding && assistant && !retrievalProfile ? (
         <StatePanel
           description={t('assistant.missingProfileDescription')}
           title={t('assistant.missingProfileTitle')}

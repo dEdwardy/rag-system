@@ -207,7 +207,8 @@ const RunDiagnosticsHighlights = memo(function RunDiagnosticsHighlights({
   t: TranslateFn;
 }) {
   const diagnosticsHighlights = buildRunDiagnosticsHighlights(
-    run.diagnosticsJson
+    run.diagnosticsJson,
+    run.failureSummary
   );
 
   if (diagnosticsHighlights.length === 0) {

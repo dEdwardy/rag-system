@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 type IncludeExcludeFilter<T> = {
   include?: T[];
@@ -20,12 +20,12 @@ export type RetrievalProfileFilters = {
   pageNumbers?: NumberStrategyFilter;
 };
 
-type RetrievalMode = "vector" | "hybrid" | "lexical";
+type RetrievalMode = 'vector' | 'hybrid' | 'lexical';
 
 export type RetrievalStrategy = {
   queryRewrite?: {
     enabled?: boolean;
-    mode?: "off" | "heuristic_only" | "always";
+    mode?: 'off' | 'heuristic_only' | 'always';
     maxAddedLatencyMs?: number;
   };
   candidateSelection?: {
@@ -39,14 +39,14 @@ export type RetrievalStrategy = {
   };
   rerank?: {
     enabled?: boolean;
-    mode?: "off" | "local_heuristic" | "llm_judge";
+    mode?: 'off' | 'local_heuristic' | 'llm_judge';
   };
 };
 
 export type ResolvedRetrievalStrategy = {
   queryRewrite: {
     enabled: boolean;
-    mode: "off" | "heuristic_only" | "always";
+    mode: 'off' | 'heuristic_only' | 'always';
     maxAddedLatencyMs: number;
   };
   candidateSelection: {
@@ -60,14 +60,14 @@ export type ResolvedRetrievalStrategy = {
   };
   rerank: {
     enabled: boolean;
-    mode: "off" | "local_heuristic" | "llm_judge";
+    mode: 'off' | 'local_heuristic' | 'llm_judge';
   };
 };
 
 const optionalStringArraySchema = z
   .array(z.string().min(1))
   .optional()
-  .transform(value => {
+  .transform((value) => {
     if (!value || value.length === 0) {
       return undefined;
     }
@@ -78,7 +78,7 @@ const optionalStringArraySchema = z
 const optionalNumberArraySchema = z
   .array(z.number().int().nonnegative())
   .optional()
-  .transform(value => {
+  .transform((value) => {
     if (!value || value.length === 0) {
       return undefined;
     }
@@ -102,7 +102,7 @@ const documentIdStrategySchema = z
     exclude: optionalStringArraySchema
   })
   .strict()
-  .transform(value => normalizeObject(value));
+  .transform((value) => normalizeObject(value));
 
 const sectionTitleStrategySchema = z
   .object({
@@ -111,7 +111,7 @@ const sectionTitleStrategySchema = z
     contains: optionalStringArraySchema
   })
   .strict()
-  .transform(value => normalizeObject(value));
+  .transform((value) => normalizeObject(value));
 
 const pageNumberStrategySchema = z
   .object({
@@ -121,15 +121,21 @@ const pageNumberStrategySchema = z
     max: optionalNumberSchema
   })
   .strict()
-  .refine(value => value.min === undefined || value.max === undefined || value.min <= value.max, {
-    message: "pageNumbers.min must be less than or equal to pageNumbers.max"
-  })
-  .transform(value => normalizeObject(value));
+  .refine(
+    (value) =>
+      value.min === undefined ||
+      value.max === undefined ||
+      value.min <= value.max,
+    {
+      message: 'pageNumbers.min must be less than or equal to pageNumbers.max'
+    }
+  )
+  .transform((value) => normalizeObject(value));
 
 const documentIdsFilterSchema = z
   .union([optionalStringArraySchema, documentIdStrategySchema])
   .optional()
-  .transform(value => {
+  .transform((value) => {
     if (Array.isArray(value)) {
       return value.length > 0 ? { include: value } : undefined;
     }
@@ -140,7 +146,7 @@ const documentIdsFilterSchema = z
 const sectionTitlesFilterSchema = z
   .union([optionalStringArraySchema, sectionTitleStrategySchema])
   .optional()
-  .transform(value => {
+  .transform((value) => {
     if (Array.isArray(value)) {
       return value.length > 0 ? { include: value } : undefined;
     }
@@ -151,7 +157,7 @@ const sectionTitlesFilterSchema = z
 const pageNumbersFilterSchema = z
   .union([optionalNumberArraySchema, pageNumberStrategySchema])
   .optional()
-  .transform(value => {
+  .transform((value) => {
     if (Array.isArray(value)) {
       return value.length > 0 ? { include: value } : undefined;
     }
@@ -166,25 +172,27 @@ export const retrievalProfileFiltersSchema = z
     pageNumbers: pageNumbersFilterSchema
   })
   .strict()
-  .transform(value => normalizeObject(value) as RetrievalProfileFilters | undefined);
+  .transform(
+    (value) => normalizeObject(value) as RetrievalProfileFilters | undefined
+  );
 
 const queryRewriteStrategySchema = z
   .object({
     enabled: z.boolean().optional(),
-    mode: z.enum(["off", "heuristic_only", "always"]).optional(),
+    mode: z.enum(['off', 'heuristic_only', 'always']).optional(),
     maxAddedLatencyMs: z.number().int().min(0).max(5000).optional()
   })
   .strict()
-  .transform(value => normalizeObject(value));
+  .transform((value) => normalizeObject(value));
 
 const candidateSelectionStrategySchema = z
   .object({
-    mode: z.enum(["vector", "hybrid", "lexical"]).optional(),
+    mode: z.enum(['vector', 'hybrid', 'lexical']).optional(),
     candidateMultiplier: z.number().int().min(1).max(10).optional(),
     minCandidates: z.number().int().min(1).max(100).optional()
   })
   .strict()
-  .transform(value => normalizeObject(value));
+  .transform((value) => normalizeObject(value));
 
 const hybridStrategySchema = z
   .object({
@@ -193,20 +201,23 @@ const hybridStrategySchema = z
   })
   .strict()
   .refine(
-    value => (value.vectorWeight ?? 0) + (value.lexicalWeight ?? 0) > 0 || Object.keys(value).length === 0,
+    (value) =>
+      (value.vectorWeight ?? 0) + (value.lexicalWeight ?? 0) > 0 ||
+      Object.keys(value).length === 0,
     {
-      message: "hybrid.vectorWeight and hybrid.lexicalWeight cannot both be zero"
+      message:
+        'hybrid.vectorWeight and hybrid.lexicalWeight cannot both be zero'
     }
   )
-  .transform(value => normalizeObject(value));
+  .transform((value) => normalizeObject(value));
 
 const rerankStrategySchema = z
   .object({
     enabled: z.boolean().optional(),
-    mode: z.enum(["off", "local_heuristic", "llm_judge"]).optional()
+    mode: z.enum(['off', 'local_heuristic', 'llm_judge']).optional()
   })
   .strict()
-  .transform(value => normalizeObject(value));
+  .transform((value) => normalizeObject(value));
 
 export const retrievalStrategySchema = z
   .object({
@@ -216,7 +227,9 @@ export const retrievalStrategySchema = z
     rerank: rerankStrategySchema.optional()
   })
   .strict()
-  .transform(value => normalizeObject(value) as RetrievalStrategy | undefined);
+  .transform(
+    (value) => normalizeObject(value) as RetrievalStrategy | undefined
+  );
 
 export const createRetrievalProfileSchema = z.object({
   name: z.string().min(1).max(120),
@@ -246,38 +259,87 @@ export function resolveRetrievalStrategy(input: {
   enableRerank?: boolean | null;
   strategyJson?: RetrievalStrategy | null;
 }): ResolvedRetrievalStrategy {
-  const normalizedStrategy = retrievalStrategySchema.optional().parse(input.strategyJson ?? undefined);
+  const normalizedStrategy = retrievalStrategySchema
+    .optional()
+    .parse(input.strategyJson ?? undefined);
   const hasStrategyOverride = normalizedStrategy !== undefined;
+  const candidateSelectionMode = resolveCandidateSelectionMode({
+    normalizedStrategy,
+    hasStrategyOverride,
+    enableHybrid: input.enableHybrid
+  });
+  const rerankEnabled = resolveRerankEnabled({
+    normalizedStrategy,
+    hasStrategyOverride,
+    enableRerank: input.enableRerank
+  });
 
   return {
     queryRewrite: {
       enabled: normalizedStrategy?.queryRewrite?.enabled ?? false,
       mode:
         normalizedStrategy?.queryRewrite?.mode ??
-        ((normalizedStrategy?.queryRewrite?.enabled ?? false) ? "heuristic_only" : "off"),
-      maxAddedLatencyMs: normalizedStrategy?.queryRewrite?.maxAddedLatencyMs ?? 1200
+        ((normalizedStrategy?.queryRewrite?.enabled ?? false)
+          ? 'heuristic_only'
+          : 'off'),
+      maxAddedLatencyMs:
+        normalizedStrategy?.queryRewrite?.maxAddedLatencyMs ?? 1200
     },
     candidateSelection: {
-      mode:
-        normalizedStrategy?.candidateSelection?.mode ??
-        (hasStrategyOverride ? "vector" : input.enableHybrid ? "hybrid" : "vector"),
-      candidateMultiplier: normalizedStrategy?.candidateSelection?.candidateMultiplier ?? 3,
-      minCandidates: normalizedStrategy?.candidateSelection?.minCandidates ?? input.topK
+      mode: candidateSelectionMode,
+      candidateMultiplier:
+        normalizedStrategy?.candidateSelection?.candidateMultiplier ?? 3,
+      minCandidates:
+        normalizedStrategy?.candidateSelection?.minCandidates ?? input.topK
     },
     hybrid: {
       vectorWeight: normalizedStrategy?.hybrid?.vectorWeight ?? 0.7,
       lexicalWeight: normalizedStrategy?.hybrid?.lexicalWeight ?? 0.3
     },
     rerank: {
-      enabled: normalizedStrategy?.rerank?.enabled ?? (hasStrategyOverride ? false : Boolean(input.enableRerank)),
+      enabled: rerankEnabled,
       mode:
         normalizedStrategy?.rerank?.mode ??
-        ((normalizedStrategy?.rerank?.enabled ?? (hasStrategyOverride ? false : Boolean(input.enableRerank)))
-          ? "local_heuristic"
-          : "off")
+        (rerankEnabled ? 'local_heuristic' : 'off')
     }
   };
 }
 
-export type CreateRetrievalProfileInput = z.infer<typeof createRetrievalProfileSchema>;
-export type UpdateRetrievalProfileInput = z.infer<typeof updateRetrievalProfileSchema>;
+function resolveCandidateSelectionMode(input: {
+  normalizedStrategy: RetrievalStrategy | undefined;
+  hasStrategyOverride: boolean;
+  enableHybrid?: boolean | null;
+}) {
+  if (input.normalizedStrategy?.candidateSelection?.mode != null) {
+    return input.normalizedStrategy.candidateSelection.mode;
+  }
+
+  if (input.hasStrategyOverride) {
+    return 'vector';
+  }
+
+  return input.enableHybrid ? 'hybrid' : 'vector';
+}
+
+function resolveRerankEnabled(input: {
+  normalizedStrategy: RetrievalStrategy | undefined;
+  hasStrategyOverride: boolean;
+  enableRerank?: boolean | null;
+}) {
+  if (input.normalizedStrategy?.rerank?.enabled != null) {
+    return input.normalizedStrategy.rerank.enabled;
+  }
+
+  if (input.hasStrategyOverride) {
+    return false;
+  }
+
+  return Boolean(input.enableRerank);
+}
+
+export type CreateRetrievalProfileInput = z.infer<
+  typeof createRetrievalProfileSchema
+>;
+export type UpdateRetrievalProfileInput = z.infer<
+  typeof updateRetrievalProfileSchema
+>;

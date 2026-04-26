@@ -1,5 +1,10 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { PrismaClient } from "@prisma/client";
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit
+} from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 
 export function resolvePrismaDatasourceUrl(env = process.env) {
   const directUrl = env.DIRECT_URL?.trim();
@@ -10,30 +15,49 @@ export function resolvePrismaDatasourceUrl(env = process.env) {
 function describeDatasourceUrl(url: string | undefined) {
   if (!url) {
     return {
-      mode: "unset",
-      host: "unknown",
-      port: "unknown"
+      mode: 'unset',
+      host: 'unknown',
+      port: 'unknown'
     };
   }
 
   try {
     const parsed = new URL(url);
+    const mode = resolveDatasourceMode(parsed);
     return {
-      mode: parsed.port === "5432" ? "direct" : parsed.searchParams.get("pgbouncer") === "true" || parsed.port === "6543" ? "pooler" : "custom",
-      host: parsed.hostname || "unknown",
-      port: parsed.port || "default"
+      mode,
+      host: parsed.hostname || 'unknown',
+      port: parsed.port || 'default'
     };
   } catch {
     return {
-      mode: "custom",
-      host: "unparsed",
-      port: "unknown"
+      mode: 'custom',
+      host: 'unparsed',
+      port: 'unknown'
     };
   }
 }
 
+function resolveDatasourceMode(parsed: URL) {
+  if (parsed.port === '5432') {
+    return 'direct';
+  }
+
+  if (
+    parsed.searchParams.get('pgbouncer') === 'true' ||
+    parsed.port === '6543'
+  ) {
+    return 'pooler';
+  }
+
+  return 'custom';
+}
+
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(PrismaService.name);
 
   constructor() {
@@ -58,10 +82,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     );
     void this.$connect()
       .then(() => {
-        this.logger.log("Prisma client connected.");
+        this.logger.log('Prisma client connected.');
       })
-      .catch(error => {
-        this.logger.error("Prisma client connection failed during startup.", error instanceof Error ? error.stack : String(error));
+      .catch((error) => {
+        this.logger.error(
+          'Prisma client connection failed during startup.',
+          error instanceof Error ? error.stack : String(error)
+        );
       });
   }
 

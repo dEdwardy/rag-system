@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wasExecutionSuperseded } from './execution-guards.mjs';
+import { wasExecutionSuperseded } from '../core/execution-guards.mjs';
 
 test('wasExecutionSuperseded stays false for the active in-progress attempt', () => {
   assert.equal(

@@ -1,6 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TraceStatus } from '@prisma/client';
-import type { TraceSummary } from '@rag-system/shared';
+import {
+  buildTraceMetadataCanonicalSurface,
+  buildTraceRouteDecisionReadabilityLabel,
+  buildTraceRouteDecisionReadabilitySentence,
+  buildTraceRouteReasonReadabilityLabel,
+  buildTraceRouteTypeReadabilityLabel,
+  buildTraceExecutionModeReadabilityLabel,
+  buildTraceExecutionModeReadabilitySentence,
+  buildTraceExecutionToolNamesLabel,
+  buildTraceExecutionToolNamesReadabilitySentence,
+  collectTraceExecutionToolNames,
+  readTraceExecutionMode,
+  readTraceExecutionToolName,
+  type TraceSummary
+} from '@rag-system/shared';
 import { PrismaService } from '../../infra/database/prisma.service';
 import {
   buildAnswerEvidenceSourceReadabilityLabel,
@@ -37,6 +51,19 @@ const TRACE_ANSWER_TEXT_SOURCE_VALUES = new Set<
 const TRACE_ANSWER_STATUS_SOURCE_VALUES = new Set<
   NonNullable<TraceSummary['answerStatusSource']>
 >(['model', 'inferred_from_retrieval', 'deterministic_policy']);
+
+const TRACE_ROUTE_TYPE_VALUES = new Set<NonNullable<TraceSummary['routeType']>>(
+  ['knowledge_base', 'policy_reply', 'external_source']
+);
+
+const TRACE_ROUTE_REASON_VALUES = new Set<
+  NonNullable<TraceSummary['routeReason']>
+>([
+  'default_kb_ask',
+  'policy_question',
+  'explicit_source_url',
+  'explicit_source_urls'
+]);
 
 @Injectable()
 export class TracesService {
@@ -123,10 +150,35 @@ export class TracesService {
     scope?: { tenantId: string; userId: string } | null
   ) {
     const normalizedQuery = input.query?.trim() ?? null;
+    const normalizedRouteType = input.routeType ?? null;
+    const normalizedRouteReason = input.routeReason ?? null;
+    const routeFilters = [
+      ...(normalizedRouteType != null
+        ? [
+            {
+              retrievalMetadataJson: {
+                path: ['routeDecision', 'routeType'],
+                equals: normalizedRouteType
+              }
+            }
+          ]
+        : []),
+      ...(normalizedRouteReason != null
+        ? [
+            {
+              retrievalMetadataJson: {
+                path: ['routeDecision', 'routeReason'],
+                equals: normalizedRouteReason
+              }
+            }
+          ]
+        : [])
+    ];
 
     return this.prisma.answerTrace
       .findMany({
         where: {
+          ...(routeFilters.length > 0 ? { AND: routeFilters } : {}),
           ...(scope != null
             ? {
                 conversation: {
@@ -460,6 +512,42 @@ export class TracesService {
     const retrievalExecution = this.readObject(retrievalMetadata?.execution);
     const timingMetadata = this.readObject(retrievalMetadata?.timing);
     const retrievalFailure = this.readObject(retrievalMetadata?.failure);
+    const routeDecision = this.readObject(retrievalMetadata?.routeDecision);
+    const executionPlan = this.readTraceExecutionPlan(
+      retrievalMetadata?.executionPlan
+    );
+    const routeType =
+      this.readTraceRouteType(retrievalMetadata?.routeType) ??
+      this.readTraceRouteType(routeDecision?.routeType);
+    const routeReason =
+      this.readTraceRouteReason(retrievalMetadata?.routeReason) ??
+      this.readTraceRouteReason(routeDecision?.routeReason);
+    const canonicalMetadataSurface =
+      routeType != null && routeReason != null && executionPlan != null
+        ? buildTraceMetadataCanonicalSurface({
+            routeDecision: {
+              routeType,
+              routeReason
+            },
+            executionPlan
+          })
+        : null;
+    const routeTypeReadabilityLabel =
+      buildTraceRouteTypeReadabilityLabel(routeType);
+    const routeReasonReadabilityLabel =
+      buildTraceRouteReasonReadabilityLabel(routeReason);
+    const routeDecisionReadabilityLabel =
+      buildTraceRouteDecisionReadabilityLabel(routeType, routeReason);
+    const routeDecisionReadabilitySentence =
+      buildTraceRouteDecisionReadabilitySentence(routeType, routeReason);
+    const executionMode =
+      this.readTraceSummaryExecutionMode(retrievalMetadata?.executionMode) ??
+      canonicalMetadataSurface?.executionMode ??
+      this.readTraceSummaryExecutionMode(executionPlan?.executionMode);
+    const executionToolNames =
+      this.readTraceExecutionToolNames(retrievalMetadata?.executionToolNames) ??
+      canonicalMetadataSurface?.executionToolNames ??
+      collectTraceExecutionToolNames(executionPlan);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
     const inputChunkCount =
@@ -643,6 +731,14 @@ export class TracesService {
     const answerAttributionReadabilitySentence =
       answerAttributionSummary.readabilitySentence ??
       'Answer attribution is unknown; source evidence is unknown.';
+    const executionModeReadabilityLabel =
+      buildTraceExecutionModeReadabilityLabel(executionMode);
+    const executionModeReadabilitySentence =
+      buildTraceExecutionModeReadabilitySentence(executionMode);
+    const executionToolNamesReadabilityLabel =
+      buildTraceExecutionToolNamesLabel(executionToolNames);
+    const executionToolNamesReadabilitySentence =
+      buildTraceExecutionToolNamesReadabilitySentence(executionToolNames);
     const {
       answerTextSourceReadabilityLabel,
       answerTextSourceReadabilitySentence,
@@ -748,6 +844,12 @@ export class TracesService {
     });
 
     return {
+      routeType,
+      routeReason,
+      routeTypeReadabilityLabel,
+      routeReasonReadabilityLabel,
+      routeDecisionReadabilityLabel,
+      routeDecisionReadabilitySentence,
       promptId: this.readString(answeringMetadata?.promptId),
       answerStatus: this.readStringAs<
         NonNullable<TraceSummary['answerStatus']>
@@ -786,6 +888,20 @@ export class TracesService {
         fallbackReason,
         usedFallback: strategyUsedFallback
       },
+      routeDecisionSummary:
+        routeType != null && routeReason != null
+          ? {
+              routeType,
+              routeReason
+            }
+          : null,
+      executionPlan,
+      executionMode,
+      executionModeReadabilityLabel,
+      executionModeReadabilitySentence,
+      executionToolNames,
+      executionToolNamesReadabilityLabel,
+      executionToolNamesReadabilitySentence,
       timingSummary,
       timingReadabilitySentence:
         this.buildTimingReadabilitySentence(timingSummary),
@@ -942,6 +1058,133 @@ export class TracesService {
       )
       ? (value as NonNullable<TraceSummary['answerStatusSource']>)
       : null;
+  }
+
+  private readTraceRouteType(
+    value: unknown
+  ): NonNullable<TraceSummary['routeType']> | null {
+    return typeof value === 'string' &&
+      TRACE_ROUTE_TYPE_VALUES.has(
+        value as NonNullable<TraceSummary['routeType']>
+      )
+      ? (value as NonNullable<TraceSummary['routeType']>)
+      : null;
+  }
+
+  private readTraceRouteReason(
+    value: unknown
+  ): NonNullable<TraceSummary['routeReason']> | null {
+    return typeof value === 'string' &&
+      TRACE_ROUTE_REASON_VALUES.has(
+        value as NonNullable<TraceSummary['routeReason']>
+      )
+      ? (value as NonNullable<TraceSummary['routeReason']>)
+      : null;
+  }
+
+  private readTraceSummaryExecutionMode(
+    value: unknown
+  ): TraceSummary['executionMode'] {
+    return readTraceExecutionMode(value);
+  }
+
+  private readTraceSummaryExecutionToolName(
+    value: unknown
+  ): TraceSummary['executionToolNames'][number] | null {
+    return readTraceExecutionToolName(value);
+  }
+
+  private readTraceExecutionToolNames(
+    value: unknown
+  ): TraceSummary['executionToolNames'] | null {
+    if (!Array.isArray(value)) {
+      return null;
+    }
+
+    const toolNames = value
+      .map((entry) => this.readTraceSummaryExecutionToolName(entry))
+      .filter(
+        (
+          toolName
+        ): toolName is NonNullable<
+          TraceSummary['executionToolNames']
+        >[number] => toolName != null
+      );
+
+    return toolNames.length > 0 ? toolNames : [];
+  }
+
+  private readTraceExecutionPlan(
+    value: unknown
+  ): TraceSummary['executionPlan'] {
+    const plan = this.readObject(value);
+    if (plan == null) {
+      return null;
+    }
+
+    const steps = Array.isArray(plan.steps)
+      ? plan.steps
+          .map((step) => {
+            const stepObject = this.readObject(step);
+            if (stepObject == null) {
+              return null;
+            }
+
+            const id = this.readString(stepObject.id);
+            const key = this.readString(stepObject.key);
+            const kind = this.readString(stepObject.kind);
+            const status = this.readString(stepObject.status);
+            const label = this.readString(stepObject.label);
+            if (
+              id == null ||
+              key == null ||
+              label == null ||
+              (kind !== 'route_decision' &&
+                kind !== 'retrieval' &&
+                kind !== 'source_fetch' &&
+                kind !== 'answer_generation' &&
+                kind !== 'deterministic_reply') ||
+              (status !== 'pending' &&
+                status !== 'running' &&
+                status !== 'completed' &&
+                status !== 'failed')
+            ) {
+              return null;
+            }
+
+            return {
+              key,
+              id,
+              kind,
+              toolName: this.readTraceSummaryExecutionToolName(
+                stepObject.toolName
+              ),
+              status,
+              label,
+              detail: this.readString(stepObject.detail),
+              durationMs: this.readNumber(stepObject.durationMs)
+            };
+          })
+          .filter(
+            (
+              step
+            ): step is NonNullable<
+              TraceSummary['executionPlan']
+            >['steps'][number] => step != null
+          )
+      : [];
+
+    if (steps.length === 0) {
+      return null;
+    }
+
+    const executionMode =
+      this.readTraceSummaryExecutionMode(plan.executionMode) ?? 'manual';
+
+    return {
+      executionMode,
+      steps
+    };
   }
 
   private buildTimingReadabilitySentence(

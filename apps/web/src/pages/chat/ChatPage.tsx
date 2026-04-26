@@ -42,6 +42,8 @@ import {
   buildStarterQuestions,
   formatMessageTime
 } from './chat-page-helpers';
+import { AgentSurfaceEntry } from '../reports/AgentSurfaceEntry';
+import { buildChatTraceDetailLink } from '../reports/route-view-helpers';
 import {
   applyChatStreamEvent,
   createPendingChatTurn,
@@ -392,12 +394,6 @@ export function ChatPage() {
     activeKnowledgeBase?.id ?? '',
     activeKnowledgeBase != null
   );
-  const assistantsForKnowledgeBaseCount =
-    activeKnowledgeBase == null
-      ? 0
-      : (assistantsQuery.data ?? []).filter(
-          (candidate) => candidate.kbId === activeKnowledgeBase.id
-        ).length;
   const activeAssistant = getPrimaryAssistantForKnowledgeBase(
     assistantsQuery.data,
     activeKnowledgeBase?.id ?? null
@@ -476,16 +472,38 @@ export function ChatPage() {
     () => shouldDelayConversationAutoSelectForStarter(location.search),
     [location.search]
   );
+  const requestedConversationId = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return normalizeConversationId(searchParams.get('conversationId'));
+  }, [location.search]);
+  const chatReadinessState = useMemo(
+    () =>
+      buildChatReadinessState(
+        knowledgeBaseSummaryQuery.data ?? null,
+        activeKnowledgeBase != null
+      ),
+    [activeKnowledgeBase, knowledgeBaseSummaryQuery.data]
+  );
+  const readyCount = knowledgeBaseSummaryQuery.data?.readyDocuments ?? 0;
 
-  const hasSingleAssistantBinding =
-    activeAssistant != null && assistantsForKnowledgeBaseCount === 1;
-  const canAsk = hasSingleAssistantBinding;
+  const hasAssistantBinding = activeAssistant != null;
+  const isChatReady = chatReadinessState.kind === 'ready';
+  const canAsk = hasAssistantBinding && isChatReady;
   const isStreamingTurnActive = activeStreamTurn != null;
-  const canSubmitQuestion = hasSingleAssistantBinding && !isStreamingTurnActive;
+  const canSubmitQuestion = canAsk && !isStreamingTurnActive;
   const shouldRenderStreamTurn = shouldRenderActiveStreamTurn(
     activeStreamTurn,
     resolvedConversationId
   );
+
+  useEffect(() => {
+    if (requestedConversationId == null) {
+      return;
+    }
+
+    setActiveConversationId(requestedConversationId);
+    setDidAutoSelectConversation(true);
+  }, [requestedConversationId]);
 
   useEffect(() => {
     if (shouldDelayConversationAutoSelect) {
@@ -551,14 +569,6 @@ export function ChatPage() {
     conversationsForWorkspace.find(
       (conversation) => conversation.id === resolvedConversationId
     ) ?? null;
-  const chatReadinessState = useMemo(
-    () =>
-      buildChatReadinessState(
-        knowledgeBaseSummaryQuery.data ?? null,
-        activeKnowledgeBase != null
-      ),
-    [activeKnowledgeBase, knowledgeBaseSummaryQuery.data]
-  );
   const handleFinalStreamEvent = useCallback(
     (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
       const traceSummaryHint = buildTraceSummaryHint({
@@ -862,6 +872,44 @@ export function ChatPage() {
     [displayedMessages]
   );
 
+  const composerHelpText = useMemo(() => {
+    if (canAsk) {
+      return chatCopy.inputHelpCanAsk;
+    }
+
+    if (chatReadinessState.kind === 'no_active_knowledge_base') {
+      return locale === 'zh'
+        ? '请先创建或恢复当前资料库，然后再开始提问。'
+        : 'Create or restore the current library first, then start asking questions.';
+    }
+
+    if (chatReadinessState.kind === 'no_documents') {
+      return locale === 'zh'
+        ? '请先添加第一批文件或链接，等资料可用后再开始提问。'
+        : 'Add the first files or links first, then start asking once the library is ready.';
+    }
+
+    if (chatReadinessState.kind === 'processing_documents') {
+      return locale === 'zh'
+        ? '资料仍在处理中；等第一批资料就绪后再开始提问。'
+        : 'Library updates are still running. Start asking after the first ready items appear.';
+    }
+
+    if (chatReadinessState.kind === 'failed_documents') {
+      return locale === 'zh'
+        ? '还有资料需要修复；先处理失败项，再继续提问。'
+        : 'Some library items still need attention. Fix those items before asking.';
+    }
+
+    return chatCopy.inputHelpDisabled;
+  }, [
+    canAsk,
+    chatCopy.inputHelpCanAsk,
+    chatCopy.inputHelpDisabled,
+    chatReadinessState.kind,
+    locale
+  ]);
+
   return (
     <div
       className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]"
@@ -887,12 +935,16 @@ export function ChatPage() {
 
           <div className="flex items-center gap-2">
             {activeTraceId ? (
-              <Link
-                className="hidden rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--app-text-secondary)] transition hover:border-[var(--app-border-strong)] hover:text-[var(--app-text)] md:inline-flex"
-                to={`/traces/${activeTraceId}`}
-              >
-                {chatCopy.viewTrace}
-              </Link>
+              <div className="hidden md:flex">
+                <AgentSurfaceEntry
+                  primaryHref={buildChatTraceDetailLink({
+                    traceId: activeTraceId,
+                    conversationId: resolvedConversationId
+                  })}
+                  primaryLabel={chatCopy.viewTrace}
+                  tone="inline"
+                />
+              </div>
             ) : null}
             <IconActionButton
               disabledHint={chatCopy.moreActionsHint}
@@ -983,7 +1035,7 @@ export function ChatPage() {
                 })}
                 title={t('chat.states.processingDocumentsTitle')}
               />
-            ) : !hasSingleAssistantBinding ? (
+            ) : !hasAssistantBinding ? (
               <StatePanel
                 action={
                   <div className="flex flex-wrap justify-center gap-3">
@@ -1000,9 +1052,11 @@ export function ChatPage() {
                     </button>
                     <Link
                       className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-sm font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
-                      to="/assistant"
+                      to="/documents"
                     >
-                      {t('chat.states.noAssistantForKnowledgeBaseAction')}
+                      {readyCount > 0
+                        ? t('chat.states.failedDocumentsAction')
+                        : t('chat.states.noDocumentsAction')}
                     </Link>
                   </div>
                 }
@@ -1169,7 +1223,13 @@ export function ChatPage() {
                           !isStreamingAssistant && traceId ? (
                             <IconActionLink
                               label={chatCopy.viewTrace}
-                              to={`/traces/${traceId}`}
+                              to={buildChatTraceDetailLink({
+                                traceId,
+                                conversationId:
+                                  'conversationId' in message
+                                    ? message.conversationId
+                                    : resolvedConversationId
+                              })}
                             >
                               <svg
                                 aria-hidden="true"
@@ -1329,9 +1389,7 @@ export function ChatPage() {
                   {chatCopy.inputSection}
                 </div>
                 <div className="mt-1 text-xs text-[var(--app-text-secondary)]">
-                  {canAsk
-                    ? chatCopy.inputHelpCanAsk
-                    : chatCopy.inputHelpDisabled}
+                  {composerHelpText}
                 </div>
               </div>
             </div>
@@ -1342,6 +1400,7 @@ export function ChatPage() {
                   className="min-h-[96px] max-h-[220px] flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-6 text-[var(--app-text)] placeholder:text-[var(--app-text-muted)] md:min-h-[120px]"
                   name="question"
                   onChange={(event) => setComposerValue(event.target.value)}
+                  disabled={!canAsk}
                   onKeyDown={(event) => {
                     if (
                       event.key === 'Enter' &&

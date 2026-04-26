@@ -6,15 +6,27 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { loadLatestQueue, queueSummary } from './queue-utils.mjs';
 import { formatStatusLine } from './status-utils.mjs';
+import { validateExecutionBackend } from '../adapters/execution-adapters.mjs';
+import {
+  DEFAULT_EXECUTION_BACKEND,
+  LOOP_ENV_KEYS,
+  shouldStripBackendRuntimeEnv
+} from './backend-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const loopDir = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(loopDir, '..', '..');
+const repoRoot = path.resolve(loopDir, '..');
 const runtimeDir = path.join(loopDir, 'runtime');
 const stateFile = path.join(runtimeDir, 'loop-state.json');
 const logFile = path.join(loopDir, 'loop-run.log');
 const runnerFile = path.join(__dirname, 'runner.mjs');
-const command = process.argv[2] ?? 'help';
+const [command, ...rawArgs] = process.argv.slice(2);
+const parsedArgs = parseArgs(rawArgs);
+const requestedExecutor = parsedArgs.executor?.trim();
+const effectiveExecutor =
+  requestedExecutor ||
+  process.env[LOOP_ENV_KEYS.executorBackend] ||
+  DEFAULT_EXECUTION_BACKEND;
 
 await mkdir(runtimeDir, { recursive: true });
 
@@ -115,8 +127,41 @@ async function start() {
     return;
   }
 
+  const backendCheck = await validateExecutionBackend({
+    ...process.env,
+    [LOOP_ENV_KEYS.executorBackend]: effectiveExecutor
+  });
+  if (!backendCheck.ok) {
+    await writeState(
+      {
+        executionBackend: effectiveExecutor,
+        status: 'blocked',
+        phase: 'blocked',
+        blockedOn: backendCheck.message,
+        currentItemId: null,
+        currentItemTitle: null,
+        currentItemStatus: null,
+        activeSessionId: null
+      },
+      state
+    );
+    console.error(backendCheck.message);
+    return;
+  }
+
+  const childEnv = { ...process.env };
+  for (const key of Object.keys(childEnv)) {
+    if (shouldStripBackendRuntimeEnv(key)) {
+      delete childEnv[key];
+    }
+  }
+
   const child = spawn(process.execPath, [runnerFile], {
     cwd: repoRoot,
+    env: {
+      ...childEnv,
+      [LOOP_ENV_KEYS.executorBackend]: effectiveExecutor
+    },
     detached: true,
     stdio: 'ignore',
     windowsHide: true
@@ -126,6 +171,7 @@ async function start() {
   await writeState(
     {
       pid: child.pid,
+      executionBackend: effectiveExecutor,
       status: 'starting',
       phase: 'starting',
       currentItemId: null,
@@ -154,7 +200,14 @@ async function stop() {
   }
 
   await writeState(
-    { status: 'stopping', stoppedAt: new Date().toISOString() },
+    {
+      status: 'stopping',
+      executionBackend:
+        state.executionBackend ??
+        process.env[LOOP_ENV_KEYS.executorBackend] ??
+        DEFAULT_EXECUTION_BACKEND,
+      stoppedAt: new Date().toISOString()
+    },
     state
   );
   const exited = await waitForPidExit(state.pid);
@@ -166,7 +219,23 @@ async function stop() {
 }
 
 function help() {
-  console.log('usage: pnpm loop:start|stop|status');
+  console.log('usage: pnpm loop:start [--executor <backend>] | stop | status');
+}
+
+function parseArgs(args) {
+  const result = {};
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index];
+    if (token === '--executor') {
+      result.executor = args[index + 1] ?? '';
+      index += 1;
+      continue;
+    }
+    if (token.startsWith('--executor=')) {
+      result.executor = token.slice('--executor='.length);
+    }
+  }
+  return result;
 }
 
 if (command === 'start') {

@@ -1,7 +1,6 @@
 import { Badge, Button, Paper, Stack, Text } from '@mantine/core';
 import { lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { useI18n } from '../../i18n/I18nProvider';
 import type {
   EvalQuestionSetFailureDrilldownItem,
   EvalQuestionSetRunQualityGate,

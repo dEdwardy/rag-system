@@ -5,8 +5,23 @@ import {
   HttpException,
   HttpStatus,
   Logger
-} from "@nestjs/common";
-import { ZodError } from "zod";
+} from '@nestjs/common';
+import { ZodError } from 'zod';
+
+function resolveHttpExceptionResponseBody(
+  payload: unknown,
+  fallbackMessage: string
+) {
+  if (typeof payload === 'string') {
+    return { message: payload };
+  }
+
+  if (payload && typeof payload === 'object') {
+    return payload;
+  }
+
+  return { message: fallbackMessage };
+}
 
 export function buildHttpExceptionResponse(exception: unknown, path: string) {
   if (exception instanceof ZodError) {
@@ -14,8 +29,8 @@ export function buildHttpExceptionResponse(exception: unknown, path: string) {
       statusCode: HttpStatus.BAD_REQUEST,
       body: {
         statusCode: HttpStatus.BAD_REQUEST,
-        error: "Bad Request",
-        message: "Validation failed.",
+        error: 'Bad Request',
+        message: 'Validation failed.',
         details: exception.flatten(),
         path,
         timestamp: new Date().toISOString()
@@ -26,18 +41,16 @@ export function buildHttpExceptionResponse(exception: unknown, path: string) {
   if (exception instanceof HttpException) {
     const statusCode = exception.getStatus();
     const payload = exception.getResponse();
-    const responseBody =
-      typeof payload === "string"
-        ? { message: payload }
-        : payload && typeof payload === "object"
-          ? payload
-          : { message: exception.message };
+    const responseBody = resolveHttpExceptionResponseBody(
+      payload,
+      exception.message
+    );
 
     return {
       statusCode,
       body: {
         statusCode,
-        error: HttpStatus[statusCode] ?? "Error",
+        error: HttpStatus[statusCode] ?? 'Error',
         path,
         timestamp: new Date().toISOString(),
         ...responseBody
@@ -45,13 +58,14 @@ export function buildHttpExceptionResponse(exception: unknown, path: string) {
     };
   }
 
-  const error = exception instanceof Error ? exception : new Error("Unknown server error.");
+  const error =
+    exception instanceof Error ? exception : new Error('Unknown server error.');
 
   return {
     statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
     body: {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      error: "Internal Server Error",
+      error: 'Internal Server Error',
       message: error.message,
       path,
       timestamp: new Date().toISOString()

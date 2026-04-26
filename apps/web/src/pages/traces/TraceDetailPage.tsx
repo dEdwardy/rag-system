@@ -8,27 +8,29 @@ import {
   Stack,
   Text,
   Title
-} from "@mantine/core";
-import { lazy, Suspense } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
-import { StatePanel } from "../../components/StatePanel";
-import { useConversationMessages, useTrace } from "../../features/api/hooks";
-import { useI18n } from "../../i18n/I18nProvider";
-import type { Citation } from "../../types/api";
+} from '@mantine/core';
+import { lazy, Suspense } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { StatePanel } from '../../components/StatePanel';
+import { useConversationMessages, useTrace } from '../../features/api/hooks';
+import { useI18n } from '../../i18n/I18nProvider';
+import type { Citation } from '../../types/api';
 import {
   buildFailureTaxonomy,
   getFailureTaxonomyLabel,
   getFailureTaxonomyColor,
-  buildDocumentChunkLink
-} from "./trace-detail-page-helpers";
+  buildDocumentChunkLink,
+  buildRetrievalInternalsSummary
+} from './trace-detail-page-helpers';
+import { buildChatConversationLink } from '../reports/route-view-helpers';
 
 const TraceDetailSidebarPanels = lazy(async () => {
-  const module = await import("./TraceDetailSupportPanels");
+  const module = await import('./TraceDetailSupportPanels');
   return { default: module.TraceDetailSidebarPanels };
 });
 
 const TraceDetailSecondaryPanels = lazy(async () => {
-  const module = await import("./TraceDetailSupportPanels");
+  const module = await import('./TraceDetailSupportPanels');
   return { default: module.TraceDetailSecondaryPanels };
 });
 
@@ -57,48 +59,58 @@ type TraceDiagnosticSummarySlice = {
 };
 
 const TRACE_DETAIL_SECTION_IDS = {
-  retrievedChunks: "trace-detail-retrieved-chunks",
-  citations: "trace-detail-citations",
-  rawPayload: "trace-detail-raw-payload",
-  requestResponse: "trace-detail-request-response"
+  retrievedChunks: 'trace-detail-retrieved-chunks',
+  citations: 'trace-detail-citations',
+  rawPayload: 'trace-detail-raw-payload',
+  requestResponse: 'trace-detail-request-response'
 } as const;
 
-
-
-function getPrimaryIssueReadabilityLabel(primaryIssue: string, locale: "zh" | "en") {
-  if (primaryIssue === "no_retrieval_hits") {
-    return locale === "zh" ? "检索未命中" : "No retrieval hits";
+function getPrimaryIssueReadabilityLabel(
+  primaryIssue: string,
+  locale: 'zh' | 'en'
+) {
+  if (primaryIssue === 'no_retrieval_hits') {
+    return locale === 'zh' ? '检索未命中' : 'No retrieval hits';
   }
-  if (primaryIssue === "insufficient_context") {
-    return locale === "zh" ? "检索上下文不足" : "Retrieved context is insufficient";
+  if (primaryIssue === 'insufficient_context') {
+    return locale === 'zh'
+      ? '检索上下文不足'
+      : 'Retrieved context is insufficient';
   }
-  if (primaryIssue === "missing_information") {
-    return locale === "zh" ? "回答缺失关键信息" : "Missing key information";
+  if (primaryIssue === 'missing_information') {
+    return locale === 'zh' ? '回答缺失关键信息' : 'Missing key information';
   }
-  if (primaryIssue === "low_retrieval_score") {
-    return locale === "zh" ? "检索置信度偏低" : "Low retrieval confidence";
+  if (primaryIssue === 'low_retrieval_score') {
+    return locale === 'zh' ? '检索置信度偏低' : 'Low retrieval confidence';
   }
-  if (primaryIssue === "fallback_generation") {
-    return locale === "zh" ? "回答走了回退生成路径" : "Fallback generation path";
+  if (primaryIssue === 'fallback_generation') {
+    return locale === 'zh'
+      ? '回答走了回退生成路径'
+      : 'Fallback generation path';
   }
-  if (primaryIssue === "other") {
-    return locale === "zh" ? "其他问题" : "Other issue";
+  if (primaryIssue === 'other') {
+    return locale === 'zh' ? '其他问题' : 'Other issue';
   }
 
   return primaryIssue;
 }
 
-function getAnswerStatusReadabilityLabel(answerStatus: string | null | undefined, locale: "zh" | "en") {
+function getAnswerStatusReadabilityLabel(
+  answerStatus: string | null | undefined,
+  locale: 'zh' | 'en'
+) {
   if (!answerStatus) {
-    return locale === "zh" ? "未知" : "Unknown";
+    return locale === 'zh' ? '未知' : 'Unknown';
   }
 
-  if (answerStatus === "grounded") {
-    return locale === "zh" ? "有依据（grounded）" : "Grounded (grounded)";
+  if (answerStatus === 'grounded') {
+    return locale === 'zh' ? '有依据（grounded）' : 'Grounded (grounded)';
   }
 
-  if (answerStatus === "insufficient_context") {
-    return locale === "zh" ? "上下文不足（insufficient_context）" : "Insufficient context (insufficient_context)";
+  if (answerStatus === 'insufficient_context') {
+    return locale === 'zh'
+      ? '上下文不足（insufficient_context）'
+      : 'Insufficient context (insufficient_context)';
   }
 
   return answerStatus;
@@ -106,7 +118,7 @@ function getAnswerStatusReadabilityLabel(answerStatus: string | null | undefined
 
 function buildTraceDiagnosticSummarySlice(
   trace: {
-    status: "success" | "failed";
+    status: 'success' | 'failed';
     errorMessage: string | null;
     traceSummary?: {
       primaryIssue: string | null;
@@ -116,25 +128,34 @@ function buildTraceDiagnosticSummarySlice(
       missingInformationProvenanceSentence: string;
     } | null;
   },
-  locale: "zh" | "en"
+  locale: 'zh' | 'en'
 ): TraceDiagnosticSummarySlice {
   const summary = trace.traceSummary ?? null;
   const issueSource =
-    trace.status === "failed"
-      ? summary?.failureReadabilitySentence || trace.errorMessage || (locale === "zh" ? "执行失败，需继续查看下方诊断。" : "Execution failed. Continue with diagnostics below.")
-      : summary?.primaryIssue && summary.primaryIssue !== "none"
-        ? `${locale === "zh" ? "主要问题" : "Primary issue"}: ${getPrimaryIssueReadabilityLabel(summary.primaryIssue, locale)}`
-        : locale === "zh"
-          ? "未发现阻断性主问题。"
-          : "No blocking primary issue detected.";
+    trace.status === 'failed'
+      ? summary?.failureReadabilitySentence ||
+        trace.errorMessage ||
+        (locale === 'zh'
+          ? '执行失败，需继续查看下方诊断。'
+          : 'Execution failed. Continue with diagnostics below.')
+      : summary?.primaryIssue && summary.primaryIssue !== 'none'
+        ? `${locale === 'zh' ? '主要问题' : 'Primary issue'}: ${getPrimaryIssueReadabilityLabel(summary.primaryIssue, locale)}`
+        : locale === 'zh'
+          ? '未发现阻断性主问题。'
+          : 'No blocking primary issue detected.';
 
   const retrievalLine =
     summary?.retrievalModeProvenanceSentence ||
-    (locale === "zh" ? "暂无检索来源诊断摘要。" : "No retrieval-source diagnostic summary available.");
+    (locale === 'zh'
+      ? '暂无检索来源诊断摘要。'
+      : 'No retrieval-source diagnostic summary available.');
 
   const answerLine =
-    summary?.answerStatusSourceReadabilitySentence || summary?.missingInformationProvenanceSentence ||
-    (locale === "zh" ? "暂无回答状态溯源摘要。" : "No answer-status provenance summary available.");
+    summary?.answerStatusSourceReadabilitySentence ||
+    summary?.missingInformationProvenanceSentence ||
+    (locale === 'zh'
+      ? '暂无回答状态溯源摘要。'
+      : 'No answer-status provenance summary available.');
 
   return {
     issueLine: issueSource,
@@ -144,7 +165,9 @@ function buildTraceDiagnosticSummarySlice(
 }
 
 function normalizeChunkIds(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 function normalizeScores(value: unknown): RetrievalScoreRecord[] {
@@ -153,32 +176,41 @@ function normalizeScores(value: unknown): RetrievalScoreRecord[] {
   }
 
   return value
-    .map(item => {
+    .map((item) => {
       if (
-        typeof item !== "object" ||
+        typeof item !== 'object' ||
         item === null ||
-        !("chunkId" in item) ||
-        !("score" in item) ||
-        typeof item.chunkId !== "string" ||
-        typeof item.score !== "number"
+        !('chunkId' in item) ||
+        !('score' in item) ||
+        typeof item.chunkId !== 'string' ||
+        typeof item.score !== 'number'
       ) {
         return null;
       }
 
       return {
         chunkId: item.chunkId,
-        documentId: typeof item.documentId === "string" ? item.documentId : null,
-        documentTitle: typeof item.documentTitle === "string" ? item.documentTitle : null,
-        chunkIndex: typeof item.chunkIndex === "number" ? item.chunkIndex : null,
-        contentPreview: typeof item.contentPreview === "string" ? item.contentPreview : null,
-        isPrimary: typeof item.isPrimary === "boolean" ? item.isPrimary : null,
-        pageNo: typeof item.pageNo === "number" ? item.pageNo : null,
-        sectionTitle: typeof item.sectionTitle === "string" ? item.sectionTitle : null,
+        documentId:
+          typeof item.documentId === 'string' ? item.documentId : null,
+        documentTitle:
+          typeof item.documentTitle === 'string' ? item.documentTitle : null,
+        chunkIndex:
+          typeof item.chunkIndex === 'number' ? item.chunkIndex : null,
+        contentPreview:
+          typeof item.contentPreview === 'string' ? item.contentPreview : null,
+        isPrimary: typeof item.isPrimary === 'boolean' ? item.isPrimary : null,
+        pageNo: typeof item.pageNo === 'number' ? item.pageNo : null,
+        sectionTitle:
+          typeof item.sectionTitle === 'string' ? item.sectionTitle : null,
         score: item.score,
-        vectorScore: typeof item.vectorScore === "number" ? item.vectorScore : null,
-        lexicalScore: typeof item.lexicalScore === "number" ? item.lexicalScore : null,
-        hybridScore: typeof item.hybridScore === "number" ? item.hybridScore : null,
-        rerankScore: typeof item.rerankScore === "number" ? item.rerankScore : null
+        vectorScore:
+          typeof item.vectorScore === 'number' ? item.vectorScore : null,
+        lexicalScore:
+          typeof item.lexicalScore === 'number' ? item.lexicalScore : null,
+        hybridScore:
+          typeof item.hybridScore === 'number' ? item.hybridScore : null,
+        rerankScore:
+          typeof item.rerankScore === 'number' ? item.rerankScore : null
       };
     })
     .filter((item): item is RetrievalScoreRecord => item !== null);
@@ -206,35 +238,43 @@ function createUnscoredRankedEntry(chunkId: string): RankedEntry {
   };
 }
 
-function buildRankedEntries(scores: RetrievalScoreRecord[], retrievedChunkIds: string[]): RankedEntry[] {
-  const scoreChunkIds = new Set(scores.map(item => item.chunkId));
+function buildRankedEntries(
+  scores: RetrievalScoreRecord[],
+  retrievedChunkIds: string[]
+): RankedEntry[] {
+  const scoreChunkIds = new Set(scores.map((item) => item.chunkId));
   const scoredEntries = scores
     .slice()
     .sort(
       (left, right) =>
-        (right.score ?? Number.NEGATIVE_INFINITY) - (left.score ?? Number.NEGATIVE_INFINITY) ||
+        (right.score ?? Number.NEGATIVE_INFINITY) -
+          (left.score ?? Number.NEGATIVE_INFINITY) ||
         left.chunkId.localeCompare(right.chunkId)
     );
   const unscoredEntries = retrievedChunkIds
-    .filter(chunkId => !scoreChunkIds.has(chunkId))
-    .map(chunkId => createUnscoredRankedEntry(chunkId));
+    .filter((chunkId) => !scoreChunkIds.has(chunkId))
+    .map((chunkId) => createUnscoredRankedEntry(chunkId));
 
   return [...scoredEntries, ...unscoredEntries];
 }
 
-
-
 function formatScore(value: number | null) {
-  return value == null ? "-" : value.toFixed(4);
+  return value == null ? '-' : value.toFixed(4);
 }
 
-function TraceDetailSidebarFallback({ locale }: { locale: "zh" | "en" }) {
+function TraceDetailSidebarFallback({ locale }: { locale: 'zh' | 'en' }) {
   return (
     <div className="workspace-page-side-stack">
       <div className="workspace-sticky-panel">
         <StatePanel
-          description={locale === "zh" ? "正在加载诊断元数据与快速跳转。" : "Loading diagnostic metadata and quick jumps."}
-          title={locale === "zh" ? "加载辅助诊断面板" : "Loading support panels"}
+          description={
+            locale === 'zh'
+              ? '正在加载诊断元数据与快速跳转。'
+              : 'Loading diagnostic metadata and quick jumps.'
+          }
+          title={
+            locale === 'zh' ? '加载辅助诊断面板' : 'Loading support panels'
+          }
           tone="loading"
         />
       </div>
@@ -242,17 +282,27 @@ function TraceDetailSidebarFallback({ locale }: { locale: "zh" | "en" }) {
   );
 }
 
-function TraceDetailSecondaryFallback({ locale }: { locale: "zh" | "en" }) {
+function TraceDetailSecondaryFallback({ locale }: { locale: 'zh' | 'en' }) {
   return (
     <div className="workspace-detail-secondary-grid">
       <StatePanel
-        description={locale === "zh" ? "正在加载引用与原始载荷面板。" : "Loading citations and raw payload panels."}
-        title={locale === "zh" ? "加载辅助诊断内容" : "Loading support diagnostics"}
+        description={
+          locale === 'zh'
+            ? '正在加载引用与原始载荷面板。'
+            : 'Loading citations and raw payload panels.'
+        }
+        title={
+          locale === 'zh' ? '加载辅助诊断内容' : 'Loading support diagnostics'
+        }
         tone="loading"
       />
       <StatePanel
-        description={locale === "zh" ? "稍后显示开发调试载荷。" : "The developer payload view will appear shortly."}
-        title={locale === "zh" ? "准备原始载荷" : "Preparing raw payload"}
+        description={
+          locale === 'zh'
+            ? '稍后显示开发调试载荷。'
+            : 'The developer payload view will appear shortly.'
+        }
+        title={locale === 'zh' ? '准备原始载荷' : 'Preparing raw payload'}
         tone="loading"
       />
     </div>
@@ -264,19 +314,32 @@ export function TraceDetailPage() {
   const [searchParams] = useSearchParams();
   const traceQuery = useTrace(traceId);
   const trace = traceQuery.data;
-  const conversationMessagesQuery = useConversationMessages(trace?.conversationId ?? null);
+  const conversationMessagesQuery = useConversationMessages(
+    trace?.conversationId ?? null
+  );
   const conversationMessages = conversationMessagesQuery.data ?? [];
   const retrievedChunkIds = normalizeChunkIds(trace?.retrievedChunkIdsJson);
   const scores = normalizeScores(trace?.retrievalScoresJson);
   const citations = normalizeCitations(trace?.citationsJson);
   const { formatDateTime, t, locale } = useI18n();
-  const citationsByChunkId = new Map(citations.map(citation => [citation.chunkId, citation]));
+  const citationsByChunkId = new Map(
+    citations.map((citation) => [citation.chunkId, citation])
+  );
   const rankedEntries = buildRankedEntries(scores, retrievedChunkIds);
+  const retrievalInternals = buildRetrievalInternalsSummary(
+    trace?.retrievalMetadataJson,
+    locale
+  );
   const hasRewrite = Boolean(trace?.rewrittenQuery);
-  const reportSource = searchParams.get("from") === "report";
-  const reportQuestion = searchParams.get("question");
-  const reportHandling = searchParams.get("handling");
-  const reportPriority = searchParams.get("priority");
+  const reportSource = searchParams.get('from') === 'report';
+  const chatSource = searchParams.get('from') === 'chat';
+  const reportQuestion = searchParams.get('question');
+  const reportHandling = searchParams.get('handling');
+  const reportPriority = searchParams.get('priority');
+  const requestedConversationId = searchParams.get('conversationId');
+  const chatConversationLink = buildChatConversationLink(
+    requestedConversationId ?? trace?.conversationId ?? null
+  );
   const traceSummary = trace?.traceSummary ?? null;
   const diagnosticSummarySlice = trace
     ? buildTraceDiagnosticSummarySlice(
@@ -298,115 +361,142 @@ export function TraceDetailPage() {
     : [];
   const userRequestText =
     (trace?.userMessageId
-      ? conversationMessages.find(message => message.id === trace.userMessageId)?.content
+      ? conversationMessages.find(
+          (message) => message.id === trace.userMessageId
+        )?.content
       : null) ??
     trace?.userQuery ??
-    "";
+    '';
   const assistantResponseText =
     (trace?.assistantMessageId
-      ? conversationMessages.find(message => message.id === trace.assistantMessageId)?.content
+      ? conversationMessages.find(
+          (message) => message.id === trace.assistantMessageId
+        )?.content
       : null) ??
-    conversationMessages.find(message => message.role === "assistant" && message.traceId === trace?.id)?.content ??
+    conversationMessages.find(
+      (message) => message.role === 'assistant' && message.traceId === trace?.id
+    )?.content ??
     null;
-  const answerStatusValue = traceSummary?.answerStatus ?? (trace?.status === "success" ? "grounded" : "insufficient_context");
+  const answerStatusValue =
+    traceSummary?.answerStatus ??
+    (trace?.status === 'success' ? 'grounded' : 'insufficient_context');
   const scanFirstDocumentTarget =
-    rankedEntries.find(entry => entry.documentId)?.documentId ?? citations.find(citation => citation.documentId)?.documentId ?? null;
+    rankedEntries.find((entry) => entry.documentId)?.documentId ??
+    citations.find((citation) => citation.documentId)?.documentId ??
+    null;
   const scanFirstDocumentTitle =
-    rankedEntries.find(entry => entry.documentId && entry.documentTitle)?.documentTitle ??
-    citations.find(citation => citation.documentTitle)?.documentTitle ??
+    rankedEntries.find((entry) => entry.documentId && entry.documentTitle)
+      ?.documentTitle ??
+    citations.find((citation) => citation.documentTitle)?.documentTitle ??
     null;
   const runFailureSummary =
     trace == null
       ? null
       : traceSummary?.failureReadabilitySentence ||
         trace.errorMessage ||
-        (trace.status === "failed"
-          ? locale === "zh"
-            ? "运行失败，先回看文档详情页中的 run 失败摘要。"
-            : "Run failed. Start with the run failure summary from Document Detail."
-          : locale === "zh"
-            ? "本轮未记录失败摘要。"
-            : "No failure summary was recorded for this run.");
+        (trace.status === 'failed'
+          ? locale === 'zh'
+            ? '运行失败，先回看文档详情页中的 run 失败摘要。'
+            : 'Run failed. Start with the run failure summary from Document Detail.'
+          : locale === 'zh'
+            ? '本轮未记录失败摘要。'
+            : 'No failure summary was recorded for this run.');
   const traceScanItems = trace
     ? [
         {
-          key: "status",
-          label: locale === "zh" ? "结果" : "Outcome",
+          key: 'status',
+          label: locale === 'zh' ? '结果' : 'Outcome',
           value:
-            trace.status === "success"
-              ? locale === "zh"
-                ? "已完成"
-                : "Completed"
-              : locale === "zh"
-                ? "需排查"
-                : "Needs review",
+            trace.status === 'success'
+              ? locale === 'zh'
+                ? '已完成'
+                : 'Completed'
+              : locale === 'zh'
+                ? '需排查'
+                : 'Needs review',
           copy:
             trace.errorMessage ??
-            (locale === "zh"
-              ? "先看执行摘要，再决定是否展开 chunk 与原始载荷。"
-              : "Start with the execution summary before expanding chunks or raw payload.")
+            (locale === 'zh'
+              ? '先看执行摘要，再决定是否展开 chunk 与原始载荷。'
+              : 'Start with the execution summary before expanding chunks or raw payload.')
         },
         {
-          key: "retrieval",
-          label: locale === "zh" ? "检索规模" : "Retrieval size",
+          key: 'retrieval',
+          label: locale === 'zh' ? '检索规模' : 'Retrieval size',
           value:
-            locale === "zh"
+            locale === 'zh'
               ? `${retrievedChunkIds.length} 个 chunk / ${citations.length} 条引用`
               : `${retrievedChunkIds.length} chunks / ${citations.length} citations`,
           copy:
             scores.length > 0
-              ? locale === "zh"
-                ? "已保留评分，可直接继续看排序结果。"
-                : "Scores are available for ranked inspection."
-              : locale === "zh"
-                ? "当前只保留了 trace 顺序。"
-                : "Only trace order is available for this run."
+              ? locale === 'zh'
+                ? '已保留评分，可直接继续看排序结果。'
+                : 'Scores are available for ranked inspection.'
+              : locale === 'zh'
+                ? '当前只保留了 trace 顺序。'
+                : 'Only trace order is available for this run.'
         },
         {
-          key: "taxonomy",
-          label: locale === "zh" ? "失败分类" : "Failure taxonomy",
+          key: 'taxonomy',
+          label: locale === 'zh' ? '失败分类' : 'Failure taxonomy',
           value:
             failureTaxonomy.length > 0
-              ? failureTaxonomy.map(category => getFailureTaxonomyLabel(category, locale)).join(" / ")
-              : locale === "zh"
-                ? "未命中失败分类"
-                : "No failure taxonomy",
+              ? failureTaxonomy
+                  .map((category) => getFailureTaxonomyLabel(category, locale))
+                  .join(' / ')
+              : locale === 'zh'
+                ? '未命中失败分类'
+                : 'No failure taxonomy',
           copy:
             diagnosticSummarySlice?.issueLine ??
-            (locale === "zh"
-              ? "当前没有额外问题线索。"
-              : "No additional issue signal is available.")
+            (locale === 'zh'
+              ? '当前没有额外问题线索。'
+              : 'No additional issue signal is available.')
         }
       ]
     : [];
   const reviewFocusItems = trace
     ? [
         {
-          key: "issue",
-          label: locale === "zh" ? "先看问题线索" : "Start with issue signal",
+          key: 'issue',
+          label: locale === 'zh' ? '先看问题线索' : 'Start with issue signal',
           value:
             diagnosticSummarySlice?.issueLine ??
-            (locale === "zh" ? "当前没有额外问题线索。" : "No additional issue signal is available."),
-          href: "#trace-detail-review-focus",
-          actionLabel: locale === "zh" ? "留在当前区块" : "Stay here"
+            (locale === 'zh'
+              ? '当前没有额外问题线索。'
+              : 'No additional issue signal is available.'),
+          href: '#trace-detail-review-focus',
+          actionLabel: locale === 'zh' ? '留在当前区块' : 'Stay here'
         },
         {
-          key: "retrieval",
-          label: locale === "zh" ? "再看检索与引用" : "Then check retrieval and citations",
+          key: 'retrieval',
+          label:
+            locale === 'zh'
+              ? '再看检索与引用'
+              : 'Then check retrieval and citations',
           value:
             diagnosticSummarySlice?.retrievalLine ??
-            (locale === "zh" ? "暂无检索来源诊断摘要。" : "No retrieval-source diagnostic summary available."),
+            (locale === 'zh'
+              ? '暂无检索来源诊断摘要。'
+              : 'No retrieval-source diagnostic summary available.'),
           href: `#${TRACE_DETAIL_SECTION_IDS.retrievedChunks}`,
-          actionLabel: locale === "zh" ? "查看命中 Chunk" : "Go to retrieved chunks"
+          actionLabel:
+            locale === 'zh' ? '查看命中 Chunk' : 'Go to retrieved chunks'
         },
         {
-          key: "answer",
-          label: locale === "zh" ? "最后看回答与原始载荷" : "Finish with answer and raw payload",
+          key: 'answer',
+          label:
+            locale === 'zh'
+              ? '最后看回答与原始载荷'
+              : 'Finish with answer and raw payload',
           value:
             diagnosticSummarySlice?.answerLine ??
-            (locale === "zh" ? "暂无回答状态溯源摘要。" : "No answer-status provenance summary available."),
+            (locale === 'zh'
+              ? '暂无回答状态溯源摘要。'
+              : 'No answer-status provenance summary available.'),
           href: `#${TRACE_DETAIL_SECTION_IDS.requestResponse}`,
-          actionLabel: locale === "zh" ? "查看请求与响应" : "Go to request and response"
+          actionLabel:
+            locale === 'zh' ? '查看请求与响应' : 'Go to request and response'
         }
       ]
     : [];
@@ -416,12 +506,44 @@ export function TraceDetailPage() {
       <Paper className="workspace-hero" p="lg" radius="xl">
         <Stack gap="sm">
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/workbench">
-              {locale === "zh" ? "返回工作台概览" : "Back to workbench overview"}
+            <Text
+              c="var(--app-text-muted)"
+              className="workspace-link"
+              component={Link}
+              size="sm"
+              to="/workbench"
+            >
+              {locale === 'zh'
+                ? '返回工作台概览'
+                : 'Back to workbench overview'}
             </Text>
-            <Text c="var(--app-text-muted)" size="sm">/</Text>
-            <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/traces">
-              {locale === "zh" ? "返回诊断列表" : "Back to diagnostics list"}
+            <Text c="var(--app-text-muted)" size="sm">
+              /
+            </Text>
+            {chatSource ? (
+              <>
+                <Text
+                  c="var(--app-text-muted)"
+                  className="workspace-link"
+                  component={Link}
+                  size="sm"
+                  to={chatConversationLink}
+                >
+                  {locale === 'zh' ? '返回聊天记录' : 'Back to chat answer'}
+                </Text>
+                <Text c="var(--app-text-muted)" size="sm">
+                  /
+                </Text>
+              </>
+            ) : null}
+            <Text
+              c="var(--app-text-muted)"
+              className="workspace-link"
+              component={Link}
+              size="sm"
+              to="/traces"
+            >
+              {locale === 'zh' ? '返回诊断列表' : 'Back to diagnostics list'}
             </Text>
           </div>
           <div className="workspace-hero-split">
@@ -430,28 +552,34 @@ export function TraceDetailPage() {
               <Title
                 order={3}
                 c="var(--app-text)"
-                style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}
+                style={{
+                  fontFamily: 'var(--app-font-display)',
+                  letterSpacing: '-0.03em'
+                }}
               >
-                {trace?.id ?? t("trace.title")}
+                {trace?.id ?? t('trace.title')}
               </Title>
               <Text c="var(--app-text-muted)" mt={4}>
-                {t("trace.subtitle")}
+                {t('trace.subtitle')}
               </Text>
             </div>
             {trace ? (
               <Stack align="flex-end" gap={10}>
                 <Group gap="xs">
-                  <Badge color={trace.status === "success" ? "teal" : "red"} variant="light">
+                  <Badge
+                    color={trace.status === 'success' ? 'teal' : 'red'}
+                    variant="light"
+                  >
                     {t(`common.status.${trace.status}`)}
                   </Badge>
                   <Badge color="gray" variant="light">
-                    {trace.modelName ?? "-"}
+                    {trace.modelName ?? '-'}
                   </Badge>
                 </Group>
                 <Text className="workspace-hero-sidecopy" ta="right">
-                  {locale === "zh"
-                    ? "保留 Trace 原始数据、引用、chunk 深链和评分展示，只把页面更明确地收成诊断视图。"
-                    : "Keep raw payload, citations, chunk deep links, and scoring intact while framing the page more clearly as diagnostics."}
+                  {locale === 'zh'
+                    ? '保留 Trace 原始数据、引用、chunk 深链和评分展示，只把页面更明确地收成诊断视图。'
+                    : 'Keep raw payload, citations, chunk deep links, and scoring intact while framing the page more clearly as diagnostics.'}
                 </Text>
               </Stack>
             ) : null}
@@ -460,44 +588,69 @@ export function TraceDetailPage() {
       </Paper>
 
       {traceQuery.isLoading ? (
-        <StatePanel description={t("trace.subtitle")} title={t("trace.title")} tone="loading" />
+        <StatePanel
+          description={t('trace.subtitle')}
+          title={t('trace.title')}
+          tone="loading"
+        />
       ) : null}
       {traceQuery.isError ? (
         <Alert color="red" radius="xl" variant="light">
-          {traceQuery.error instanceof Error ? traceQuery.error.message : t("trace.loadError")}
+          {traceQuery.error instanceof Error
+            ? traceQuery.error.message
+            : t('trace.loadError')}
         </Alert>
       ) : null}
 
       {trace ? (
         <>
-          {reportSource && (reportQuestion || reportHandling || reportPriority) ? (
-            <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+          {reportSource &&
+          (reportQuestion || reportHandling || reportPriority) ? (
+            <Paper
+              className="workspace-panel-hover workspace-panel-strong"
+              p="lg"
+              radius="xl"
+            >
               <Stack gap="sm">
                 <div className="workspace-section-heading">
-                  {locale === "zh" ? "来自质量报告的复盘上下文" : "Review context from quality reports"}
+                  {locale === 'zh'
+                    ? '来自质量报告的复盘上下文'
+                    : 'Review context from quality reports'}
                 </div>
                 <Text c="var(--app-text-muted)" size="sm">
-                  {locale === "zh"
-                    ? "这条诊断是从质量报告跳进来的。先按这里的治理上下文理解问题，再继续看下面的复盘顺序。"
-                    : "This trace was opened from quality reports. Read it through the governance context below before following the review order underneath."}
+                  {locale === 'zh'
+                    ? '这条诊断是从质量报告跳进来的。先按这里的治理上下文理解问题，再继续看下面的复盘顺序。'
+                    : 'This trace was opened from quality reports. Read it through the governance context below before following the review order underneath.'}
                 </Text>
                 <div className="workspace-meta-list">
                   {reportPriority ? (
                     <div className="workspace-meta-row">
-                      <span className="workspace-meta-label">{locale === "zh" ? "优先级" : "Priority"}</span>
-                      <span className="workspace-meta-value">{reportPriority}</span>
+                      <span className="workspace-meta-label">
+                        {locale === 'zh' ? '优先级' : 'Priority'}
+                      </span>
+                      <span className="workspace-meta-value">
+                        {reportPriority}
+                      </span>
                     </div>
                   ) : null}
                   {reportHandling ? (
                     <div className="workspace-meta-row">
-                      <span className="workspace-meta-label">{locale === "zh" ? "处理建议" : "Handling strategy"}</span>
-                      <span className="workspace-meta-value">{reportHandling}</span>
+                      <span className="workspace-meta-label">
+                        {locale === 'zh' ? '处理建议' : 'Handling strategy'}
+                      </span>
+                      <span className="workspace-meta-value">
+                        {reportHandling}
+                      </span>
                     </div>
                   ) : null}
                   {reportQuestion ? (
                     <div className="workspace-meta-row">
-                      <span className="workspace-meta-label">{locale === "zh" ? "题目" : "Question"}</span>
-                      <span className="workspace-meta-value">{reportQuestion}</span>
+                      <span className="workspace-meta-label">
+                        {locale === 'zh' ? '题目' : 'Question'}
+                      </span>
+                      <span className="workspace-meta-value">
+                        {reportQuestion}
+                      </span>
                     </div>
                   ) : null}
                 </div>
@@ -505,8 +658,34 @@ export function TraceDetailPage() {
             </Paper>
           ) : null}
 
+          {chatSource ? (
+            <Paper
+              className="workspace-panel-hover workspace-panel-muted"
+              p="lg"
+              radius="xl"
+            >
+              <Stack gap="sm">
+                <div className="workspace-section-heading">
+                  {locale === 'zh'
+                    ? '来自聊天的诊断上下文'
+                    : 'Diagnostic context from chat'}
+                </div>
+                <Text c="var(--app-text-muted)" size="sm">
+                  {locale === 'zh'
+                    ? '这条 trace 是从聊天回答跳进来的。看完诊断后，可以直接回到对应会话继续追问或改写问题。'
+                    : 'This trace was opened from a chat answer. After reviewing diagnostics, jump straight back to the related conversation to continue or re-ask.'}
+                </Text>
+                <Anchor component={Link} size="sm" to={chatConversationLink}>
+                  {locale === 'zh'
+                    ? '回到对应聊天会话'
+                    : 'Return to related chat conversation'}
+                </Anchor>
+              </Stack>
+            </Paper>
+          ) : null}
+
           <div className="workspace-scan-grid">
-            {traceScanItems.map(item => (
+            {traceScanItems.map((item) => (
               <div className="workspace-scan-card" key={item.key}>
                 <span className="workspace-scan-label">{item.label}</span>
                 <span className="workspace-scan-value">{item.value}</span>
@@ -515,23 +694,34 @@ export function TraceDetailPage() {
             ))}
           </div>
 
-          <Paper className="workspace-panel-hover workspace-panel-strong" id="trace-detail-review-focus" p="lg" radius="xl">
+          <Paper
+            className="workspace-panel-hover workspace-panel-strong"
+            id="trace-detail-review-focus"
+            p="lg"
+            radius="xl"
+          >
             <Stack gap="md">
               <Group justify="space-between" wrap="nowrap">
                 <div>
                   <Text className="workspace-section-heading">
-                    {locale === "zh" ? "首屏复盘顺序" : "First-screen review order"}
+                    {locale === 'zh'
+                      ? '首屏复盘顺序'
+                      : 'First-screen review order'}
                   </Text>
                   <Text className="workspace-section-copy">
-                    {locale === "zh"
-                      ? "从质量报告跳进来时，先看问题线索，再看检索与引用，最后再展开回答正文和原始载荷。"
-                      : "When entering from quality reports, review issue signal first, then retrieval/citations, and only then expand the answer body or raw payload."}
+                    {locale === 'zh'
+                      ? '从质量报告跳进来时，先看问题线索，再看检索与引用，最后再展开回答正文和原始载荷。'
+                      : 'When entering from quality reports, review issue signal first, then retrieval/citations, and only then expand the answer body or raw payload.'}
                   </Text>
                 </div>
                 {failureTaxonomy.length > 0 ? (
                   <Group gap="xs" justify="flex-end">
-                    {failureTaxonomy.map(category => (
-                      <Badge color={getFailureTaxonomyColor(category)} key={category} variant="light">
+                    {failureTaxonomy.map((category) => (
+                      <Badge
+                        color={getFailureTaxonomyColor(category)}
+                        key={category}
+                        variant="light"
+                      >
                         {getFailureTaxonomyLabel(category, locale)}
                       </Badge>
                     ))}
@@ -540,10 +730,17 @@ export function TraceDetailPage() {
               </Group>
 
               <div className="workspace-diagnostic-grid">
-                {reviewFocusItems.map(item => (
-                  <div className="workspace-diagnostic-item workspace-diagnostic-item-issue" key={item.key}>
-                    <div className="workspace-diagnostic-label">{item.label}</div>
-                    <div className="workspace-diagnostic-value">{item.value}</div>
+                {reviewFocusItems.map((item) => (
+                  <div
+                    className="workspace-diagnostic-item workspace-diagnostic-item-issue"
+                    key={item.key}
+                  >
+                    <div className="workspace-diagnostic-label">
+                      {item.label}
+                    </div>
+                    <div className="workspace-diagnostic-value">
+                      {item.value}
+                    </div>
                     <Anchor href={item.href} mt={10} size="sm">
                       {item.actionLabel}
                     </Anchor>
@@ -553,169 +750,260 @@ export function TraceDetailPage() {
             </Stack>
           </Paper>
 
-          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+          <Paper
+            className="workspace-panel-hover workspace-panel-muted"
+            p="lg"
+            radius="xl"
+          >
             <Stack gap="sm">
-                  <Text className="workspace-section-heading">
-                    {locale === "zh" ? "建议排查路径" : "Suggested diagnostic path"}
-                  </Text>
-                  <Text className="workspace-section-copy">
-                    {locale === "zh"
-                      ? "按同一顺序查看：先进入文档详情，再看运行失败摘要，最后继续查看诊断详情。"
-                      : "Follow one order: open Document Detail first, review the run failure summary second, then continue through diagnostics."}
-                  </Text>
+              <Text className="workspace-section-heading">
+                {locale === 'zh' ? '建议排查路径' : 'Suggested diagnostic path'}
+              </Text>
+              <Text className="workspace-section-copy">
+                {locale === 'zh'
+                  ? '按同一顺序查看：先进入文档详情，再看运行失败摘要，最后继续查看诊断详情。'
+                  : 'Follow one order: open Document Detail first, review the run failure summary second, then continue through diagnostics.'}
+              </Text>
               <div className="workspace-meta-list">
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{locale === "zh" ? "步骤 1：文档详情" : "Step 1: Document Detail"}</span>
+                  <span className="workspace-meta-label">
+                    {locale === 'zh'
+                      ? '步骤 1：文档详情'
+                      : 'Step 1: Document Detail'}
+                  </span>
                   <span className="workspace-meta-value">
                     {scanFirstDocumentTarget ? (
-                      <Anchor component={Link} to={`/documents/${scanFirstDocumentTarget}`}>
+                      <Anchor
+                        component={Link}
+                        to={`/documents/${scanFirstDocumentTarget}`}
+                      >
                         {scanFirstDocumentTitle ?? scanFirstDocumentTarget}
                       </Anchor>
-                    ) : locale === "zh" ? (
-                      "当前诊断记录没有可跳转的文档。"
+                    ) : locale === 'zh' ? (
+                      '当前诊断记录没有可跳转的文档。'
                     ) : (
-                      "No document deep link is available for this diagnostic record."
+                      'No document deep link is available for this diagnostic record.'
                     )}
                   </span>
                 </div>
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{locale === "zh" ? "步骤 2：运行失败摘要" : "Step 2: Run failure summary"}</span>
-                  <span className="workspace-meta-value">{runFailureSummary}</span>
+                  <span className="workspace-meta-label">
+                    {locale === 'zh'
+                      ? '步骤 2：运行失败摘要'
+                      : 'Step 2: Run failure summary'}
+                  </span>
+                  <span className="workspace-meta-value">
+                    {runFailureSummary}
+                  </span>
                 </div>
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{locale === "zh" ? "步骤 3：诊断查看顺序" : "Step 3: Diagnostics review order"}</span>
+                  <span className="workspace-meta-label">
+                    {locale === 'zh'
+                      ? '步骤 3：诊断查看顺序'
+                      : 'Step 3: Diagnostics review order'}
+                  </span>
                   <span className="workspace-meta-value">
-                    {locale === "zh"
-                      ? "问题线索 -> 检索线索 -> 回答线索"
-                      : "Issue signal -> Retrieval signal -> Answer signal"}
+                    {locale === 'zh'
+                      ? '问题线索 -> 检索线索 -> 回答线索'
+                      : 'Issue signal -> Retrieval signal -> Answer signal'}
                   </span>
                 </div>
               </div>
             </Stack>
           </Paper>
 
-          <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+          <Paper
+            className="workspace-panel-hover workspace-panel-strong"
+            p="lg"
+            radius="xl"
+          >
             <Stack gap="md">
               <Group justify="space-between" wrap="nowrap">
                 <div>
                   <Text className="workspace-section-heading">
-                    {locale === "zh" ? "执行摘要" : "Execution summary"}
+                    {locale === 'zh' ? '执行摘要' : 'Execution summary'}
                   </Text>
                   <Text className="workspace-section-copy">
-                    {locale === "zh"
-                      ? "先看结果、检索规模、引用数量和耗时，再决定是否继续看评分与原始载荷。"
-                      : "Scan outcome, retrieval volume, citation count, and latency first, then drill into scores or raw payload only when needed."}
+                    {locale === 'zh'
+                      ? '先看结果、检索规模、引用数量和耗时，再决定是否继续看评分与原始载荷。'
+                      : 'Scan outcome, retrieval volume, citation count, and latency first, then drill into scores or raw payload only when needed.'}
                   </Text>
                 </div>
-                <Badge color={trace.status === "success" ? "teal" : "red"} variant="light">
+                <Badge
+                  color={trace.status === 'success' ? 'teal' : 'red'}
+                  variant="light"
+                >
                   {t(`common.status.${trace.status}`)}
                 </Badge>
               </Group>
 
               <div className="workspace-metric-grid">
-                <Paper className={`workspace-metric-card workspace-metric-card-compact ${trace.status === "success" ? "workspace-metric-card-success" : "workspace-metric-card-warning"}`} p="lg" radius="xl">
+                <Paper
+                  className={`workspace-metric-card workspace-metric-card-compact ${trace.status === 'success' ? 'workspace-metric-card-success' : 'workspace-metric-card-warning'}`}
+                  p="lg"
+                  radius="xl"
+                >
                   <div className="workspace-metric-header">
-                    <Text className="workspace-metric-label">{locale === "zh" ? "本轮结果" : "Outcome"}</Text>
-                    <Badge color={trace.status === "success" ? "teal" : "orange"} variant="light">
+                    <Text className="workspace-metric-label">
+                      {locale === 'zh' ? '本轮结果' : 'Outcome'}
+                    </Text>
+                    <Badge
+                      color={trace.status === 'success' ? 'teal' : 'orange'}
+                      variant="light"
+                    >
                       {t(`common.status.${trace.status}`)}
                     </Badge>
                   </div>
                   <Text className="workspace-metric-value">
-                    {trace.status === "success"
-                      ? locale === "zh"
-                        ? "已完成"
-                        : "Completed"
-                      : locale === "zh"
-                        ? "需排查"
-                        : "Needs review"}
+                    {trace.status === 'success'
+                      ? locale === 'zh'
+                        ? '已完成'
+                        : 'Completed'
+                      : locale === 'zh'
+                        ? '需排查'
+                        : 'Needs review'}
                   </Text>
                   <Text className="workspace-metric-subtle">
                     {trace.errorMessage
                       ? trace.errorMessage
-                      : locale === "zh"
-                        ? "回答链路已结束，可继续检查引用与评分。"
-                        : "The answer pipeline finished. Continue with citations and score details if needed."}
+                      : locale === 'zh'
+                        ? '回答链路已结束，可继续检查引用与评分。'
+                        : 'The answer pipeline finished. Continue with citations and score details if needed.'}
                   </Text>
                 </Paper>
-                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
-                  <Text className="workspace-metric-label">{locale === "zh" ? "首帧 token" : "First token split"}</Text>
+                <Paper
+                  className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info"
+                  p="lg"
+                  radius="xl"
+                >
+                  <Text className="workspace-metric-label">
+                    {locale === 'zh' ? '首帧 token' : 'First token split'}
+                  </Text>
                   <Text className="workspace-metric-value">
                     {traceSummary?.timingSummary?.llmFirstTokenMs != null
                       ? `${traceSummary.timingSummary.llmFirstTokenMs} ms`
-                      : "-"}
+                      : '-'}
                   </Text>
                   <Text className="workspace-metric-subtle">
-                    {locale === "zh"
-                      ? `前置耗时 ${traceSummary?.timingSummary?.preGenerationMs ?? "-"} ms`
-                      : `Pre-gen ${traceSummary?.timingSummary?.preGenerationMs ?? "-"} ms`}
+                    {locale === 'zh'
+                      ? `前置耗时 ${traceSummary?.timingSummary?.preGenerationMs ?? '-'} ms`
+                      : `Pre-gen ${traceSummary?.timingSummary?.preGenerationMs ?? '-'} ms`}
                   </Text>
                 </Paper>
-                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
-                  <Text className="workspace-metric-label">{locale === "zh" ? "命中 Chunk" : "Retrieved chunks"}</Text>
-                  <Text className="workspace-metric-value">{retrievedChunkIds.length}</Text>
+                <Paper
+                  className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info"
+                  p="lg"
+                  radius="xl"
+                >
+                  <Text className="workspace-metric-label">
+                    {locale === 'zh' ? '命中 Chunk' : 'Retrieved chunks'}
+                  </Text>
+                  <Text className="workspace-metric-value">
+                    {retrievedChunkIds.length}
+                  </Text>
                   <Text className="workspace-metric-subtle">
                     {scores.length > 0
-                      ? locale === "zh"
-                        ? "已保存分数明细，可继续查看排序。"
-                        : "Score breakdown is available for ranked inspection."
-                      : locale === "zh"
-                        ? "仅保留了 Trace 顺序，没有完整分数明细。"
-                        : "Only trace order was persisted, without full score detail."}
+                      ? locale === 'zh'
+                        ? '已保存分数明细，可继续查看排序。'
+                        : 'Score breakdown is available for ranked inspection.'
+                      : locale === 'zh'
+                        ? '仅保留了 Trace 顺序，没有完整分数明细。'
+                        : 'Only trace order was persisted, without full score detail.'}
                   </Text>
                 </Paper>
-                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
-                  <Text className="workspace-metric-label">{locale === "zh" ? "引用数量" : "Citations"}</Text>
-                  <Text className="workspace-metric-value">{citations.length}</Text>
+                <Paper
+                  className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info"
+                  p="lg"
+                  radius="xl"
+                >
+                  <Text className="workspace-metric-label">
+                    {locale === 'zh' ? '引用数量' : 'Citations'}
+                  </Text>
+                  <Text className="workspace-metric-value">
+                    {citations.length}
+                  </Text>
                   <Text className="workspace-metric-subtle">
-                    {locale === "zh"
-                      ? "右下区域保留可跳转文档的引用卡片。"
-                      : "Citations remain directly linked to their source documents."}
+                    {locale === 'zh'
+                      ? '右下区域保留可跳转文档的引用卡片。'
+                      : 'Citations remain directly linked to their source documents.'}
                   </Text>
                 </Paper>
-                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
-                  <Text className="workspace-metric-label">{locale === "zh" ? "总耗时" : "Latency"}</Text>
-                  <Text className="workspace-metric-value">{trace.latencyMs ?? "-"} ms</Text>
+                <Paper
+                  className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info"
+                  p="lg"
+                  radius="xl"
+                >
+                  <Text className="workspace-metric-label">
+                    {locale === 'zh' ? '总耗时' : 'Latency'}
+                  </Text>
+                  <Text className="workspace-metric-value">
+                    {trace.latencyMs ?? '-'} ms
+                  </Text>
                   <Text className="workspace-metric-subtle">
-                    {locale === "zh"
+                    {locale === 'zh'
                       ? hasRewrite
-                        ? "本轮已启用问题改写。"
-                        : "本轮未触发问题改写。"
+                        ? '本轮已启用问题改写。'
+                        : '本轮未触发问题改写。'
                       : hasRewrite
-                        ? "Query rewrite was applied for this run."
-                        : "No query rewrite was applied for this run."}
+                        ? 'Query rewrite was applied for this run.'
+                        : 'No query rewrite was applied for this run.'}
                   </Text>
                 </Paper>
-                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
-                  <Text className="workspace-metric-label">{locale === "zh" ? "Prompt 大小" : "Prompt size"}</Text>
+                <Paper
+                  className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info"
+                  p="lg"
+                  radius="xl"
+                >
+                  <Text className="workspace-metric-label">
+                    {locale === 'zh' ? 'Prompt 大小' : 'Prompt size'}
+                  </Text>
                   <Text className="workspace-metric-value">
-                    {traceSummary?.promptContextApproxTokens != null ? `${traceSummary.promptContextApproxTokens} tok` : "-"}
+                    {traceSummary?.promptContextApproxTokens != null
+                      ? `${traceSummary.promptContextApproxTokens} tok`
+                      : '-'}
                   </Text>
                   <Text className="workspace-metric-subtle">
-                    {locale === "zh"
-                      ? `约 ${traceSummary?.promptContextChars ?? "-"} 字符`
-                      : `Approx. ${traceSummary?.promptContextChars ?? "-"} chars`}
+                    {locale === 'zh'
+                      ? `约 ${traceSummary?.promptContextChars ?? '-'} 字符`
+                      : `Approx. ${traceSummary?.promptContextChars ?? '-'} chars`}
                   </Text>
                 </Paper>
-                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
-                  <Text className="workspace-metric-label">{locale === "zh" ? "主块分数" : "Primary score"}</Text>
+                <Paper
+                  className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info"
+                  p="lg"
+                  radius="xl"
+                >
+                  <Text className="workspace-metric-label">
+                    {locale === 'zh' ? '主块分数' : 'Primary score'}
+                  </Text>
                   <Text className="workspace-metric-value">
-                    {traceSummary?.primaryChunkScoreAvg != null ? traceSummary.primaryChunkScoreAvg.toFixed(4) : "-"}
+                    {traceSummary?.primaryChunkScoreAvg != null
+                      ? traceSummary.primaryChunkScoreAvg.toFixed(4)
+                      : '-'}
                   </Text>
                   <Text className="workspace-metric-subtle">
-                    {locale === "zh"
-                      ? `最低 ${traceSummary?.primaryChunkScoreMin != null ? traceSummary.primaryChunkScoreMin.toFixed(4) : "-"}`
-                      : `Min ${traceSummary?.primaryChunkScoreMin != null ? traceSummary.primaryChunkScoreMin.toFixed(4) : "-"}`}
+                    {locale === 'zh'
+                      ? `最低 ${traceSummary?.primaryChunkScoreMin != null ? traceSummary.primaryChunkScoreMin.toFixed(4) : '-'}`
+                      : `Min ${traceSummary?.primaryChunkScoreMin != null ? traceSummary.primaryChunkScoreMin.toFixed(4) : '-'}`}
                   </Text>
                 </Paper>
-                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
-                  <Text className="workspace-metric-label">{locale === "zh" ? "Context 组" : "Context groups"}</Text>
+                <Paper
+                  className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info"
+                  p="lg"
+                  radius="xl"
+                >
+                  <Text className="workspace-metric-label">
+                    {locale === 'zh' ? 'Context 组' : 'Context groups'}
+                  </Text>
                   <Text className="workspace-metric-value">
-                    {traceSummary?.contextGroupCount != null ? traceSummary.contextGroupCount : "-"}
+                    {traceSummary?.contextGroupCount != null
+                      ? traceSummary.contextGroupCount
+                      : '-'}
                   </Text>
                   <Text className="workspace-metric-subtle">
-                    {locale === "zh"
-                      ? `平均长度 ${traceSummary?.contextGroupAvgLength != null ? traceSummary.contextGroupAvgLength.toFixed(2) : "-"}`
-                      : `Avg len ${traceSummary?.contextGroupAvgLength != null ? traceSummary.contextGroupAvgLength.toFixed(2) : "-"}`}
+                    {locale === 'zh'
+                      ? `平均长度 ${traceSummary?.contextGroupAvgLength != null ? traceSummary.contextGroupAvgLength.toFixed(2) : '-'}`
+                      : `Avg len ${traceSummary?.contextGroupAvgLength != null ? traceSummary.contextGroupAvgLength.toFixed(2) : '-'}`}
                   </Text>
                 </Paper>
               </div>
@@ -723,78 +1011,166 @@ export function TraceDetailPage() {
               {traceSummary ? (
                 <div className="workspace-meta-list">
                   <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">{locale === "zh" ? "检索策略摘要" : "Retrieval strategy"}</span>
-                    <span className="workspace-meta-value">{traceSummary.strategyReadabilityLabel}</span>
-                  </div>
-                  <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">{locale === "zh" ? "改写摘要" : "Rewrite summary"}</span>
-                    <span className="workspace-meta-value">{traceSummary.rewriteReadabilityLabel}</span>
-                  </div>
-                  <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">{locale === "zh" ? "改写跳过" : "Rewrite skip"}</span>
-                    <span className="workspace-meta-value">
-                      {traceSummary.rewriteSkippedReason ?? (locale === "zh" ? "未跳过" : "Not skipped")}
+                    <span className="workspace-meta-label">
+                      {locale === 'zh' ? '检索策略摘要' : 'Retrieval strategy'}
                     </span>
-                  </div>
-                  <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">{locale === "zh" ? "候选规模" : "Candidate flow"}</span>
-                    <span className="workspace-meta-value">{traceSummary.candidateCountReadabilityLabel}</span>
-                  </div>
-                  <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">{locale === "zh" ? "引用摘要" : "Citation summary"}</span>
-                    <span className="workspace-meta-value">{traceSummary.citationCountReadabilityLabel}</span>
-                  </div>
-                  <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">{locale === "zh" ? "回答溯源" : "Answer provenance"}</span>
-                    <span className="workspace-meta-value">{traceSummary.answerProvenanceSentence}</span>
+                    <span className="workspace-meta-value">
+                      {traceSummary.strategyReadabilityLabel}
+                    </span>
                   </div>
                   <div className="workspace-meta-row">
                     <span className="workspace-meta-label">
-                      {locale === "zh" ? "缺失信息溯源" : "Missing-information provenance"}
+                      {locale === 'zh' ? '改写摘要' : 'Rewrite summary'}
                     </span>
-                    <span className="workspace-meta-value">{traceSummary.missingInformationProvenanceSentence}</span>
+                    <span className="workspace-meta-value">
+                      {traceSummary.rewriteReadabilityLabel}
+                    </span>
+                  </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">
+                      {locale === 'zh' ? '改写跳过' : 'Rewrite skip'}
+                    </span>
+                    <span className="workspace-meta-value">
+                      {traceSummary.rewriteSkippedReason ??
+                        (locale === 'zh' ? '未跳过' : 'Not skipped')}
+                    </span>
+                  </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">
+                      {locale === 'zh' ? '候选规模' : 'Candidate flow'}
+                    </span>
+                    <span className="workspace-meta-value">
+                      {traceSummary.candidateCountReadabilityLabel}
+                    </span>
+                  </div>
+                  {retrievalInternals?.candidateFlowLabel ? (
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">
+                        {locale === 'zh' ? '候选细分' : 'Candidate detail'}
+                      </span>
+                      <span className="workspace-meta-value">
+                        {retrievalInternals.candidateFlowLabel}
+                      </span>
+                    </div>
+                  ) : null}
+                  {retrievalInternals?.chunkWindowLabel ? (
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">
+                        {locale === 'zh' ? 'Chunk 窗口' : 'Chunk window'}
+                      </span>
+                      <span className="workspace-meta-value">
+                        {retrievalInternals.chunkWindowLabel}
+                      </span>
+                    </div>
+                  ) : null}
+                  {retrievalInternals?.stageTimingLabel ? (
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">
+                        {locale === 'zh'
+                          ? '检索子阶段耗时'
+                          : 'Retrieval sub-stage timing'}
+                      </span>
+                      <span className="workspace-meta-value">
+                        {retrievalInternals.stageTimingLabel}
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">
+                      {locale === 'zh' ? '引用摘要' : 'Citation summary'}
+                    </span>
+                    <span className="workspace-meta-value">
+                      {traceSummary.citationCountReadabilityLabel}
+                    </span>
+                  </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">
+                      {locale === 'zh' ? '回答溯源' : 'Answer provenance'}
+                    </span>
+                    <span className="workspace-meta-value">
+                      {traceSummary.answerProvenanceSentence}
+                    </span>
+                  </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">
+                      {locale === 'zh'
+                        ? '缺失信息溯源'
+                        : 'Missing-information provenance'}
+                    </span>
+                    <span className="workspace-meta-value">
+                      {traceSummary.missingInformationProvenanceSentence}
+                    </span>
                   </div>
                 </div>
               ) : null}
             </Stack>
           </Paper>
 
-          <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+          <Paper
+            className="workspace-panel-hover workspace-panel-strong"
+            p="lg"
+            radius="xl"
+          >
             <Stack gap="md">
               <Group justify="space-between" wrap="nowrap">
                 <div>
                   <Text className="workspace-section-heading">
-                    {locale === "zh" ? "请求 / 响应 / 步骤" : "Request / response / steps"}
+                    {locale === 'zh'
+                      ? '请求 / 响应 / 步骤'
+                      : 'Request / response / steps'}
                   </Text>
                   <Text className="workspace-section-copy">
-                    {locale === "zh"
-                      ? "在一个视图里先看用户请求、最终响应，再快速扫过本轮检索与回答步骤。"
-                      : "Start with the user request and final response, then scan retrieval/answering steps in one view."}
+                    {locale === 'zh'
+                      ? '在一个视图里先看用户请求、最终响应，再快速扫过本轮检索与回答步骤。'
+                      : 'Start with the user request and final response, then scan retrieval/answering steps in one view.'}
                   </Text>
                 </div>
-                <Badge color={trace.status === "success" ? "teal" : "red"} variant="light">
-                  {trace.status === "success"
-                    ? locale === "zh"
-                      ? "完整链路"
-                      : "Full chain"
-                    : locale === "zh"
-                      ? "失败链路"
-                      : "Failed chain"}
+                <Badge
+                  color={trace.status === 'success' ? 'teal' : 'red'}
+                  variant="light"
+                >
+                  {trace.status === 'success'
+                    ? locale === 'zh'
+                      ? '完整链路'
+                      : 'Full chain'
+                    : locale === 'zh'
+                      ? '失败链路'
+                      : 'Failed chain'}
                 </Badge>
               </Group>
 
               <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                <Paper
+                  className="workspace-panel-hover workspace-panel-muted"
+                  p="md"
+                  radius="lg"
+                >
                   <Stack gap="xs">
-                    <Text className="workspace-section-heading">{locale === "zh" ? "请求" : "Request"}</Text>
-                    <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                      {userRequestText || (locale === "zh" ? "未记录用户请求。" : "No user request captured.")}
+                    <Text className="workspace-section-heading">
+                      {locale === 'zh' ? '请求' : 'Request'}
+                    </Text>
+                    <Text
+                      c="var(--app-text-secondary)"
+                      size="sm"
+                      style={{ whiteSpace: 'pre-wrap' }}
+                    >
+                      {userRequestText ||
+                        (locale === 'zh'
+                          ? '未记录用户请求。'
+                          : 'No user request captured.')}
                     </Text>
                     <Text c="var(--app-text-muted)" size="xs">
-                      {locale === "zh" ? "改写查询" : "Rewrite query"}
+                      {locale === 'zh' ? '改写查询' : 'Rewrite query'}
                     </Text>
-                    <Text c="var(--app-text)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                      {trace.rewrittenQuery ?? (locale === "zh" ? "与原问题一致" : "Same as original question")}
+                    <Text
+                      c="var(--app-text)"
+                      size="sm"
+                      style={{ whiteSpace: 'pre-wrap' }}
+                    >
+                      {trace.rewrittenQuery ??
+                        (locale === 'zh'
+                          ? '与原问题一致'
+                          : 'Same as original question')}
                     </Text>
                   </Stack>
                 </Paper>
@@ -804,65 +1180,102 @@ export function TraceDetailPage() {
                   id={TRACE_DETAIL_SECTION_IDS.requestResponse}
                   p="md"
                   radius="lg"
-                  style={{ scrollMarginTop: "96px" }}
+                  style={{ scrollMarginTop: '96px' }}
                 >
                   <Stack gap="xs">
-                    <Text className="workspace-section-heading">{locale === "zh" ? "响应" : "Response"}</Text>
-                    <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                    <Text className="workspace-section-heading">
+                      {locale === 'zh' ? '响应' : 'Response'}
+                    </Text>
+                    <Text
+                      c="var(--app-text-secondary)"
+                      size="sm"
+                      style={{ whiteSpace: 'pre-wrap' }}
+                    >
                       {assistantResponseText
                         ? assistantResponseText
                         : conversationMessagesQuery.isLoading
-                          ? locale === "zh"
-                            ? "正在加载响应正文..."
-                            : "Loading response text..."
-                          : locale === "zh"
-                            ? "未记录响应正文（可继续查看下方溯源摘要与引用）。"
-                            : "No response text captured. Use provenance and citations below for diagnostics."}
+                          ? locale === 'zh'
+                            ? '正在加载响应正文...'
+                            : 'Loading response text...'
+                          : locale === 'zh'
+                            ? '未记录响应正文（可继续查看下方溯源摘要与引用）。'
+                            : 'No response text captured. Use provenance and citations below for diagnostics.'}
                     </Text>
                     <Text c="var(--app-text-muted)" size="xs">
-                      {locale === "zh" ? "回答状态" : "Answer status"}
+                      {locale === 'zh' ? '回答状态' : 'Answer status'}
                     </Text>
-                    <Text c="var(--app-text)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                      {getAnswerStatusReadabilityLabel(answerStatusValue, locale)}
+                    <Text
+                      c="var(--app-text)"
+                      size="sm"
+                      style={{ whiteSpace: 'pre-wrap' }}
+                    >
+                      {getAnswerStatusReadabilityLabel(
+                        answerStatusValue,
+                        locale
+                      )}
                     </Text>
                   </Stack>
                 </Paper>
 
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                <Paper
+                  className="workspace-panel-hover workspace-panel-muted"
+                  p="md"
+                  radius="lg"
+                >
                   <Stack gap="xs">
-                    <Text className="workspace-section-heading">{locale === "zh" ? "步骤" : "Steps"}</Text>
+                    <Text className="workspace-section-heading">
+                      {locale === 'zh' ? '步骤' : 'Steps'}
+                    </Text>
                     <div className="workspace-meta-list">
                       <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{locale === "zh" ? "步骤 1：查询准备" : "Step 1: query prep"}</span>
+                        <span className="workspace-meta-label">
+                          {locale === 'zh'
+                            ? '步骤 1：查询准备'
+                            : 'Step 1: query prep'}
+                        </span>
                         <span className="workspace-meta-value">
                           {traceSummary?.rewriteReadabilityLabel ??
                             (hasRewrite
-                              ? locale === "zh"
-                                ? "已执行 query rewrite"
-                                : "query rewrite applied"
-                              : locale === "zh"
-                                ? "未执行 query rewrite"
-                                : "query rewrite not applied")}
+                              ? locale === 'zh'
+                                ? '已执行 query rewrite'
+                                : 'query rewrite applied'
+                              : locale === 'zh'
+                                ? '未执行 query rewrite'
+                                : 'query rewrite not applied')}
                         </span>
                       </div>
                       <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{locale === "zh" ? "步骤 2：检索" : "Step 2: retrieval"}</span>
+                        <span className="workspace-meta-label">
+                          {locale === 'zh'
+                            ? '步骤 2：检索'
+                            : 'Step 2: retrieval'}
+                        </span>
                         <span className="workspace-meta-value">
                           {traceSummary?.strategyReadabilityLabel ??
-                            (locale === "zh" ? "暂无检索策略摘要。" : "No retrieval strategy summary.")}
+                            (locale === 'zh'
+                              ? '暂无检索策略摘要。'
+                              : 'No retrieval strategy summary.')}
                         </span>
                       </div>
                       <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{locale === "zh" ? "步骤 3：回答" : "Step 3: answer"}</span>
+                        <span className="workspace-meta-label">
+                          {locale === 'zh' ? '步骤 3：回答' : 'Step 3: answer'}
+                        </span>
                         <span className="workspace-meta-value">
                           {traceSummary?.answerProvenanceSentence ??
-                            (locale === "zh" ? "暂无回答溯源摘要。" : "No answer provenance summary.")}
+                            (locale === 'zh'
+                              ? '暂无回答溯源摘要。'
+                              : 'No answer provenance summary.')}
                         </span>
                       </div>
                       {traceSummary?.failureReadabilitySentence ? (
                         <div className="workspace-meta-row">
-                          <span className="workspace-meta-label">{locale === "zh" ? "失败诊断" : "Failure"}</span>
-                          <span className="workspace-meta-value">{traceSummary.failureReadabilitySentence}</span>
+                          <span className="workspace-meta-label">
+                            {locale === 'zh' ? '失败诊断' : 'Failure'}
+                          </span>
+                          <span className="workspace-meta-value">
+                            {traceSummary.failureReadabilitySentence}
+                          </span>
                         </div>
                       ) : null}
                     </div>
@@ -886,153 +1299,231 @@ export function TraceDetailPage() {
 
             <div className="workspace-page-main-stack">
               <Stack gap="md">
-              <Paper
-                className="workspace-panel-hover workspace-panel-strong"
-                id={TRACE_DETAIL_SECTION_IDS.retrievedChunks}
-                p="lg"
-                radius="xl"
-                style={{ scrollMarginTop: "96px" }}
-              >
-                <Stack gap="md">
-                  <Group justify="space-between">
-                    <div>
-                      <Text className="workspace-section-heading">{t("trace.retrievedChunks")}</Text>
-                      <Text className="workspace-section-copy">
-                        {scores.length > 0 ? t("trace.sortedByScore") : t("trace.sortedByTraceOrder")}
-                      </Text>
-                      <Text c="var(--app-text-muted)" mt={6} size="sm">
-                        {locale === "zh"
-                          ? "从这里跳到文档时会保留当前 trace、rank、score 和 cited 上下文。"
-                          : "Opening a document from here preserves the current trace, rank, score, and cited context."}
-                      </Text>
-                    </div>
-                    <Badge variant="light">{retrievedChunkIds.length}</Badge>
-                  </Group>
+                <Paper
+                  className="workspace-panel-hover workspace-panel-strong"
+                  id={TRACE_DETAIL_SECTION_IDS.retrievedChunks}
+                  p="lg"
+                  radius="xl"
+                  style={{ scrollMarginTop: '96px' }}
+                >
+                  <Stack gap="md">
+                    <Group justify="space-between">
+                      <div>
+                        <Text className="workspace-section-heading">
+                          {t('trace.retrievedChunks')}
+                        </Text>
+                        <Text className="workspace-section-copy">
+                          {scores.length > 0
+                            ? t('trace.sortedByScore')
+                            : t('trace.sortedByTraceOrder')}
+                        </Text>
+                        <Text c="var(--app-text-muted)" mt={6} size="sm">
+                          {locale === 'zh'
+                            ? '从这里跳到文档时会保留当前 trace、rank、score 和 cited 上下文。'
+                            : 'Opening a document from here preserves the current trace, rank, score, and cited context.'}
+                        </Text>
+                      </div>
+                      <Badge variant="light">{retrievedChunkIds.length}</Badge>
+                    </Group>
 
-                  {rankedEntries.length > 0 ? (
-                    <div className="workspace-collection-grid">
-                      {rankedEntries.map((item, index) => {
-                        const linkedCitation = citationsByChunkId.get(item.chunkId);
-                        const linkDocumentId = item.documentId ?? linkedCitation?.documentId ?? null;
-                        const canLink = linkDocumentId != null;
-                        const titleText = item.documentTitle ?? linkedCitation?.documentTitle ?? item.chunkId;
-                        const sectionText = item.sectionTitle ?? linkedCitation?.sectionTitle ?? null;
-                        const pageNo = item.pageNo ?? linkedCitation?.pageNo ?? null;
-                        const isCited = linkedCitation != null;
+                    {rankedEntries.length > 0 ? (
+                      <div className="workspace-collection-grid">
+                        {rankedEntries.map((item, index) => {
+                          const linkedCitation = citationsByChunkId.get(
+                            item.chunkId
+                          );
+                          const linkDocumentId =
+                            item.documentId ??
+                            linkedCitation?.documentId ??
+                            null;
+                          const canLink = linkDocumentId != null;
+                          const titleText =
+                            item.documentTitle ??
+                            linkedCitation?.documentTitle ??
+                            item.chunkId;
+                          const sectionText =
+                            item.sectionTitle ??
+                            linkedCitation?.sectionTitle ??
+                            null;
+                          const pageNo =
+                            item.pageNo ?? linkedCitation?.pageNo ?? null;
+                          const isCited = linkedCitation != null;
 
-                        return (
-                          <Paper className="workspace-citation-card workspace-panel-muted" key={item.chunkId} p="md" radius="lg">
-                            <Stack gap="sm">
-                              <Group justify="space-between" align="flex-start">
-                                <Stack gap={8}>
-                                  <Group gap="xs">
-                                    <Badge variant="light">{t("trace.rankLabel", { rank: index + 1 })}</Badge>
-                                    {item.isPrimary === true ? (
-                                      <Badge color="teal" variant="light">
-                                        {t("trace.primaryChunk")}
+                          return (
+                            <Paper
+                              className="workspace-citation-card workspace-panel-muted"
+                              key={item.chunkId}
+                              p="md"
+                              radius="lg"
+                            >
+                              <Stack gap="sm">
+                                <Group
+                                  justify="space-between"
+                                  align="flex-start"
+                                >
+                                  <Stack gap={8}>
+                                    <Group gap="xs">
+                                      <Badge variant="light">
+                                        {t('trace.rankLabel', {
+                                          rank: index + 1
+                                        })}
                                       </Badge>
-                                    ) : item.isPrimary === false ? (
-                                      <Badge color="gray" variant="light">
-                                        {t("trace.neighborChunk")}
-                                      </Badge>
-                                    ) : null}
-                                    {isCited ? (
-                                      <Badge color="blue" variant="light">
-                                        {t("trace.citedChunk")}
-                                      </Badge>
-                                    ) : null}
-                                  </Group>
+                                      {item.isPrimary === true ? (
+                                        <Badge color="teal" variant="light">
+                                          {t('trace.primaryChunk')}
+                                        </Badge>
+                                      ) : item.isPrimary === false ? (
+                                        <Badge color="gray" variant="light">
+                                          {t('trace.neighborChunk')}
+                                        </Badge>
+                                      ) : null}
+                                      {isCited ? (
+                                        <Badge color="blue" variant="light">
+                                          {t('trace.citedChunk')}
+                                        </Badge>
+                                      ) : null}
+                                    </Group>
 
-                                  {canLink ? (
-                                    <Anchor
-                                      component={Link}
-                                      to={buildDocumentChunkLink(linkDocumentId, item.chunkId, {
-                                        traceId: trace.id,
-                                        rank: index + 1,
-                                        isPrimary: item.isPrimary,
-                                        isCited,
-                                        score: item.score
-                                      })}
-                                    >
-                                      <Text c="var(--app-text)" fw={600} span>
+                                    {canLink ? (
+                                      <Anchor
+                                        component={Link}
+                                        to={buildDocumentChunkLink(
+                                          linkDocumentId,
+                                          item.chunkId,
+                                          {
+                                            traceId: trace.id,
+                                            rank: index + 1,
+                                            isPrimary: item.isPrimary,
+                                            isCited,
+                                            score: item.score
+                                          }
+                                        )}
+                                      >
+                                        <Text c="var(--app-text)" fw={600} span>
+                                          {titleText}
+                                        </Text>
+                                      </Anchor>
+                                    ) : (
+                                      <Text c="var(--app-text)" fw={600}>
                                         {titleText}
                                       </Text>
-                                    </Anchor>
-                                  ) : (
-                                    <Text c="var(--app-text)" fw={600}>
-                                      {titleText}
-                                    </Text>
-                                  )}
+                                    )}
 
-                                  <Group gap="xs">
-                                    <span className="workspace-inline-chip">{item.chunkId}</span>
-                                    {item.chunkIndex != null ? <Badge variant="light">#{item.chunkIndex}</Badge> : null}
-                                  </Group>
+                                    <Group gap="xs">
+                                      <span className="workspace-inline-chip">
+                                        {item.chunkId}
+                                      </span>
+                                      {item.chunkIndex != null ? (
+                                        <Badge variant="light">
+                                          #{item.chunkIndex}
+                                        </Badge>
+                                      ) : null}
+                                    </Group>
 
-                                  {sectionText || pageNo != null ? (
-                                    <Text c="var(--app-text-muted)" size="sm">
-                                      {sectionText ?? t("common.misc.noSection")}
-                                      {pageNo != null ? ` / ${t("common.misc.pageLong", { pageNo })}` : ""}
-                                    </Text>
-                                  ) : null}
-                                </Stack>
-
-                                <Badge color="blue" size="lg" variant="light">
-                                  {t("trace.finalScoreLabel", { score: formatScore(item.score) })}
-                                </Badge>
-                              </Group>
-
-                              <div className="workspace-score-grid">
-                                {item.vectorScore != null && (
-                                  <div className="workspace-score-item">
-                                    <span className="workspace-score-label">{t("trace.vectorScoreLabel", { score: "" })}</span>
-                                    <span className="workspace-score-value">{formatScore(item.vectorScore)}</span>
-                                  </div>
-                                )}
-                                {item.lexicalScore != null && (
-                                  <div className="workspace-score-item">
-                                    <span className="workspace-score-label">{t("trace.lexicalScoreLabel", { score: "" })}</span>
-                                    <span className="workspace-score-value">{formatScore(item.lexicalScore)}</span>
-                                  </div>
-                                )}
-                                {item.hybridScore != null && (
-                                  <div className="workspace-score-item">
-                                    <span className="workspace-score-label">{t("trace.hybridScoreLabel", { score: "" })}</span>
-                                    <span className="workspace-score-value">{formatScore(item.hybridScore)}</span>
-                                  </div>
-                                )}
-                                {item.rerankScore != null && (
-                                  <div className="workspace-score-item">
-                                    <span className="workspace-score-label">{t("trace.rerankScoreLabel", { score: "" })}</span>
-                                    <span className="workspace-score-value">{formatScore(item.rerankScore)}</span>
-                                  </div>
-                                )}
-                              </div>
-
-                              {item.contentPreview || linkedCitation ? (
-                                <div className="workspace-content-block">
-                                  <Stack gap={6}>
-                                    <Text c="var(--app-text-muted)" size="xs">
-                                      {t("trace.chunkPreview")}
-                                    </Text>
-                                    <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                                      {isCited ? linkedCitation.snippet : item.contentPreview}
-                                    </Text>
+                                    {sectionText || pageNo != null ? (
+                                      <Text c="var(--app-text-muted)" size="sm">
+                                        {sectionText ??
+                                          t('common.misc.noSection')}
+                                        {pageNo != null
+                                          ? ` / ${t('common.misc.pageLong', { pageNo })}`
+                                          : ''}
+                                      </Text>
+                                    ) : null}
                                   </Stack>
-                                </div>
-                              ) : null}
-                            </Stack>
-                          </Paper>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <StatePanel description={t("trace.noRetrievedChunks")} title={t("trace.retrievedChunks")} />
-                  )}
-                </Stack>
-              </Paper>
 
-                <Suspense fallback={<TraceDetailSecondaryFallback locale={locale} />}>
+                                  <Badge color="blue" size="lg" variant="light">
+                                    {t('trace.finalScoreLabel', {
+                                      score: formatScore(item.score)
+                                    })}
+                                  </Badge>
+                                </Group>
+
+                                <div className="workspace-score-grid">
+                                  {item.vectorScore != null && (
+                                    <div className="workspace-score-item">
+                                      <span className="workspace-score-label">
+                                        {t('trace.vectorScoreLabel', {
+                                          score: ''
+                                        })}
+                                      </span>
+                                      <span className="workspace-score-value">
+                                        {formatScore(item.vectorScore)}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {item.lexicalScore != null && (
+                                    <div className="workspace-score-item">
+                                      <span className="workspace-score-label">
+                                        {t('trace.lexicalScoreLabel', {
+                                          score: ''
+                                        })}
+                                      </span>
+                                      <span className="workspace-score-value">
+                                        {formatScore(item.lexicalScore)}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {item.hybridScore != null && (
+                                    <div className="workspace-score-item">
+                                      <span className="workspace-score-label">
+                                        {t('trace.hybridScoreLabel', {
+                                          score: ''
+                                        })}
+                                      </span>
+                                      <span className="workspace-score-value">
+                                        {formatScore(item.hybridScore)}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {item.rerankScore != null && (
+                                    <div className="workspace-score-item">
+                                      <span className="workspace-score-label">
+                                        {t('trace.rerankScoreLabel', {
+                                          score: ''
+                                        })}
+                                      </span>
+                                      <span className="workspace-score-value">
+                                        {formatScore(item.rerankScore)}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {item.contentPreview || linkedCitation ? (
+                                  <div className="workspace-content-block">
+                                    <Stack gap={6}>
+                                      <Text c="var(--app-text-muted)" size="xs">
+                                        {t('trace.chunkPreview')}
+                                      </Text>
+                                      <Text
+                                        c="var(--app-text-secondary)"
+                                        size="sm"
+                                        style={{ whiteSpace: 'pre-wrap' }}
+                                      >
+                                        {isCited
+                                          ? linkedCitation.snippet
+                                          : item.contentPreview}
+                                      </Text>
+                                    </Stack>
+                                  </div>
+                                ) : null}
+                              </Stack>
+                            </Paper>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <StatePanel
+                        description={t('trace.noRetrievedChunks')}
+                        title={t('trace.retrievedChunks')}
+                      />
+                    )}
+                  </Stack>
+                </Paper>
+
+                <Suspense
+                  fallback={<TraceDetailSecondaryFallback locale={locale} />}
+                >
                   <TraceDetailSecondaryPanels
                     citations={citations}
                     locale={locale}

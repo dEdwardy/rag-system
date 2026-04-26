@@ -15,6 +15,22 @@ test('web trace summary type guards current backend summary field set', async ()
     resolve(__dirname, '../../../packages/shared/src/trace-contracts.ts'),
     'utf8'
   );
+  const tracesServiceSource = await readFile(
+    resolve(__dirname, '../../api/src/modules/traces/traces.service.ts'),
+    'utf8'
+  );
+  const routeViewHelpersSource = await readFile(
+    resolve(__dirname, '../src/pages/reports/route-view-helpers.ts'),
+    'utf8'
+  );
+  const agentSurfaceEntrySource = await readFile(
+    resolve(__dirname, '../src/pages/reports/AgentSurfaceEntry.tsx'),
+    'utf8'
+  );
+  const chatPageHelpersSource = await readFile(
+    resolve(__dirname, '../src/pages/chat/chat-page-helpers.ts'),
+    'utf8'
+  );
   const traceSummaryMatch = sharedSource.match(
     /export type TraceSummary = \{([\s\S]*?)\n\};/
   );
@@ -35,6 +51,28 @@ test('web trace summary type guards current backend summary field set', async ()
   );
   assert.match(
     traceSummaryBody,
+    /executionMode:\s*TraceExecutionMode \| null;/
+  );
+  assert.match(traceSummaryBody, /routeTypeReadabilityLabel:\s*string;/);
+  assert.match(traceSummaryBody, /routeReasonReadabilityLabel:\s*string;/);
+  assert.match(traceSummaryBody, /routeDecisionReadabilityLabel:\s*string;/);
+  assert.match(traceSummaryBody, /routeDecisionReadabilitySentence:\s*string;/);
+  assert.match(traceSummaryBody, /executionModeReadabilityLabel:\s*string;/);
+  assert.match(traceSummaryBody, /executionModeReadabilitySentence:\s*string;/);
+  assert.match(
+    traceSummaryBody,
+    /executionToolNames:\s*TraceExecutionToolName\[\];/
+  );
+  assert.match(
+    traceSummaryBody,
+    /executionToolNamesReadabilityLabel:\s*string;/
+  );
+  assert.match(
+    traceSummaryBody,
+    /executionToolNamesReadabilitySentence:\s*string;/
+  );
+  assert.match(
+    traceSummaryBody,
     /missingInformationProvenanceSentence:\s*string;/
   );
 
@@ -42,11 +80,11 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(source, /traceSummary:\s*TraceSummary;/);
   assert.match(
     sharedSource,
-    /export type TraceRetrievalQuerySource = "rewritten" \| "original_disabled" \| "original_unchanged";/
+    /export type TraceRetrievalQuerySource =[\s\S]*?original_unchanged';/
   );
   assert.match(
     sharedSource,
-    /export type TraceFailedStage = "retrieval" \| "answering";/
+    /export type TraceFailedStage =[\s\S]*?answering';/
   );
   assert.match(sharedSource, /export type RetrievalStrategySummary = \{/);
   assert.match(sharedSource, /rewriteEnabled:\s*boolean;/);
@@ -58,6 +96,152 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(sharedSource, /strategyMode:\s*TraceRetrievalMode \| null;/);
   assert.match(sharedSource, /strategySummary:\s*RetrievalStrategySummary;/);
   assert.match(sharedSource, /export type TraceTimingSummary = \{/);
+  assert.match(
+    sharedSource,
+    /export type TraceExecutionMode = 'manual' \| 'workflow';/
+  );
+  assert.match(sharedSource, /export type TraceMetadataCanonicalSurface = \{/);
+  assert.match(sharedSource, /routeType:\s*TraceRouteType;/);
+  assert.match(sharedSource, /routeReason:\s*TraceRouteReason;/);
+  assert.match(sharedSource, /export const TRACE_ROUTE_TYPE_LABELS = \{/);
+  assert.match(sharedSource, /export const TRACE_ROUTE_REASON_LABELS = \{/);
+  assert.match(
+    sharedSource,
+    /export function buildTraceRouteTypeReadabilityLabel\([\s\S]*?\) \{/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceRouteReasonReadabilityLabel\([\s\S]*?\) \{/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceRouteDecisionReadabilityLabel\([\s\S]*?\) \{/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceRouteDecisionReadabilitySentence\([\s\S]*?\) \{/
+  );
+  assert.match(sharedSource, /routeDecision:\s*TraceRouteDecisionSummary;/);
+  assert.match(
+    sharedSource,
+    /executionToolNames:\s*TraceExecutionToolName\[\];/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceMetadataCanonicalSurface\([\s\S]*?routeDecision:\s*TraceRouteDecisionSummary;[\s\S]*?\): TraceMetadataCanonicalSurface/
+  );
+  assert.match(sharedSource, /export const TRACE_EXECUTION_MODE_LABELS = \{/);
+  assert.match(sharedSource, /manual:\s*'manual',/);
+  assert.match(sharedSource, /workflow:\s*'workflow'/);
+  assert.match(
+    sharedSource,
+    /export const TRACE_EXECUTION_MODES = \[\s*'manual',\s*'workflow'\s*\] as const satisfies TraceExecutionMode\[\];/
+  );
+  assert.match(
+    sharedSource,
+    /export function readTraceExecutionMode\([\s\S]*?\): TraceExecutionMode \| null/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceExecutionModeReadabilityLabel\([\s\S]*?\)\s*\{/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceExecutionModeReadabilitySentence\([\s\S]*?\)\s*\{/
+  );
+  assert.match(
+    sharedSource,
+    /export const TRACE_EXECUTION_TOOL_NAMES = \[[\s\S]*?'knowledge_base_search',[\s\S]*?'external_source_fetch',[\s\S]*?'policy_reply'[\s\S]*?\] as const satisfies TraceExecutionToolName\[\];/
+  );
+  assert.match(
+    sharedSource,
+    /return TRACE_EXECUTION_TOOL_NAMES\.filter\(\(toolName\) =>[\s\S]*?toolNames\.has\(toolName\)[\s\S]*?\);/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceExecutionToolNamesReadabilitySentence\([\s\S]*?\)\s*\{/
+  );
+  assert.match(routeViewHelpersSource, /from ['"]@rag-system\/shared['"]/);
+  assert.match(
+    routeViewHelpersSource,
+    /knowledge_base:\s*TRACE_ROUTE_TYPE_LABELS\.knowledge_base/
+  );
+  assert.match(
+    routeViewHelpersSource,
+    /explicit_source_urls:\s*TRACE_ROUTE_REASON_LABELS\.explicit_source_urls/
+  );
+  assert.match(
+    routeViewHelpersSource,
+    /export function buildEnglishInspectionSurfaceExamples\(\)/
+  );
+  assert.match(
+    routeViewHelpersSource,
+    /TRACE_EXECUTION_MODE_LABELS\[executionMode\]/
+  );
+  assert.match(
+    routeViewHelpersSource,
+    /TRACE_EXECUTION_TOOL_LABELS\[toolName\]/
+  );
+  assert.match(
+    agentSurfaceEntrySource,
+    /import \{ buildEnglishInspectionSurfaceExamples \} from '\.\/route-view-helpers';/
+  );
+  assert.match(
+    agentSurfaceEntrySource,
+    /const englishExamples = buildEnglishInspectionSurfaceExamples\(\);/
+  );
+  assert.match(
+    agentSurfaceEntrySource,
+    /routeExamples:\s*englishExamples\.routeExamples/
+  );
+  assert.match(
+    agentSurfaceEntrySource,
+    /modeExamples:\s*englishExamples\.modeExamples/
+  );
+  assert.match(
+    agentSurfaceEntrySource,
+    /toolExamples:\s*englishExamples\.toolExamples/
+  );
+  assert.match(
+    chatPageHelpersSource,
+    /answerStatusSourceReadabilitySentence\?:\s*string \| null;/
+  );
+  assert.match(
+    chatPageHelpersSource,
+    /missingInformationProvenanceSentence\?:\s*string \| null;/
+  );
+  assert.match(
+    chatPageHelpersSource,
+    /retrievalModeProvenanceSentence\?:\s*string \| null;/
+  );
+  assert.match(
+    chatPageHelpersSource,
+    /normalizeTraceSummaryHintPart\([\s\S]*?summary\.answerStatusSourceReadabilitySentence[\s\S]*?summary\.missingInformationProvenanceSentence[\s\S]*?summary\.retrievalModeProvenanceSentence/
+  );
+  assert.match(
+    tracesServiceSource,
+    /buildTraceRouteDecisionReadabilitySentence,/
+  );
+  assert.match(
+    tracesServiceSource,
+    /buildTraceExecutionModeReadabilitySentence,/
+  );
+  assert.match(
+    tracesServiceSource,
+    /const routeDecisionReadabilitySentence =\s*buildTraceRouteDecisionReadabilitySentence\(routeType, routeReason\);/
+  );
+  assert.match(
+    tracesServiceSource,
+    /buildTraceExecutionToolNamesReadabilitySentence,/
+  );
+  assert.match(
+    tracesServiceSource,
+    /const executionModeReadabilitySentence =\s*buildTraceExecutionModeReadabilitySentence\(executionMode\);/
+  );
+  assert.match(
+    tracesServiceSource,
+    /const executionToolNamesReadabilitySentence =\s*buildTraceExecutionToolNamesReadabilitySentence\(executionToolNames\);/
+  );
   assert.match(sharedSource, /timingSummary:\s*TraceTimingSummary;/);
   assert.match(sharedSource, /timingReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /firstTokenMs:\s*number \| null;/);
@@ -144,6 +328,10 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(
     sharedSource,
     /answerStatusSourceReadabilitySentence:\s*string;/
+  );
+  assert.match(
+    sharedSource,
+    /executionToolNamesReadabilitySentence:\s*string;/
   );
   assert.match(
     sharedSource,

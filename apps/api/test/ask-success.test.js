@@ -375,6 +375,7 @@ test('AskAssistantService completes the happy path with retrieval, messages, and
         contains: ['fact']
       }
     },
+    knowledgeBaseMultiStep: null,
     queryRewrite: {
       enabled: true,
       applied: true,
@@ -384,6 +385,49 @@ test('AskAssistantService completes the happy path with retrieval, messages, and
       promptId: 'rewrite-query.v1',
       skippedReason: null
     },
+    routeDecision: {
+      routeType: 'knowledge_base',
+      routeReason: 'default_kb_ask'
+    },
+    routeType: 'knowledge_base',
+    routeReason: 'default_kb_ask',
+    executionMode: 'manual',
+    executionPlan: {
+      executionMode: 'manual',
+      steps: [
+        {
+          key: 'route_decision',
+          id: 'route_decision',
+          kind: 'route_decision',
+          toolName: null,
+          status: 'completed',
+          label: 'Route decision',
+          detail: 'knowledge_base:default_kb_ask',
+          durationMs: null
+        },
+        {
+          key: 'retrieval',
+          id: 'retrieval',
+          kind: 'retrieval',
+          toolName: 'knowledge_base_search',
+          status: 'completed',
+          label: 'Retrieval',
+          detail: null,
+          durationMs: null
+        },
+        {
+          key: 'answer_generation',
+          id: 'answer_generation',
+          kind: 'answer_generation',
+          toolName: null,
+          status: 'completed',
+          label: 'Answer generation',
+          detail: null,
+          durationMs: null
+        }
+      ]
+    },
+    executionToolNames: ['knowledge_base_search'],
     strategySummary: {
       retrievalMode: 'hybrid',
       strategyMode: 'hybrid',
@@ -707,6 +751,189 @@ Rules:
     flags: [],
     summary: 'Answer is grounded in cited sources with no reported gaps.'
   });
+});
+
+test('AskAssistantService keeps rewritten KB asks on one default retrieval pass', async () => {
+  const retrievalCalls = [];
+  const createTraceCalls = [];
+  const updateTraceCalls = [];
+
+  const primaryChunks = [
+    {
+      chunkId: 'chunk-primary-1',
+      documentId: 'document-1',
+      documentTitle: 'Doc One',
+      chunkIndex: 0,
+      content: 'primary retrieval content',
+      score: 0.4,
+      isPrimary: true,
+      pageNo: 1,
+      sectionTitle: 'Primary'
+    }
+  ];
+  const secondaryChunks = [
+    {
+      chunkId: 'chunk-secondary-1',
+      documentId: 'document-2',
+      documentTitle: 'Doc Two',
+      chunkIndex: 0,
+      content: 'secondary retrieval content',
+      score: 0.93,
+      isPrimary: true,
+      pageNo: 2,
+      sectionTitle: 'Secondary'
+    }
+  ];
+
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      retrievalProfile: {
+        enableHybrid: true,
+        enableRerank: false,
+        strategyJson: {
+          queryRewrite: {
+            enabled: true
+          }
+        }
+      }
+    }),
+    retrieval: {
+      retrieve: async (input) => {
+        retrievalCalls.push(input);
+        if (input.query.endsWith('rewritten')) {
+          return {
+            retrievedChunks: primaryChunks,
+            contextGroups: [],
+            embedding: null,
+            execution: {
+              actualMode: 'hybrid',
+              usedFallback: false,
+              fallbackReason: null,
+              rerankApplied: false,
+              chunkWindowApplied: false,
+              vectorSearchAttempted: true,
+              lexicalSearchAttempted: true,
+              vectorCandidateLimitHit: false,
+              lexicalCandidateLimitHit: false,
+              rankingTopKHit: false,
+              candidateLimit: 8,
+              vectorCandidateCount: 2,
+              lexicalCandidateCount: 1,
+              mergedCandidateCount: 2,
+              rankedCandidateCount: 1
+            }
+          };
+        }
+
+        return {
+          retrievedChunks: secondaryChunks,
+          contextGroups: [],
+          embedding: null,
+          execution: {
+            actualMode: 'hybrid',
+            usedFallback: false,
+            fallbackReason: null,
+            rerankApplied: false,
+            chunkWindowApplied: false,
+            vectorSearchAttempted: true,
+            lexicalSearchAttempted: true,
+            vectorCandidateLimitHit: false,
+            lexicalCandidateLimitHit: false,
+            rankingTopKHit: false,
+            candidateLimit: 8,
+            vectorCandidateCount: 2,
+            lexicalCandidateCount: 1,
+            mergedCandidateCount: 2,
+            rankedCandidateCount: 1
+          }
+        };
+      }
+    },
+    answering: {
+      generateAnswer: async (input) => ({
+        answer: `answer from ${input.chunks[0]?.chunkId}`,
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: input.contextGroups,
+        answeringMetadata: {
+          promptId: 'answer.v3',
+          usedFallback: false,
+          answerPolicy: input.answerPolicy,
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
+          inputChunkCount: input.chunks.length,
+          promptContextCount: input.chunks.length,
+          contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 0,
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
+          insufficientContextReason: null,
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
+        },
+        modelName: 'fallback-local',
+        answerStatus: 'grounded',
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
+          flags: [],
+          summary: 'Answer is grounded in cited sources with no reported gaps.'
+        }
+      })
+    },
+    traces: {
+      createTrace: async (input) => {
+        createTraceCalls.push(input);
+        return { id: 'trace-1' };
+      },
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    llm: {
+      rewriteQuery: async ({ question }) => ({
+        rewrittenQuery: `${question} rewritten`,
+        modelName: 'rewrite-model',
+        usedFallback: false,
+        promptId: 'rewrite-query.v1'
+      })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'where is the marker?'
+  });
+
+  assert.equal(retrievalCalls.length, 1);
+  assert.equal(retrievalCalls[0].query, 'where is the marker? rewritten');
+  assert.equal(result.answer, 'answer from chunk-primary-1');
+  assert.equal(createTraceCalls.length, 1);
+  assert.equal(updateTraceCalls.length, 1);
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.knowledgeBaseMultiStep,
+    null
+  );
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.executionPlan.steps.map(
+      (step) => step.id
+    ),
+    ['route_decision', 'retrieval', 'answer_generation']
+  );
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.executionPlan.executionMode,
+    'manual'
+  );
 });
 
 test('AskAssistantService uses request auth context identity when creating a new conversation', async () => {
@@ -1113,6 +1340,7 @@ test('AskAssistantService can disable query rewrite and forwards resolved retrie
     primaryChunkScoreMin: null,
     contextGroupAvgLength: null,
     filters: null,
+    knowledgeBaseMultiStep: null,
     queryRewrite: {
       enabled: false,
       applied: false,
@@ -1122,6 +1350,49 @@ test('AskAssistantService can disable query rewrite and forwards resolved retrie
       promptId: null,
       skippedReason: 'disabled_by_default'
     },
+    routeDecision: {
+      routeType: 'knowledge_base',
+      routeReason: 'default_kb_ask'
+    },
+    routeType: 'knowledge_base',
+    routeReason: 'default_kb_ask',
+    executionMode: 'manual',
+    executionPlan: {
+      executionMode: 'manual',
+      steps: [
+        {
+          key: 'route_decision',
+          id: 'route_decision',
+          kind: 'route_decision',
+          toolName: null,
+          status: 'completed',
+          label: 'Route decision',
+          detail: 'knowledge_base:default_kb_ask',
+          durationMs: null
+        },
+        {
+          key: 'retrieval',
+          id: 'retrieval',
+          kind: 'retrieval',
+          toolName: 'knowledge_base_search',
+          status: 'completed',
+          label: 'Retrieval',
+          detail: null,
+          durationMs: null
+        },
+        {
+          key: 'answer_generation',
+          id: 'answer_generation',
+          kind: 'answer_generation',
+          toolName: null,
+          status: 'completed',
+          label: 'Answer generation',
+          detail: null,
+          durationMs: null
+        }
+      ]
+    },
+    executionToolNames: ['knowledge_base_search'],
     strategySummary: {
       retrievalMode: 'lexical',
       strategyMode: 'lexical',
@@ -1407,6 +1678,8 @@ test('AskAssistantService bypasses one-shot generation for no-hit say_insufficie
     result.answer,
     'deterministic fallback for: What detail is missing?'
   );
+  assert.equal(result.routeType, 'knowledge_base');
+  assert.equal(result.routeReason, 'default_kb_ask');
   assert.equal(result.modelName, 'fallback-local');
   assert.equal(result.answeringMetadata.usedFallback, true);
   assert.equal(result.answerStatus, 'insufficient_context');
@@ -1531,6 +1804,8 @@ test('AskAssistantService also bypasses one-shot generation when noAnswerBehavio
     result.answer,
     'deterministic fallback for: What detail is missing?'
   );
+  assert.equal(result.routeType, 'knowledge_base');
+  assert.equal(result.routeReason, 'default_kb_ask');
   assert.equal(
     result.answeringMetadata.answerPolicy.noAnswerBehavior,
     'say_insufficient_context'
@@ -1626,6 +1901,8 @@ test('AskAssistantService preserves best_effort one-shot no-hit answers instead 
 
   assert.equal(generateAnswerCalls, 1);
   assert.equal(result.answer, 'Best effort answer with uncertainty.');
+  assert.equal(result.routeType, 'knowledge_base');
+  assert.equal(result.routeReason, 'default_kb_ask');
   assert.equal(
     result.answeringMetadata.answerPolicy.noAnswerBehavior,
     'best_effort'
@@ -4286,4 +4563,564 @@ test('AskAssistantService rewrites short Chinese meaning questions when rewrite 
     shouldRewrite: true,
     skippedReason: null
   });
+});
+
+test('AskAssistantService uses deterministic policy route for policy questions', async () => {
+  const retrievalCalls = [];
+  const createTraceCalls = [];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async (input) => {
+        retrievalCalls.push(input);
+        throw new Error('policy route should not call retrieval');
+      }
+    },
+    traces: {
+      createTrace: async (input) => {
+        createTraceCalls.push(input);
+        return { id: 'trace-policy-1' };
+      },
+      updateTrace: async (id, input) => ({ id, ...input })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'What is your citation policy when sources are missing?'
+  });
+
+  assert.equal(retrievalCalls.length, 0);
+  assert.equal(result.routeType, 'policy_reply');
+  assert.equal(result.routeReason, 'policy_question');
+  assert.deepEqual(result.routeDecisionSummary, {
+    routeType: 'policy_reply',
+    routeReason: 'policy_question'
+  });
+  assert.equal(result.traceId, 'trace-policy-1');
+  assert.equal(result.answerStatus, 'grounded');
+  assert.equal(result.modelName, 'policy-route-local');
+  assert.deepEqual(result.citations, []);
+  assert.equal(
+    result.retrievalMetadata.routeDecision.routeType,
+    'policy_reply'
+  );
+  assert.equal(
+    result.retrievalMetadata.routeDecision.routeReason,
+    'policy_question'
+  );
+  assert.equal(createTraceCalls.length, 1);
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.routeDecision.routeType,
+    'policy_reply'
+  );
+});
+
+test('AskAssistantService skips KB reuse for policy questions in an existing conversation', async () => {
+  let listConversationMessagesCalled = false;
+
+  const service = createAskAssistantService({
+    conversations: {
+      getConversation: async () => ({ id: 'conversation-1' })
+    },
+    messages: {
+      listConversationMessages: async () => {
+        listConversationMessagesCalled = true;
+        return [
+          {
+            id: 'user-message-1',
+            conversationId: 'conversation-1',
+            role: 'user',
+            content: 'What is your citation policy when sources are missing?',
+            traceId: null
+          },
+          {
+            id: 'assistant-message-1',
+            conversationId: 'conversation-1',
+            role: 'assistant',
+            content: 'Cached KB answer that should not be reused.',
+            traceId: 'trace-kb-1'
+          }
+        ];
+      }
+    },
+    traces: {
+      getTrace: async () => ({
+        id: 'trace-kb-1',
+        assistantId: 'assistant-1',
+        citationsJson: [],
+        modelName: 'cached-model',
+        retrievalMetadataJson: null,
+        answeringMetadataJson: null,
+        qualityEvaluationJson: null,
+        traceSummary: {
+          routeType: 'knowledge_base',
+          routeReason: 'default_kb_ask'
+        }
+      }),
+      createTrace: async () => ({ id: 'trace-policy-conversation-1' }),
+      updateTrace: async (id, input) => ({ id, ...input })
+    },
+    retrieval: {
+      retrieve: async () => {
+        throw new Error('policy route should not call retrieval');
+      }
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    conversationId: 'conversation-1',
+    question: 'What is your citation policy when sources are missing?'
+  });
+
+  assert.equal(listConversationMessagesCalled, false);
+  assert.equal(result.traceId, 'trace-policy-conversation-1');
+  assert.equal(result.routeType, 'policy_reply');
+  assert.equal(result.modelName, 'policy-route-local');
+});
+
+test('AskAssistantService uses external-source route for explicit URLs', async () => {
+  const retrievalCalls = [];
+  const webFetchCalls = [];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async (input) => {
+        retrievalCalls.push(input);
+        throw new Error('external source route should not call retrieval');
+      }
+    },
+    webPage: {
+      fetchWebPage: async (url) => {
+        webFetchCalls.push(url);
+        return {
+          title: 'Example source',
+          content:
+            'External source content says the marker is on the landing page.',
+          diagnostics: null
+        };
+      }
+    },
+    answering: {
+      generateAnswer: async (input) => {
+        assert.equal(input.chunks.length, 1);
+        assert.equal(input.chunks[0].documentTitle, 'Example source');
+        assert.match(input.chunks[0].chunkId, /^external:web:/);
+        return {
+          answer: 'The marker is on the landing page.',
+          citations: [],
+          retrievedChunks: input.chunks,
+          contextGroups: [],
+          answeringMetadata: {
+            promptId: 'answer.v3',
+            usedFallback: false,
+            answerPolicy: input.answerPolicy,
+            resolvedLanguage: 'en',
+            generationMode: 'generated',
+            contextMode: 'chunks',
+            inputChunkCount: 1,
+            promptContextCount: 1,
+            contextGroupCount: 0,
+            citationCountBeforeLimit: 0,
+            citationCount: 0,
+            citationLimitHit: false,
+            citationAttribution: 'none',
+            citationSelectionSource: 'none',
+            missingInformationCount: 0,
+            missingInformationSource: 'none',
+            answerTextSource: 'model',
+            insufficientContextReason: null,
+            answerStatusSource: 'model',
+            answerStatus: 'grounded'
+          },
+          modelName: 'test-model',
+          answerStatus: 'grounded',
+          missingInformation: [],
+          qualityEvaluation: {
+            overall: 'strong',
+            grounding: 'grounded',
+            completeness: 'complete',
+            primaryIssue: 'none',
+            flags: [],
+            summary:
+              'Answer is grounded in cited sources with no reported gaps.'
+          }
+        };
+      }
+    },
+    traces: {
+      createTrace: async (input) => ({ id: 'trace-external-1', ...input }),
+      updateTrace: async (id, input) => ({ id, ...input })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'Summarize https://example.com/article for me.'
+  });
+
+  assert.equal(retrievalCalls.length, 0);
+  assert.deepEqual(webFetchCalls, ['https://example.com/article']);
+  assert.equal(result.routeType, 'external_source');
+  assert.equal(result.routeReason, 'explicit_source_url');
+  assert.equal(result.traceId, 'trace-external-1');
+  assert.equal(result.answer, 'The marker is on the landing page.');
+  assert.equal(result.retrievedChunks.length, 1);
+  assert.equal(
+    result.retrievalMetadata.routeDecision.routeType,
+    'external_source'
+  );
+  assert.equal(
+    result.retrievalMetadata.routeDecision.routeReason,
+    'explicit_source_url'
+  );
+  assert.equal(result.retrievalMetadata.externalSource.kind, 'web');
+  assert.equal(
+    result.retrievalMetadata.externalSource.url,
+    'https://example.com/article'
+  );
+});
+
+test('AskAssistantService derives readable labels for bare external source URLs', async () => {
+  const webFetchCalls = [];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => {
+        throw new Error('external source route should not call retrieval');
+      }
+    },
+    webPage: {
+      fetchWebPage: async (url) => {
+        webFetchCalls.push(url);
+        return {
+          title: null,
+          content: 'Page content without a fetched title.',
+          diagnostics: null
+        };
+      }
+    },
+    answering: {
+      generateAnswer: async (input) => {
+        assert.equal(input.chunks[0].documentTitle, 'example.com/article');
+        return {
+          answer: 'Derived label answer.',
+          citations: [],
+          retrievedChunks: input.chunks,
+          contextGroups: [],
+          answeringMetadata: {
+            promptId: 'answer.v3',
+            usedFallback: false,
+            answerPolicy: input.answerPolicy,
+            resolvedLanguage: 'en',
+            generationMode: 'generated',
+            contextMode: 'chunks',
+            inputChunkCount: 1,
+            promptContextCount: 1,
+            contextGroupCount: 0,
+            citationCountBeforeLimit: 0,
+            citationCount: 0,
+            citationLimitHit: false,
+            citationAttribution: 'none',
+            citationSelectionSource: 'none',
+            missingInformationCount: 0,
+            missingInformationSource: 'none',
+            answerTextSource: 'model',
+            insufficientContextReason: null,
+            answerStatusSource: 'model',
+            answerStatus: 'grounded'
+          },
+          modelName: 'route-family-test',
+          answerStatus: 'grounded',
+          missingInformation: [],
+          qualityEvaluation: {
+            overall: 'strong',
+            grounding: 'grounded',
+            completeness: 'complete',
+            primaryIssue: 'none',
+            flags: [],
+            summary: 'ok'
+          }
+        };
+      }
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'Please summarize https://example.com/article for me.'
+  });
+
+  assert.deepEqual(webFetchCalls, ['https://example.com/article']);
+  assert.equal(
+    result.retrievalMetadata.externalSource.title,
+    'example.com/article'
+  );
+  assert.equal(
+    result.retrievalMetadata.externalSources[0].title,
+    'example.com/article'
+  );
+  assert.equal(result.retrievedChunks[0].documentTitle, 'example.com/article');
+});
+
+test('AskAssistantService uses external-source route for markdown links with explicit URLs', async () => {
+  const webFetchCalls = [];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => {
+        throw new Error('external source route should not call retrieval');
+      }
+    },
+    webPage: {
+      fetchWebPage: async (url) => {
+        webFetchCalls.push(url);
+        return {
+          title: 'Markdown linked source',
+          content: 'Linked page content',
+          diagnostics: null
+        };
+      }
+    },
+    answering: {
+      generateAnswer: async (input) => ({
+        answer: `answer for ${input.chunks[0].documentTitle}`,
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: 'answer.v3',
+          usedFallback: false,
+          answerPolicy: input.answerPolicy,
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
+          inputChunkCount: 1,
+          promptContextCount: 1,
+          contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 0,
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
+          insufficientContextReason: null,
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
+        },
+        modelName: 'route-family-test',
+        answerStatus: 'grounded',
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
+          flags: [],
+          summary: 'ok'
+        }
+      })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question:
+      'Please summarize [this page](https://example.com/article) for me.'
+  });
+
+  assert.deepEqual(webFetchCalls, ['https://example.com/article']);
+  assert.equal(result.routeType, 'external_source');
+  assert.equal(result.routeReason, 'explicit_source_url');
+  assert.equal(
+    result.retrievalMetadata.externalSource.url,
+    'https://example.com/article'
+  );
+  assert.equal(result.retrievalMetadata.externalSource.kind, 'web');
+});
+
+test('AskAssistantService routes multiple markdown links through multi-source external routing', async () => {
+  const webFetchCalls = [];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => {
+        throw new Error('external source route should not call retrieval');
+      }
+    },
+    webPage: {
+      fetchWebPage: async (url) => {
+        webFetchCalls.push(url);
+        return {
+          title: `Page for ${url}`,
+          content: `Content for ${url}`,
+          diagnostics: null
+        };
+      }
+    },
+    answering: {
+      generateAnswer: async (input) => ({
+        answer: `answer for ${input.chunks.length} sources`,
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: 'answer.v3',
+          usedFallback: false,
+          answerPolicy: input.answerPolicy,
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
+          inputChunkCount: input.chunks.length,
+          promptContextCount: input.chunks.length,
+          contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 0,
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
+          insufficientContextReason: null,
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
+        },
+        modelName: 'route-family-test',
+        answerStatus: 'grounded',
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
+          flags: [],
+          summary: 'ok'
+        }
+      })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question:
+      'Please summarize [first](https://example.com/a) and [second](https://example.com/b) together.'
+  });
+
+  assert.deepEqual(webFetchCalls, [
+    'https://example.com/a',
+    'https://example.com/b'
+  ]);
+  assert.equal(result.routeReason, 'explicit_source_urls');
+  assert.equal(
+    result.retrievalMetadata.routeDecision.routeReason,
+    'explicit_source_urls'
+  );
+  assert.equal(result.retrievalMetadata.externalSources.length, 2);
+  assert.equal(result.answer, 'answer for 2 sources');
+  assert.equal(
+    result.retrievalMetadata.executionPlan.executionMode,
+    'workflow'
+  );
+});
+
+test('AskAssistantService routes sitemap and feed URLs to the matching external source family', async () => {
+  const sitemapFetchCalls = [];
+  const feedFetchCalls = [];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => {
+        throw new Error('external source route should not call retrieval');
+      }
+    },
+    webPage: {
+      fetchWebPage: async () => {
+        throw new Error(
+          'web page fetch should not be used for sitemap/feed URLs'
+        );
+      }
+    },
+    feedSource: {
+      fetchFeed: async (input) => {
+        feedFetchCalls.push(input);
+        return {
+          title: 'Feed source',
+          content: 'Feed content',
+          diagnostics: { kind: 'feed' }
+        };
+      }
+    },
+    sitemapSource: {
+      fetchSitemap: async (input) => {
+        sitemapFetchCalls.push(input);
+        return {
+          content: 'Sitemap content',
+          diagnostics: { kind: 'sitemap' }
+        };
+      }
+    },
+    answering: {
+      generateAnswer: async (input) => ({
+        answer: `answer for ${input.chunks[0].documentTitle}`,
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: 'answer.v3',
+          usedFallback: false,
+          answerPolicy: input.answerPolicy,
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
+          inputChunkCount: 1,
+          promptContextCount: 1,
+          contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 0,
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
+          insufficientContextReason: null,
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
+        },
+        modelName: 'route-family-test',
+        answerStatus: 'grounded',
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
+          flags: [],
+          summary: 'ok'
+        }
+      })
+    }
+  });
+
+  const sitemapResult = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'Summarize https://example.com/sitemap.xml for me.'
+  });
+  const feedResult = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'Summarize https://example.com/feed.xml for me.'
+  });
+
+  assert.equal(sitemapFetchCalls.length, 1);
+  assert.equal(feedFetchCalls.length, 1);
+  assert.equal(sitemapFetchCalls[0].url, 'https://example.com/sitemap.xml');
+  assert.equal(feedFetchCalls[0].url, 'https://example.com/feed.xml');
+  assert.equal(sitemapResult.retrievalMetadata.externalSource.kind, 'sitemap');
+  assert.equal(feedResult.retrievalMetadata.externalSource.kind, 'feed');
+  assert.equal(sitemapResult.routeType, 'external_source');
+  assert.equal(feedResult.routeType, 'external_source');
 });
