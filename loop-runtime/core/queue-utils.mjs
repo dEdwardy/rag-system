@@ -47,10 +47,35 @@ export function queueItems(queue) {
   return Array.isArray(queue?.items) ? queue.items : [];
 }
 
+function extractQueueResultFromSummary(summary) {
+  if (typeof summary !== 'string' || !summary.includes('QUEUE_RESULT ')) {
+    return null;
+  }
+
+  const match = summary.match(
+    /QUEUE_RESULT\s+status=(completed|needs_replan)\b[^\r\n]*/
+  );
+  if (!match) return null;
+
+  const result = { status: match[1] };
+  for (const tokenMatch of match[0].matchAll(
+    /(status|item|validation|changed_files|commit)=([^\s"\\]+)/g
+  )) {
+    result[tokenMatch[1]] = tokenMatch[2];
+  }
+  return result;
+}
+
 export function shouldTreatItemAsCompleted(item) {
   if (!item) return false;
   if (item.status === 'completed') return true;
   if (item.status !== 'needs_replan') return false;
+
+  const summaryQueueResult = extractQueueResultFromSummary(item.lastRunSummary);
+
+  if (summaryQueueResult?.status === 'completed') {
+    return true;
+  }
 
   if (item.queueResultStatus === 'completed') {
     return true;
@@ -77,10 +102,19 @@ export function reconcileQueue(queue) {
   let changed = false;
   for (const item of items) {
     if (shouldTreatItemAsCompleted(item)) {
+      const summaryQueueResult = extractQueueResultFromSummary(
+        item.lastRunSummary
+      );
       item.status = 'completed';
       item.completedAt =
         item.completedAt ?? item.finishedAt ?? item.updatedAt ?? null;
-      item.queueResultStatus = item.queueResultStatus ?? 'completed';
+      item.queueResultStatus =
+        item.queueResultStatus ?? summaryQueueResult?.status ?? 'completed';
+      item.queueResultCommit =
+        item.queueResultCommit ??
+        (summaryQueueResult?.commit && summaryQueueResult.commit !== 'none'
+          ? summaryQueueResult.commit
+          : undefined);
       changed = true;
     }
   }
