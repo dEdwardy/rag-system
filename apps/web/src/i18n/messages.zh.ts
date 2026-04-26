@@ -28,7 +28,7 @@ export const messages = {
       notifications: '通知',
       switchToChinese: '切换到中文',
       switchToEnglish: '切换到英文',
-      intelligentWorkspace: '智能回答工作区',
+      intelligentWorkspace: '资料问答工作台',
       noKnowledgeBase: '暂无工作区资料库',
       loading: '加载中',
       documentCount: '{count} 个资料项',
@@ -128,7 +128,7 @@ export const messages = {
     askHintEnabled: '当前实现会基于切片进行检索，并展示引用来源。',
     askHintDisabled: '当前无法获取助手数据，暂时不能发起新提问。',
     copy: {
-      heroTitle: '智能回答助手',
+      heroTitle: '资料问答',
       heroSubtitle: '围绕知识资料给出答案，并展示来源与可选诊断信息',
       moreActions: '更多操作',
       moreActionsHint: '更多操作即将提供',

@@ -457,7 +457,7 @@ export function TraceListPage() {
               c="var(--app-text)"
               style={{
                 fontFamily: 'var(--app-font-display)',
-                letterSpacing: '-0.03em'
+                letterSpacing: '0'
               }}
             >
               {t('trace.copy.traceHeading')}

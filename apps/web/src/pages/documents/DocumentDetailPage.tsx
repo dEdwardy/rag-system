@@ -256,7 +256,7 @@ export function DocumentDetailPage() {
                   c="var(--app-text)"
                   style={{
                     fontFamily: 'var(--app-font-display)',
-                    letterSpacing: '-0.03em'
+                    letterSpacing: '0'
                   }}
                 >
                   {document?.title ?? t('documents.detail.title')}

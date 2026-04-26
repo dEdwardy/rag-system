@@ -930,7 +930,7 @@ export function ChatPage() {
               AI
             </div>
             <div>
-              <h2 className="text-lg font-semibold tracking-[-0.02em] text-[var(--app-text)]">
+              <h2 className="text-lg font-semibold tracking-normal text-[var(--app-text)]">
                 {chatCopy.heroTitle}
               </h2>
               <p className="mt-0.5 text-xs text-[var(--app-text-muted)]">
@@ -1179,20 +1179,20 @@ export function ChatPage() {
                       className={[
                         'flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] text-[12px] font-semibold md:h-9 md:w-9 md:rounded-[14px] md:text-[13px]',
                         isAssistant
-                          ? 'bg-[linear-gradient(135deg,rgba(99,102,241,0.2)_0%,rgba(99,102,241,0.1)_100%)] text-[#818cf8]'
-                          : 'bg-[linear-gradient(135deg,#10b981_0%,#059669_100%)] text-white'
+                          ? 'border border-[var(--app-border)] bg-[var(--app-surface-muted)] text-[#a5b4fc]'
+                          : 'bg-[#059669] text-white'
                       ].join(' ')}
                     >
-                      {isAssistant ? 'AI' : 'U'}
+                      {isAssistant ? '答' : '我'}
                     </div>
 
                     <div className="min-w-0 flex-1">
                       <div
                         className={[
-                          'rounded-[18px] px-4 py-3.5 text-sm leading-7 shadow-[0_8px_32px_rgba(0,0,0,0.24)] md:rounded-[20px] md:px-5 md:py-4',
+                          'rounded-[18px] px-4 py-3.5 text-sm leading-7 shadow-[0_6px_18px_rgba(0,0,0,0.18)] md:rounded-[20px] md:px-5 md:py-4',
                           isAssistant
                             ? 'rounded-tl-[6px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text)]'
-                            : 'rounded-tr-[6px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-white'
+                            : 'rounded-tr-[6px] bg-[var(--app-accent)] text-white'
                         ].join(' ')}
                       >
                         {message.content ? (

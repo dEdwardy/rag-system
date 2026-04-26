@@ -103,7 +103,7 @@ export function LoginPage() {
   return (
     <div className="workspace-auth-surface relative flex min-h-screen items-center justify-center bg-[var(--app-bg)] px-4">
       <div
-        className={`pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.12),transparent_40%)] transition-opacity duration-240 ${
+        className={`pointer-events-none absolute inset-0 bg-[var(--app-bg)] transition-opacity duration-240 ${
           transitionTarget ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -147,7 +147,7 @@ export function LoginPage() {
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--app-text-muted)]">
             {t('auth.login.brand')}
           </div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--app-text)]">
+          <h1 className="mt-2 text-2xl font-semibold tracking-normal text-[var(--app-text)]">
             {t('auth.login.title')}
           </h1>
           <p className="mt-2 text-sm leading-6 text-[var(--app-text-muted)]">

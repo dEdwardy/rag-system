@@ -554,7 +554,7 @@ export function TraceDetailPage() {
                 c="var(--app-text)"
                 style={{
                   fontFamily: 'var(--app-font-display)',
-                  letterSpacing: '-0.03em'
+                  letterSpacing: '0'
                 }}
               >
                 {trace?.id ?? t('trace.title')}

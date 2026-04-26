@@ -33,7 +33,7 @@ export const messages = {
       notifications: 'Notifications',
       switchToChinese: 'Switch to Chinese',
       switchToEnglish: 'Switch to English',
-      intelligentWorkspace: 'Intelligent answer workspace',
+      intelligentWorkspace: 'Knowledge answer workspace',
       noKnowledgeBase: 'No workspace library',
       loading: 'Loading',
       documentCount: '{count} documents',
@@ -136,7 +136,7 @@ export const messages = {
     askHintDisabled:
       'Assistant data is unavailable, so new requests are disabled.',
     copy: {
-      heroTitle: 'Intelligent answer assistant',
+      heroTitle: 'Knowledge Q&A',
       heroSubtitle:
         'Knowledge-grounded answers with visible sources and optional diagnostics',
       moreActions: 'More actions',

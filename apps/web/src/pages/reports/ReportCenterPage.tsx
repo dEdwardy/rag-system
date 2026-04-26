@@ -2120,7 +2120,7 @@ export function ReportCenterPage() {
             <div className="workspace-hero-kicker">
               {locale === 'zh' ? '管理工作台' : 'Workbench'}
             </div>
-            <h1 className="mt-1 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-0.03em] text-[var(--app-text)]">
+            <h1 className="mt-1 font-['Space_Grotesk'] text-3xl font-semibold tracking-normal text-[var(--app-text)]">
               {locale === 'zh' ? '质量报告' : 'Quality reports'}
             </h1>
             <p className="mt-2 text-sm text-[var(--app-text-muted)]">

@@ -130,7 +130,7 @@ export function WorkbenchPage() {
               order={3}
               style={{
                 fontFamily: 'var(--app-font-display)',
-                letterSpacing: '-0.03em'
+                letterSpacing: '0'
               }}
             >
               {locale === 'zh' ? '工作台概览' : 'Workbench overview'}

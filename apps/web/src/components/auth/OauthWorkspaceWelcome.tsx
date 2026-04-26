@@ -88,7 +88,7 @@ export function OauthWorkspaceWelcome({
             <span className="h-2 w-2 rounded-full bg-[var(--app-accent)]" />
             {copy.kicker}
           </div>
-          <h3 className="mt-4 text-[22px] font-semibold tracking-[-0.03em] text-[var(--app-text)]">
+          <h3 className="mt-4 text-[22px] font-semibold tracking-normal text-[var(--app-text)]">
             {copy.title}
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--app-text-secondary)]">

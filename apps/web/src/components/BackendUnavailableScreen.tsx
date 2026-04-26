@@ -52,7 +52,7 @@ export function BackendUnavailableScreen() {
                 </div>
 
                 <div className="space-y-3">
-                  <h1 className="max-w-xl text-3xl font-semibold tracking-[-0.04em] text-[var(--app-text)] sm:text-4xl">
+                  <h1 className="max-w-xl text-3xl font-semibold tracking-normal text-[var(--app-text)] sm:text-4xl">
                     {copy.title}
                   </h1>
                   <p className="max-w-2xl text-sm leading-7 text-[var(--app-text-secondary)] sm:text-[15px]">
