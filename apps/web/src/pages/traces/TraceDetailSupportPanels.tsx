@@ -10,7 +10,8 @@ import {
 } from '@rag-system/shared';
 import {
   buildDocumentChunkLink,
-  buildRawPayload
+  buildRawPayload,
+  buildRetrievalInternalsSummary
 } from './trace-detail-page-helpers';
 import {
   buildRouteReasonLabel,
@@ -347,6 +348,10 @@ export function TraceDetailSidebarPanels({
   const executionToolsLabel =
     trace.traceSummary?.executionToolNamesReadabilityLabel ||
     buildTraceExecutionToolNamesLabel(executionToolNames);
+  const retrievalInternals = buildRetrievalInternalsSummary(
+    trace.retrievalMetadataJson,
+    locale
+  );
 
   return (
     <div className="workspace-page-side-stack">
@@ -522,6 +527,45 @@ export function TraceDetailSidebarPanels({
                         </Group>
                       ))}
                     </Stack>
+                  </Stack>
+                </div>
+              ) : null}
+              {retrievalInternals ? (
+                <div className="workspace-content-block">
+                  <Stack gap={8}>
+                    <Group gap="xs">
+                      <Text
+                        className="workspace-section-copy"
+                        fw={600}
+                        size="sm"
+                      >
+                        {locale === 'zh'
+                          ? '检索子阶段'
+                          : 'Retrieval sub-stages'}
+                      </Text>
+                      {retrievalInternals.slowestStageLabel ? (
+                        <Badge color="orange" radius="sm" variant="light">
+                          {locale === 'zh'
+                            ? `慢点：${retrievalInternals.slowestStageLabel}`
+                            : `Hotspot: ${retrievalInternals.slowestStageLabel}`}
+                        </Badge>
+                      ) : null}
+                    </Group>
+                    {retrievalInternals.candidateFlowLabel ? (
+                      <Text c="var(--app-text-muted)" size="sm">
+                        {retrievalInternals.candidateFlowLabel}
+                      </Text>
+                    ) : null}
+                    {retrievalInternals.chunkWindowLabel ? (
+                      <Text c="var(--app-text-muted)" size="sm">
+                        {retrievalInternals.chunkWindowLabel}
+                      </Text>
+                    ) : null}
+                    {retrievalInternals.stageTimingLabel ? (
+                      <Text c="var(--app-text-muted)" size="xs">
+                        {retrievalInternals.stageTimingLabel}
+                      </Text>
+                    ) : null}
                   </Stack>
                 </div>
               ) : null}

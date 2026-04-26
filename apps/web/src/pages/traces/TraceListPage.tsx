@@ -33,6 +33,7 @@ import {
   buildTraceExecutionToolLabel,
   buildTraceExecutionToolNamesLabel
 } from '@rag-system/shared';
+import { buildRetrievalInternalsSummary } from './trace-detail-page-helpers';
 
 const TRACE_PAGE_SIZE = 12;
 
@@ -71,6 +72,10 @@ function TraceConversationCard({
   const executionToolNames = traceSummary.executionToolNames;
   const executionSteps = traceSummary.executionPlan?.steps ?? null;
   const timing = traceSummary.timingSummary;
+  const retrievalInternals = buildRetrievalInternalsSummary(
+    latestTrace.retrievalMetadataJson,
+    locale
+  );
   const routeDecisionLabel = routeDecision
     ? buildRouteDecisionLabel(
         routeDecision.routeType,
@@ -208,6 +213,26 @@ function TraceConversationCard({
             </span>
             <span className="workspace-meta-value">{candidateLabel}</span>
           </div>
+          {retrievalInternals?.candidateFlowLabel ? (
+            <div className="workspace-meta-row">
+              <span className="workspace-meta-label">
+                {locale === 'zh' ? '候选流' : 'Candidate flow'}
+              </span>
+              <span className="workspace-meta-value">
+                {retrievalInternals.candidateFlowLabel}
+              </span>
+            </div>
+          ) : null}
+          {retrievalInternals?.chunkWindowLabel ? (
+            <div className="workspace-meta-row">
+              <span className="workspace-meta-label">
+                {locale === 'zh' ? 'Chunk 窗口' : 'Chunk window'}
+              </span>
+              <span className="workspace-meta-value">
+                {retrievalInternals.chunkWindowLabel}
+              </span>
+            </div>
+          ) : null}
           <div className="workspace-meta-row">
             <span className="workspace-meta-label">
               {locale === 'zh' ? '路由决策' : 'Route decision'}
@@ -291,6 +316,16 @@ function TraceConversationCard({
               </span>
               <span className="workspace-meta-value">
                 {bottleneck.label} - {bottleneck.value} ms
+              </span>
+            </div>
+          ) : null}
+          {retrievalInternals?.slowestStageLabel ? (
+            <div className="workspace-meta-row">
+              <span className="workspace-meta-label">
+                {locale === 'zh' ? '检索慢点' : 'Retrieval hotspot'}
+              </span>
+              <span className="workspace-meta-value">
+                {retrievalInternals.slowestStageLabel}
               </span>
             </div>
           ) : null}

@@ -19,7 +19,8 @@ import {
   buildFailureTaxonomy,
   getFailureTaxonomyLabel,
   getFailureTaxonomyColor,
-  buildDocumentChunkLink
+  buildDocumentChunkLink,
+  buildRetrievalInternalsSummary
 } from './trace-detail-page-helpers';
 import { buildChatConversationLink } from '../reports/route-view-helpers';
 
@@ -325,6 +326,10 @@ export function TraceDetailPage() {
     citations.map((citation) => [citation.chunkId, citation])
   );
   const rankedEntries = buildRankedEntries(scores, retrievedChunkIds);
+  const retrievalInternals = buildRetrievalInternalsSummary(
+    trace?.retrievalMetadataJson,
+    locale
+  );
   const hasRewrite = Boolean(trace?.rewrittenQuery);
   const reportSource = searchParams.get('from') === 'report';
   const chatSource = searchParams.get('from') === 'chat';
@@ -1038,6 +1043,38 @@ export function TraceDetailPage() {
                       {traceSummary.candidateCountReadabilityLabel}
                     </span>
                   </div>
+                  {retrievalInternals?.candidateFlowLabel ? (
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">
+                        {locale === 'zh' ? '候选细分' : 'Candidate detail'}
+                      </span>
+                      <span className="workspace-meta-value">
+                        {retrievalInternals.candidateFlowLabel}
+                      </span>
+                    </div>
+                  ) : null}
+                  {retrievalInternals?.chunkWindowLabel ? (
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">
+                        {locale === 'zh' ? 'Chunk 窗口' : 'Chunk window'}
+                      </span>
+                      <span className="workspace-meta-value">
+                        {retrievalInternals.chunkWindowLabel}
+                      </span>
+                    </div>
+                  ) : null}
+                  {retrievalInternals?.stageTimingLabel ? (
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">
+                        {locale === 'zh'
+                          ? '检索子阶段耗时'
+                          : 'Retrieval sub-stage timing'}
+                      </span>
+                      <span className="workspace-meta-value">
+                        {retrievalInternals.stageTimingLabel}
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="workspace-meta-row">
                     <span className="workspace-meta-label">
                       {locale === 'zh' ? '引用摘要' : 'Citation summary'}
