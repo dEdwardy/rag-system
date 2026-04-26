@@ -490,7 +490,8 @@ export function ChatPage() {
   const hasAssistantBinding = activeAssistant != null;
   const isChatReady = chatReadinessState.kind === 'ready';
   const canAsk = hasAssistantBinding && isChatReady;
-  const isStreamingTurnActive = activeStreamTurn != null;
+  const isStreamingTurnActive =
+    activeStreamTurn?.assistantMessage.status === 'streaming';
   const canSubmitQuestion = canAsk && !isStreamingTurnActive;
   const shouldRenderStreamTurn = shouldRenderActiveStreamTurn(
     activeStreamTurn,
@@ -807,17 +808,22 @@ export function ChatPage() {
         fallbackMessage: t('chat.states.askError'),
         locale
       });
-      setActiveStreamTurn((current) =>
-        current
-          ? {
-              ...current,
-              assistantMessage: applyChatStreamEvent(current.assistantMessage, {
-                type: 'error',
-                message: askErrorMessage
-              })
-            }
-          : current
-      );
+      setActiveStreamTurn((current) => {
+        if (current == null) {
+          return current;
+        }
+
+        return {
+          ...current,
+          assistantMessage: {
+            ...applyChatStreamEvent(current.assistantMessage, {
+              type: 'error',
+              message: askErrorMessage
+            }),
+            status: 'error'
+          }
+        };
+      });
       notifications.show({
         color: 'red',
         message: askErrorMessage
