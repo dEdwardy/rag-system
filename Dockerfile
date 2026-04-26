@@ -18,6 +18,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
+RUN pnpm --filter @rag-system/shared build
 RUN pnpm --filter @rag-system/api build
 RUN VITE_APP_BASE_PATH=/ragora/ pnpm --filter @rag-system/web build
 

@@ -6,11 +6,10 @@
     "strict": true,
     "declaration": true,
     "emitDeclarationOnly": false,
+    "outDir": "dist",
+    "rootDir": "src",
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": false
   },
-  "include": [
-    "src"
-  ]
+  "include": ["src"]
 }
-
