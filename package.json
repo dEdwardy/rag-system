@@ -46,6 +46,7 @@
     "test:web:smoke": "pnpm --filter @rag-system/web test:smoke:legacy",
     "test:web:smoke:legacy": "pnpm --filter @rag-system/web test:smoke:legacy",
     "test:web-smoke": "pnpm run test:web:smoke",
+    "test:harness:queue-utils": "pnpm exec vitest run loop-runtime/tests/queue-utils.test.mjs",
     "test:harness": "pnpm run test:harness:legacy",
     "test:harness:legacy": "node --test loop-runtime/tests/*.test.mjs"
   },
@@ -65,6 +66,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "oxlint": "^1.59.0",
-    "prettier": "^3.8.2"
+    "prettier": "^3.8.2",
+    "vitest": "^3.2.4"
   }
 }
