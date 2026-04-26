@@ -1,6 +1,9 @@
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+const DEFAULT_SUMMARY_MAX_LENGTH = 1200;
+const DEFAULT_ERROR_MAX_LENGTH = 400;
+
 export async function findLatestQueueFile(loopDir) {
   const materializedDir = path.join(loopDir, 'materialized');
   let entries = [];
@@ -45,6 +48,62 @@ export async function writeJson(filePath, value) {
 
 export function queueItems(queue) {
   return Array.isArray(queue?.items) ? queue.items : [];
+}
+
+function truncateText(value, maxLength) {
+  if (value.length <= maxLength) return value;
+  const suffix = `... [truncated ${value.length - maxLength} chars]`;
+  const sliceLength = Math.max(0, maxLength - suffix.length);
+  return `${value.slice(0, sliceLength)}${suffix}`;
+}
+
+export function sanitizeQueueText(
+  value,
+  maxLength = DEFAULT_SUMMARY_MAX_LENGTH
+) {
+  if (typeof value !== 'string') return undefined;
+
+  const normalized = value
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/\uFFFD+/g, '')
+    .trim();
+
+  if (!normalized) return undefined;
+  return truncateText(normalized, maxLength);
+}
+
+function extractQueueResultLine(text) {
+  if (typeof text !== 'string' || !text.includes('QUEUE_RESULT ')) {
+    return null;
+  }
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (lines[index].startsWith('QUEUE_RESULT ')) {
+      return lines[index];
+    }
+  }
+
+  return null;
+}
+
+export function summarizeExecutionOutput(stdout, stderr) {
+  const queueResultLine = extractQueueResultLine(stdout);
+  if (queueResultLine) {
+    return sanitizeQueueText(queueResultLine, DEFAULT_ERROR_MAX_LENGTH);
+  }
+
+  const tail =
+    stdout.trim().split('\n').slice(-8).join('\n') ||
+    stderr.trim().split('\n').slice(-8).join('\n') ||
+    undefined;
+
+  return sanitizeQueueText(tail, DEFAULT_SUMMARY_MAX_LENGTH);
 }
 
 function extractQueueResultFromSummary(summary) {

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   dependenciesSatisfied,
   nextRunnableItem,
-  reconcileQueue
+  reconcileQueue,
+  sanitizeQueueText,
+  summarizeExecutionOutput
 } from '../core/queue-utils.mjs';
 
 describe('queue-utils', () => {
@@ -137,5 +139,22 @@ describe('queue-utils', () => {
     expect(reconcileQueue(queue)).toBe(false);
     expect(queue.items[0].status).toBe('needs_replan');
     expect(nextRunnableItem(queue)).toBeNull();
+  });
+
+  it('summarizeExecutionOutput keeps only the queue result line from noisy output', () => {
+    const stdout = `${'x'.repeat(3000)}\nQUEUE_RESULT status=completed item=a validation=pnpm_exec_vitest changed_files=loop-runtime/core/queue-utils.mjs commit=abc123\n`;
+
+    expect(summarizeExecutionOutput(stdout, '')).toBe(
+      'QUEUE_RESULT status=completed item=a validation=pnpm_exec_vitest changed_files=loop-runtime/core/queue-utils.mjs commit=abc123'
+    );
+  });
+
+  it('sanitizeQueueText removes replacement characters and truncates long values', () => {
+    const value = `bad\uFFFDoutput ${'a'.repeat(500)}`;
+    const sanitized = sanitizeQueueText(value, 80);
+
+    expect(sanitized).not.toContain('\uFFFD');
+    expect(sanitized).toContain('[truncated ');
+    expect(sanitized.length).toBeLessThanOrEqual(80);
   });
 });

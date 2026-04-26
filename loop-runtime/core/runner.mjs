@@ -10,6 +10,8 @@ import {
   queueSummary,
   queueItems,
   reconcileQueue,
+  summarizeExecutionOutput,
+  sanitizeQueueText,
   writeJson
 } from './queue-utils.mjs';
 import {
@@ -97,7 +99,7 @@ async function failCurrentItem(loaded, item, error, extra = {}) {
         finishedAt,
         resultExitCode: 1,
         failureReason: extra.failureReason ?? 'runner_internal_error',
-        reportedError: message,
+        reportedError: sanitizeQueueText(message, 400),
         queueFailureMarkers:
           extra.queueFailureMarkers ?? 'runner_internal_error',
         timedOutAt: extra.timedOut ? finishedAt : undefined,
@@ -250,14 +252,6 @@ function extractFailureMarkers(stdout, stderr) {
   return [...new Set(markers)];
 }
 
-function summarizeOutput(stdout, stderr) {
-  return (
-    stdout.trim().split('\n').slice(-8).join('\n') ||
-    stderr.trim().split('\n').slice(-8).join('\n') ||
-    undefined
-  );
-}
-
 function getItemTimeoutMs(item) {
   const candidates = [
     item?.timeoutMs,
@@ -318,7 +312,7 @@ async function writeTimeoutRecoveryArtifact({
     exitCode: result.exitCode,
     signal: result.signal ?? undefined,
     reportedError: result.reportedError ?? undefined,
-    stdoutTail: summarizeOutput(result.stdout, result.stderr),
+    stdoutTail: summarizeExecutionOutput(result.stdout, result.stderr),
     changedFiles: changedFiles.length > 0 ? changedFiles : undefined,
     beforeHead: beforeSnapshot?.head ?? undefined,
     afterHead: afterSnapshot?.head ?? undefined,
@@ -801,11 +795,11 @@ async function processOneItem() {
         finishedAt,
         resultExitCode: result.exitCode,
         resultSignal: result.signal ?? undefined,
-        lastRunSummary: summarizeOutput(result.stdout, result.stderr),
+        lastRunSummary: summarizeExecutionOutput(result.stdout, result.stderr),
         failureReason,
         reportedError: success
           ? undefined
-          : (result.reportedError ?? undefined),
+          : sanitizeQueueText(result.reportedError, 400),
         queueResultStatus:
           queueResult?.status ??
           (commitFallback || noopFallback ? 'completed' : undefined),
