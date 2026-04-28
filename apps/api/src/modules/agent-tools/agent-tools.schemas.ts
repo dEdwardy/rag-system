@@ -25,6 +25,7 @@ export const ragSearchSchema = z.object({
 });
 
 export const ragAnswerSchema = ragSearchSchema;
+export const langGraphAnswerSchema = ragSearchSchema;
 
 export const traceLookupSchema = z.object({
   secret: z.string().min(1),
@@ -42,5 +43,6 @@ export const documentLookupSchema = z.object({
 
 export type RagSearchInput = z.infer<typeof ragSearchSchema>;
 export type RagAnswerInput = z.infer<typeof ragAnswerSchema>;
+export type LangGraphAnswerInput = z.infer<typeof langGraphAnswerSchema>;
 export type TraceLookupInput = z.infer<typeof traceLookupSchema>;
 export type DocumentLookupInput = z.infer<typeof documentLookupSchema>;

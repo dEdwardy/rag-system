@@ -82,6 +82,9 @@ Prefer source-first tests for the local fast feedback loop.
 
 Rules:
 
+- new API test files must use Vitest (`import { test } from 'vitest'`) and must not introduce `node:test`
+- do not add new raw `node --test` validation commands; use `pnpm test:api:file -- test/<file>.test.js` or a focused Vitest command
+- existing `node:test` files are legacy only; when touching one for behavior changes, prefer migrating it to Vitest in the same focused increment
 - fast-lane, unit, and focused module tests should run against source code and should not require `dist/`
 - integration and E2E tests may continue using the current build-aware or `dist/` startup path when they validate real API or application wiring
 - do not add new `dist/` dependencies to tests that should belong to the fast lane

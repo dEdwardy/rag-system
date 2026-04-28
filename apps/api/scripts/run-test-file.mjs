@@ -17,11 +17,13 @@ const fastTestFiles = new Set([
   'test/ask-stream-retrieval-failure.test.js',
   'test/ask-stream-service.test.js',
   'test/ask-success.test.js',
+  'test/auth-surface-route-policy.test.js',
   'test/chunking.test.js',
   'test/document-runs-summary.test.js',
   'test/external-source-sync.test.js',
   'test/fetch-with-retry.test.js',
   'test/http-exception-filter.test.js',
+  'test/agent-langgraph.controller.test.js',
   'test/agent-tools.controller.test.js',
   'test/ingestion.orchestrator.test.js',
   'test/llm-answer-stream.test.js',
@@ -31,7 +33,9 @@ const fastTestFiles = new Set([
   'test/auth-provider-boundary.test.js',
   'test/retrieval-profiles-auth-scope.test.js',
   'test/retrieval.test.js',
-  'test/traces.service.test.js'
+  'test/traces.service.test.js',
+  'test/vector-store-runtime-config.test.js',
+  'test/vitest-config.test.js'
 ]);
 
 if (rawArgs.length === 0) {

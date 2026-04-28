@@ -633,8 +633,8 @@ export class AgentToolsController {
               retrieval: this.readStringValue(queryRecord.retrieval),
               rewritten: this.readStringValue(queryRecord.rewritten)
             },
-      chunkCount: this.readNumberValue(value.chunkCount),
-      sourceCount: this.readNumberValue(value.sourceCount),
+      chunkCount: this.readNumberValue(value.chunkCount) ?? undefined,
+      sourceCount: this.readNumberValue(value.sourceCount) ?? undefined,
       chunkIds: this.readStringArray(value.chunkIds),
       documentIds: this.readStringArray(value.documentIds),
       strategySummary: value.strategySummary ?? null,
@@ -656,8 +656,8 @@ export class AgentToolsController {
     }
 
     return {
-      chunkCount: this.readNumberValue(merged.chunkCount),
-      sourceCount: this.readNumberValue(merged.sourceCount),
+      chunkCount: this.readNumberValue(merged.chunkCount) ?? undefined,
+      sourceCount: this.readNumberValue(merged.sourceCount) ?? undefined,
       chunkIds: this.readStringArray(merged.chunkIds),
       documentIds: this.readStringArray(merged.documentIds)
     };
