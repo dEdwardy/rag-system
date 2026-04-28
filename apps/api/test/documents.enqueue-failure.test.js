@@ -1,24 +1,23 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
-const { Prisma } = require("@prisma/client");
-const { DocumentsService } = require("../src/modules/documents/documents.service.ts");
+import { Prisma } from '@prisma/client';
+import { expect, test } from 'vitest';
+import { DocumentsService } from '../src/modules/documents/documents.service.ts';
 
-test("DocumentsService records a failed local reindex run when enqueueing ingestion fails", async () => {
+test('DocumentsService records a failed local reindex run when enqueueing ingestion fails', async () => {
   const documentUpdates = [];
   const createdRuns = [];
   const failedRuns = [];
   const skippedRuns = [];
 
   const existingDocument = {
-    id: "local-reindex-enqueue-failure-1",
-    kbId: "default-kb",
-    sourceType: "upload",
-    sourceName: "guide.md",
-    title: "guide.md",
-    mimeType: "text/markdown",
-    storageKey: "uploads/guide.md",
-    status: "ready",
-    processingStage: "completed",
+    id: 'local-reindex-enqueue-failure-1',
+    kbId: 'default-kb',
+    sourceType: 'upload',
+    sourceName: 'guide.md',
+    title: 'guide.md',
+    mimeType: 'text/markdown',
+    storageKey: 'uploads/guide.md',
+    status: 'ready',
+    processingStage: 'completed',
     version: 2,
     chunkCount: 5,
     errorMessage: null,
@@ -26,25 +25,26 @@ test("DocumentsService records a failed local reindex run when enqueueing ingest
   };
 
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
-    getDocument: async documentId => {
-      assert.equal(documentId, existingDocument.id);
+    getDocument: async (documentId) => {
+      expect(documentId).toBe(existingDocument.id);
       return existingDocument;
     },
     prisma: {
       document: {
         findUnique: async ({ where }) => {
-          assert.deepEqual(where, { id: existingDocument.id });
+          expect(where).toStrictEqual({ id: existingDocument.id });
           return {
             version: existingDocument.version + 1
           };
         },
-        update: async args => {
+        update: async (args) => {
           documentUpdates.push(args);
           return {
             ...existingDocument,
             ...args.data,
             version:
-              typeof args.data.version === "object" && args.data.version.increment === 1
+              typeof args.data.version === 'object' &&
+              args.data.version.increment === 1
                 ? existingDocument.version + 1
                 : existingDocument.version + 1
           };
@@ -52,7 +52,7 @@ test("DocumentsService records a failed local reindex run when enqueueing ingest
       }
     },
     documentRunsService: {
-      createRun: async input => {
+      createRun: async (input) => {
         createdRuns.push(input);
       },
       markRunFailed: async (documentId, version, input) => {
@@ -64,29 +64,31 @@ test("DocumentsService records a failed local reindex run when enqueueing ingest
     },
     ingestionService: {
       enqueueDocument: async () => {
-        throw new Error("Redis refused queue add.");
+        throw new Error('Redis refused queue add.');
       }
     }
   });
 
-  await assert.rejects(
-    DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id),
-    /Redis refused queue add/
-  );
+  await expect(
+    DocumentsService.prototype.reindexDocument.call(
+      fakeService,
+      existingDocument.id
+    )
+  ).rejects.toThrow(/Redis refused queue add/);
 
-  assert.deepEqual(createdRuns, [
+  expect(createdRuns).toStrictEqual([
     {
       documentId: existingDocument.id,
       version: 3,
-      trigger: "reindex"
+      trigger: 'reindex'
     }
   ]);
-  assert.deepEqual(documentUpdates, [
+  expect(documentUpdates).toStrictEqual([
     {
       where: { id: existingDocument.id },
       data: {
-        status: "pending",
-        processingStage: "uploaded",
+        status: 'pending',
+        processingStage: 'uploaded',
         chunkCount: 0,
         errorMessage: null,
         diagnosticsJson: Prisma.JsonNull,
@@ -98,52 +100,52 @@ test("DocumentsService records a failed local reindex run when enqueueing ingest
     {
       where: { id: existingDocument.id },
       data: {
-        status: "failed",
-        processingStage: "failed",
-        errorMessage: "Redis refused queue add.",
+        status: 'failed',
+        processingStage: 'failed',
+        errorMessage: 'Redis refused queue add.',
         diagnosticsJson: {
-          code: "INGESTION_ENQUEUE_FAILED",
-          failedStage: "parsing",
+          code: 'INGESTION_ENQUEUE_FAILED',
+          failedStage: 'parsing',
           retryable: true,
           documentVersion: 3,
-          message: "Redis refused queue add."
+          message: 'Redis refused queue add.'
         }
       }
     }
   ]);
-  assert.deepEqual(failedRuns, [
+  expect(failedRuns).toStrictEqual([
     {
       documentId: existingDocument.id,
       version: 3,
-      failedStage: "parsing",
+      failedStage: 'parsing',
       diagnosticsJson: {
-        code: "INGESTION_ENQUEUE_FAILED",
-        failedStage: "parsing",
+        code: 'INGESTION_ENQUEUE_FAILED',
+        failedStage: 'parsing',
         retryable: true,
         documentVersion: 3,
-        message: "Redis refused queue add."
+        message: 'Redis refused queue add.'
       }
     }
   ]);
-  assert.deepEqual(skippedRuns, []);
+  expect(skippedRuns).toStrictEqual([]);
 });
 
-test("DocumentsService skips stale local enqueue failure handling when a newer document version is already active", async () => {
+test('DocumentsService skips stale local enqueue failure handling when a newer document version is already active', async () => {
   const documentUpdates = [];
   const createdRuns = [];
   const failedRuns = [];
   const skippedRuns = [];
 
   const existingDocument = {
-    id: "local-reindex-enqueue-stale-1",
-    kbId: "default-kb",
-    sourceType: "upload",
-    sourceName: "guide.md",
-    title: "guide.md",
-    mimeType: "text/markdown",
-    storageKey: "uploads/guide.md",
-    status: "ready",
-    processingStage: "completed",
+    id: 'local-reindex-enqueue-stale-1',
+    kbId: 'default-kb',
+    sourceType: 'upload',
+    sourceName: 'guide.md',
+    title: 'guide.md',
+    mimeType: 'text/markdown',
+    storageKey: 'uploads/guide.md',
+    status: 'ready',
+    processingStage: 'completed',
     version: 2,
     chunkCount: 5,
     errorMessage: null,
@@ -151,25 +153,26 @@ test("DocumentsService skips stale local enqueue failure handling when a newer d
   };
 
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
-    getDocument: async documentId => {
-      assert.equal(documentId, existingDocument.id);
+    getDocument: async (documentId) => {
+      expect(documentId).toBe(existingDocument.id);
       return existingDocument;
     },
     prisma: {
       document: {
         findUnique: async ({ where }) => {
-          assert.deepEqual(where, { id: existingDocument.id });
+          expect(where).toStrictEqual({ id: existingDocument.id });
           return {
             version: existingDocument.version + 2
           };
         },
-        update: async args => {
+        update: async (args) => {
           documentUpdates.push(args);
           return {
             ...existingDocument,
             ...args.data,
             version:
-              typeof args.data.version === "object" && args.data.version.increment === 1
+              typeof args.data.version === 'object' &&
+              args.data.version.increment === 1
                 ? existingDocument.version + 1
                 : existingDocument.version + 1
           };
@@ -177,7 +180,7 @@ test("DocumentsService skips stale local enqueue failure handling when a newer d
       }
     },
     documentRunsService: {
-      createRun: async input => {
+      createRun: async (input) => {
         createdRuns.push(input);
       },
       markRunFailed: async (documentId, version, input) => {
@@ -189,29 +192,31 @@ test("DocumentsService skips stale local enqueue failure handling when a newer d
     },
     ingestionService: {
       enqueueDocument: async () => {
-        throw new Error("Redis refused queue add.");
+        throw new Error('Redis refused queue add.');
       }
     }
   });
 
-  await assert.rejects(
-    DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id),
-    /Redis refused queue add/
-  );
+  await expect(
+    DocumentsService.prototype.reindexDocument.call(
+      fakeService,
+      existingDocument.id
+    )
+  ).rejects.toThrow(/Redis refused queue add/);
 
-  assert.deepEqual(createdRuns, [
+  expect(createdRuns).toStrictEqual([
     {
       documentId: existingDocument.id,
       version: 3,
-      trigger: "reindex"
+      trigger: 'reindex'
     }
   ]);
-  assert.deepEqual(documentUpdates, [
+  expect(documentUpdates).toStrictEqual([
     {
       where: { id: existingDocument.id },
       data: {
-        status: "pending",
-        processingStage: "uploaded",
+        status: 'pending',
+        processingStage: 'uploaded',
         chunkCount: 0,
         errorMessage: null,
         diagnosticsJson: Prisma.JsonNull,
@@ -221,18 +226,19 @@ test("DocumentsService skips stale local enqueue failure handling when a newer d
       }
     }
   ]);
-  assert.deepEqual(failedRuns, []);
-  assert.deepEqual(skippedRuns, [
+  expect(failedRuns).toStrictEqual([]);
+  expect(skippedRuns).toStrictEqual([
     {
       documentId: existingDocument.id,
       version: 3,
-      failedStage: "stale_guard",
+      failedStage: 'stale_guard',
       diagnosticsJson: {
-        code: "INGESTION_RUN_SUPERSEDED",
-        failedStage: "stale_guard",
+        code: 'INGESTION_RUN_SUPERSEDED',
+        failedStage: 'stale_guard',
         retryable: false,
         documentVersion: 3,
-        message: "Skipped stale ingestion enqueue failure handling because a newer document version is already active.",
+        message:
+          'Skipped stale ingestion enqueue failure handling because a newer document version is already active.',
         currentDocumentVersion: 4
       }
     }
