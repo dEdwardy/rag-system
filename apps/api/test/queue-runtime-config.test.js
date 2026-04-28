@@ -1,16 +1,16 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
 
-const {
+import {
   QueueRuntimeConfigError,
   resolveQueueRuntimeConfig
-} = require("../src/infra/queue/queue-runtime-config.ts");
+} from '../src/infra/queue/queue-runtime-config.ts';
 
-test("resolveQueueRuntimeConfig defaults to pgmq", () => {
+test('resolveQueueRuntimeConfig defaults to pgmq', () => {
   const config = resolveQueueRuntimeConfig({});
 
   assert.deepEqual(config, {
-    provider: "pgmq",
+    provider: 'pgmq',
     redisUrl: null,
     queuePrefix: null,
     enableDocumentIngestionWorker: true,
@@ -23,17 +23,17 @@ test("resolveQueueRuntimeConfig defaults to pgmq", () => {
   });
 });
 
-test("resolveQueueRuntimeConfig supports database provider", () => {
+test('resolveQueueRuntimeConfig supports database provider', () => {
   const config = resolveQueueRuntimeConfig({
-    QUEUE_PROVIDER: "database",
-    DOCUMENT_INGESTION_WORKER_ENABLED: "false",
-    QUEUE_DATABASE_POLL_INTERVAL_MS: "250",
-    QUEUE_DATABASE_RETRY_DELAY_MS: "3000",
-    QUEUE_DATABASE_MAX_ATTEMPTS: "5"
+    QUEUE_PROVIDER: 'database',
+    DOCUMENT_INGESTION_WORKER_ENABLED: 'false',
+    QUEUE_DATABASE_POLL_INTERVAL_MS: '250',
+    QUEUE_DATABASE_RETRY_DELAY_MS: '3000',
+    QUEUE_DATABASE_MAX_ATTEMPTS: '5'
   });
 
   assert.deepEqual(config, {
-    provider: "database",
+    provider: 'database',
     redisUrl: null,
     queuePrefix: null,
     enableDocumentIngestionWorker: false,
@@ -46,14 +46,14 @@ test("resolveQueueRuntimeConfig supports database provider", () => {
   });
 });
 
-test("resolveQueueRuntimeConfig supports pgmq provider", () => {
+test('resolveQueueRuntimeConfig supports pgmq provider', () => {
   const config = resolveQueueRuntimeConfig({
-    QUEUE_PROVIDER: "pgmq",
-    QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS: "45"
+    QUEUE_PROVIDER: 'pgmq',
+    QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS: '45'
   });
 
   assert.deepEqual(config, {
-    provider: "pgmq",
+    provider: 'pgmq',
     redisUrl: null,
     queuePrefix: null,
     enableDocumentIngestionWorker: true,
@@ -66,17 +66,17 @@ test("resolveQueueRuntimeConfig supports pgmq provider", () => {
   });
 });
 
-test("resolveQueueRuntimeConfig supports redis provider", () => {
+test('resolveQueueRuntimeConfig supports redis provider', () => {
   const config = resolveQueueRuntimeConfig({
-    QUEUE_PROVIDER: "redis",
-    REDIS_URL: "redis://127.0.0.1:6379",
-    QUEUE_PREFIX: "rag-local"
+    QUEUE_PROVIDER: 'redis',
+    REDIS_URL: 'redis://127.0.0.1:6379',
+    QUEUE_PREFIX: 'rag-local'
   });
 
   assert.deepEqual(config, {
-    provider: "redis",
-    redisUrl: "redis://127.0.0.1:6379",
-    queuePrefix: "rag-local",
+    provider: 'redis',
+    redisUrl: 'redis://127.0.0.1:6379',
+    queuePrefix: 'rag-local',
     enableDocumentIngestionWorker: true,
     databasePollIntervalMs: 1000,
     databaseRetryDelayMs: 5000,
@@ -87,6 +87,9 @@ test("resolveQueueRuntimeConfig supports redis provider", () => {
   });
 });
 
-test("resolveQueueRuntimeConfig rejects invalid provider", () => {
-  assert.throws(() => resolveQueueRuntimeConfig({ QUEUE_PROVIDER: "invalid" }), QueueRuntimeConfigError);
+test('resolveQueueRuntimeConfig rejects invalid provider', () => {
+  assert.throws(
+    () => resolveQueueRuntimeConfig({ QUEUE_PROVIDER: 'invalid' }),
+    QueueRuntimeConfigError
+  );
 });
