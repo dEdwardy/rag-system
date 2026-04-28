@@ -1,11 +1,8 @@
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const {
-  DocumentsService
-} = require('../src/modules/documents/documents.service.ts');
-const {
-  normalizeUploadedFilename
-} = require('../src/common/upload-filename.ts');
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
+
+import { DocumentsService } from '../src/modules/documents/documents.service.ts';
+import { normalizeUploadedFilename } from '../src/common/upload-filename.ts';
 
 test('normalizeUploadedFilename repairs latin1-mojibake Chinese filenames', () => {
   const mojibakeName = Buffer.from('中文资料.md', 'utf8').toString('latin1');
