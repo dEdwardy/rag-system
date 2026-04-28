@@ -1,28 +1,25 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
+import { expect, test } from 'vitest';
 
-const { DocumentIngestionProcessor } = require("../src/modules/ingestion/document-ingestion.processor.ts");
-
-test("DocumentIngestionProcessor validates 50MB file size limit", async () => {
+test('DocumentIngestionProcessor validates 50MB file size limit', async () => {
   const maxFileSize = 50 * 1024 * 1024;
-  
+
   const smallBuffer = Buffer.alloc(maxFileSize - 1);
-  assert.equal(smallBuffer.length < maxFileSize, true);
-  
+  expect(smallBuffer.length < maxFileSize).toBe(true);
+
   const largeBuffer = Buffer.alloc(maxFileSize + 1);
-  assert.equal(largeBuffer.length > maxFileSize, true);
+  expect(largeBuffer.length > maxFileSize).toBe(true);
 });
 
-test("50MB file size limit is correctly calculated", async () => {
+test('50MB file size limit is correctly calculated', async () => {
   const maxFileSize = 50 * 1024 * 1024;
-  
-  assert.equal(maxFileSize, 52428800);
-  assert.equal(maxFileSize / 1024 / 1024, 50);
+
+  expect(maxFileSize).toBe(52428800);
+  expect(maxFileSize / 1024 / 1024).toBe(50);
 });
 
-test("Error message indicates file size limit exceeded", async () => {
-  const errorMessage = "Document file size exceeds limit of 50MB.";
-  
-  assert.match(errorMessage, /50MB/);
-  assert.match(errorMessage, /exceeds limit/);
+test('Error message indicates file size limit exceeded', async () => {
+  const errorMessage = 'Document file size exceeds limit of 50MB.';
+
+  expect(errorMessage).toMatch(/50MB/);
+  expect(errorMessage).toMatch(/exceeds limit/);
 });
