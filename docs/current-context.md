@@ -2,7 +2,7 @@
 
 > 文档角色：`current-context`
 > 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、执行边界、最小验证和高频入口，详细历史按需回看其他文档。
-> 更新时间：2026-04-26
+> 更新时间：2026-04-29
 
 ## Current Mainline
 
@@ -100,6 +100,7 @@
 - web focused test：`pnpm --filter @rag-system/web exec vitest run test/<file>.test.js`
 - queue item validation should use exactly one small focused command; avoid chaining broad suites, mixed checks, or fallback command sequences in queue prompts
 - new queue tasks should use `vitest run` for test validation; do not add new raw `node --test` commands or legacy aliases such as `pnpm test:harness` to future queue items. If a legacy `node:test` file is still in the way, migrate or replace it before queueing the task.
+- new API test files must use Vitest and must not introduce `node:test`; existing `node:test` files are legacy-only migration targets.
 - recovery follow-ups should stay one-item/one-command as well: rewrite the item to a focused Vitest command instead of stacking extra validation onto the retry
 - queue items should name the smallest explicit Vitest target that proves the change, preferably a file path or tight same-slice set, rather than broad package aliases whose scope is easy to grow accidentally
 - when a retry would otherwise need a second command to compensate for missing Vitest coverage, treat Vitest migration as the actual task and requeue only after the focused command exists
@@ -140,6 +141,21 @@ Scope guardrails for this increment:
 - do not add a generic workflow engine
 - do not split the current mainline into a separate platform layer
 - do not weaken the default KB / default assistant / ACL baselines
+
+## LangGraph Direction
+
+LangChain / LangGraph is now introduced only as a thin Agentic RAG side path:
+
+- isolated entry is landed at `POST /agent-tools/langgraph_answer`
+- current graph stays bounded to route decision, primary retrieval, optional second retrieval pass, and final answer assembly
+- the side path reuses existing `rag_search`, `rag_answer`, `trace_lookup`, `document_lookup`, and external-source capabilities
+- the default ask path remains unchanged; LangGraph is still a bounded side path until coverage and trace readability are strong enough for any broader decision
+- current graph steps are visible to the existing trace / report / chat inspection surface rather than a new agent platform page
+- the implementation does not replace current ingestion, chunking, retrieval, vector store, answering, trace, or eval infrastructure with LangChain abstractions
+- long-term memory is still out of scope for this first LangGraph increment; current conversation history / trace / report data remain context and diagnostics, not agent memory
+- LangSmith stays optional and disabled by default; self-owned trace / report / eval remain the source of truth
+
+Current target: keep complex questions visibly multi-step on the side path while simple questions continue to use the stable default RAG path.
 
 ## Codex / OpenCode Behavior Alignment
 

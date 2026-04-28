@@ -2,9 +2,15 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-> 更新时间：2026-04-26
+> 更新时间：2026-04-29
 
 ## Current Snapshot
+
+- `langgraph side-path wave` is now landed as a bounded agent-tools increment
+  - `POST /agent-tools/langgraph_answer` now exists as an isolated LangGraph-backed answer path and does not replace the default `/ask` flow
+  - the graph is bounded to `route_question`, `run_primary_retrieval`, `judge_missing_information`, `run_second_pass`, and `finalize_answer`
+  - the side path reuses the existing `AskAssistantService` retrieval/answering behavior through LangChain tools instead of replacing ingestion, retrieval, or answering internals
+  - current focused controller coverage locks the `knowledge_base` multi-step branch plus `policy_reply` / `external_source` side-route behavior in `apps/api/test/agent-langgraph.controller.test.js`
 
 - `agent-tools contract wave` is now closed out on the OpenCode-backed loop queue
   - `POST /agent-tools/rag_search` returns a retrieval-only payload with query, chunks, citations, sources, and diagnostics instead of calling the answer path
@@ -29,6 +35,10 @@
 - queue docs now also make the recovery rule more explicit: retries should shrink back to one small explicit Vitest command, and any remaining legacy `node:test` gap should be handled as a Vitest-migration task before new queue work depends on it.
 - a future follow-up direction is now documented for the loop runtime: use an LLM to expand coarse requests into detailed plans, optionally split them into sequential and parallel queue items, and feed failures back into a replanning step after the current rag-system mainline is done.
 - loop runtime docs now call out the current idle-progress env key (`LOOP_ITEM_IDLE_TIMEOUT_MS`, legacy `OPENCODE_LOOP_PROGRESS_IDLE_TIMEOUT_MS`), recommend `180000` ms for long OpenCode queue tasks, and document the current failure mode where a long silent code-reading turn can be killed as `idle_progress_timeout` with no visible executor output.
+- the next low-risk API Vitest migration slice is also landed for config / policy / storage-root coverage
+  - `apps/api/test/auth-surface-route-policy.test.js`, `apps/api/test/storage-root-resolution.test.js`, `apps/api/test/vector-store-runtime-config.test.js`, and `apps/api/test/vitest-config.test.js` now run under Vitest
+  - `apps/api/scripts/run-test-file.mjs` now routes those focused files through the Vitest fast path
+  - this keeps new queue validation on focused Vitest commands while shrinking the remaining legacy `node:test` surface in low-risk groups first
 
 - 当前默认方式仍是：单线推进、小步增量、每轮收口。
 - 代码现实已明显前于旧计划表述：
@@ -804,3 +814,47 @@ The main RAG path is already stable enough to treat as the base. The next meanin
 6. `/agent` demo UI
 
 This is the current follow-up target, not planner or multi-agent.
+
+## LangGraph Multi-hop Increment
+
+The next Agentic RAG increment is now scoped as a thin LangGraph-backed side path, not a replacement for the default ask flow.
+
+- initial entry landed: `POST /agent-tools/langgraph_answer`
+- purpose: make complex questions visibly multi-step with route decision, primary retrieval, optional bounded second pass, and final answer assembly
+- reuse boundary: call the existing `rag_search`, `rag_answer`, `trace_lookup`, `document_lookup`, and external-source capabilities instead of replacing ingestion / retrieval / answering infrastructure
+- trace boundary: expose graph steps through the response or existing trace metadata so the current trace / report / chat inspection surface remains the supported demo path
+- memory boundary: no long-term memory in the first increment; current conversation history, trace, report, and document metadata remain context / diagnostics, not autonomous agent memory
+- LangSmith boundary: optional and disabled by default; project-owned trace / report / eval remain the source of truth
+
+Initial implementation notes:
+
+- `LangGraphAnswerService` builds a bounded graph with `route_question`, `run_primary_retrieval`, `judge_missing_information`, `run_second_pass`, and `finalize_answer` nodes.
+- the LangGraph side path now compiles the graph once at service construction time instead of rebuilding it per request.
+- LangChain tools wrap the existing `searchAssistant` and `askAssistant` service calls; the implementation does not replace ingestion, retrieval, or answering internals.
+- The first pass keeps answer semantics on the existing `askAssistant` path while making graph steps and bounded second-pass diagnostics visible to agent callers.
+- focused controller coverage now includes `knowledge_base`, `policy_reply`, and `external_source` route behavior for `langgraph_answer`.
+
+Focused validation:
+
+- `pnpm test:api:file -- test/agent-langgraph.controller.test.js`
+- `pnpm --filter @rag-system/api typecheck`
+
+## API Vitest Migration Follow-up
+
+- `apps/api/test/auth-surface-route-policy.test.js` has moved from `node:test` to Vitest.
+- `apps/api/test/storage-root-resolution.test.js` has also moved from `node:test` to Vitest.
+- `apps/api/test/vitest-config.test.js` and `apps/api/test/vector-store-runtime-config.test.js` have also moved from `node:test` to Vitest.
+- `apps/api/scripts/run-test-file.mjs` now routes those focused files through the Vitest fast path.
+- This continues the gradual migration away from raw `node --test` without changing API behavior.
+- Remaining `node:test` API files should be migrated in low-risk groups first, with integration and E2E files left for later because they still depend on the heavier build-aware path.
+- API guidance is now explicit: new test files must use Vitest and existing `node:test` files are legacy-only migration targets.
+- Existing materialized loop waves are currently consumed; there is no remaining runnable `pending` item in the shipped queue set.
+- A fresh follow-up wave has been prepared at `loop-runtime/materialized/agentic-langgraph-vitest-next-wave.queue.json` for the next bounded LangGraph diagnostics slice plus the next low-risk API Vitest migrations.
+
+Focused validation:
+
+- `pnpm test:api:file -- test/auth-surface-route-policy.test.js`
+- `pnpm test:api:file -- test/storage-root-resolution.test.js`
+- `pnpm test:api:file -- test/vitest-config.test.js`
+- `pnpm test:api:file -- test/vector-store-runtime-config.test.js`
+- `pnpm --filter @rag-system/api typecheck`

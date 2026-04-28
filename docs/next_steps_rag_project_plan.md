@@ -2,7 +2,7 @@
 
 > 文档角色：`current-primary`
 > 当前使用方式：作为现阶段任务方向、优先级判断和阶段边界的主文档；`docs/current-progress.md` 负责记录近期完成情况和验证基线。
-> 更新时间：2026-04-26
+> 更新时间：2026-04-29
 
 ## 1. 当前判断
 
@@ -161,6 +161,7 @@
   - `pnpm --filter @rag-system/web exec vitest run test/<file>.test.js`
 - queue item validation command should stay one-item/one-command and focused; avoid broad chained suites, mixed checks, and fallback command chains in queue prompts
 - queue tasks should stay on Vitest-based test commands and should not introduce new raw `node --test` validations or legacy aliases that still resolve to `node:test`
+- new API test files should use Vitest directly; legacy `node:test` files should only remain until they are migrated, and should not be used as the model for new coverage
 - if recovery is needed, rewrite the queue item back down to one focused Vitest command instead of broadening the validation surface on retry
 - queue prompts should prefer explicit file-level Vitest commands over broad convenience aliases so the intended validation scope stays stable across retries
 - if the only available check for a target is still legacy `node:test`, the next queue increment should be Vitest migration or replacement first, then the feature/fix item with one focused Vitest command
@@ -197,7 +198,7 @@ Priority B:
 
 Priority C:
 
-- only after the above are stable, consider whether the repo needs any broader planning or workflow abstraction
+- keep the landed LangGraph-backed multi-hop orchestration on an isolated agent-tools side path, and extend it only through bounded diagnostics / coverage follow-up instead of replacing the default ask path
 
 Explicit non-goals:
 
@@ -205,3 +206,90 @@ Explicit non-goals:
 - multi-agent
 - generic workflow engine
 - platform split
+
+## LangGraph Multi-hop Plan
+
+当前项目已经落地一个 LangGraph side path；它的定位仍然是增强 Agentic RAG 的多跳 / 多步编排能力，而不是重写现有 RAG 基础设施。
+
+目标效果：
+
+- 简单问题继续走现有默认 RAG 主路径，保持单次检索 + 回答的低复杂度路径。
+- 复杂问题可以进入一个可追踪的多步流程：先判断问题类型，再按需检索、补查、合并证据和生成答案。
+- trace / report / chat inspection surface 能看到 graph steps，而不是只看到最终答案。
+
+当前第一版入口：
+
+- `POST /agent-tools/langgraph_answer`
+- 该入口当前保持为旁路实验能力，不替换现有 `/ask` 或 `rag_answer`。
+- 该入口复用现有 `rag_search`、`rag_answer`、`trace_lookup`、`document_lookup` 和 external-source 能力。
+
+当前第一版 graph 范围：
+
+1. `route_question`
+   - 判断问题走 `knowledge_base`、`external_source` 还是 `policy_reply`。
+   - 优先复用现有 route decision 语义，不引入通用 planner。
+2. `run_primary_retrieval`
+   - 调用现有 retrieval / `rag_search` 能力。
+   - 保持默认 retrieval profile 不被放大。
+3. `judge_missing_information`
+   - 基于现有 `missingInformation`、chunk 命中、confidence 和 diagnostics 判断是否需要补查。
+   - 只允许 bounded second pass，不开放无限循环。
+4. `run_second_pass`
+   - 仅在复杂问题、证据不足或明确需要跨文档对比时触发。
+   - 最多执行一次额外检索，沿用当前 bounded multi-step 约束。
+5. `finalize_answer`
+   - 调用现有 answering / `rag_answer` 能力生成最终响应。
+   - 输出 `answer`、`citations`、`confidence`、`missingInformation`、`steps`、`traceId`。
+
+LangChain 使用边界：
+
+- 可以用 LangChain tools 包装现有后端能力，作为 LangGraph node 的调用对象。
+- 不用 LangChain document loader、splitter、vector store、retriever 替换当前 ingestion / retrieval 实现。
+- 不把 prompt、retrieval profile、trace contract 迁移到 LangChain 专属抽象里。
+
+Memory 使用边界：
+
+- 当前项目不把复杂 memory 作为第一阶段目标。
+- 现有系统已经有 conversation history、trace、document metadata 和 eval/report 记录，这些是调试与上下文追踪基础，但不等同于 agent long-term memory。
+- LangGraph 第一版不引入长期记忆、用户画像记忆、跨会话偏好记忆或自动 memory 写入。
+- 如果后续需要 memory，优先从 scoped conversation memory 做起：只读取当前会话内最近若干轮摘要或已完成答案，用于多跳问题消歧和避免重复检索。
+- memory 必须显式可追踪、可关闭、可测试，不应隐式改变默认 RAG 结果。
+
+LangSmith 使用边界：
+
+- 第一版不要求接入 LangSmith。
+- 如果接入，只对 `/agent-tools/langgraph_answer` 开启可选 tracing，并通过环境变量默认关闭。
+- 自有 trace / report / eval 仍然是项目主记录；LangSmith 只作为开发调试和展示辅助。
+
+建议环境开关：
+
+```env
+LANGGRAPH_AGENT_ENABLED=false
+LANGSMITH_TRACING=false
+LANGSMITH_PROJECT=rag-system-langgraph-dev
+```
+
+当前已完成的最小标准：
+
+- 有一个隔离的 LangGraph answer 入口。
+- 默认 ask 主路径不变。
+- 已覆盖 knowledge-base 复杂问题的一次 primary retrieval + optional second pass，以及 policy / external-source 路由的旁路行为。
+- response 或 trace metadata 中能看到 graph step 列表。
+- 已有 focused API test 锁定入口、步骤输出和默认路径不被替换。
+
+当前相关 focused validation 基线：
+
+- `pnpm test:api:file -- test/agent-langgraph.controller.test.js`
+- `pnpm test:api:file -- test/auth-surface-route-policy.test.js`
+- `pnpm test:api:file -- test/storage-root-resolution.test.js`
+- `pnpm test:api:file -- test/vector-store-runtime-config.test.js`
+- `pnpm test:api:file -- test/vitest-config.test.js`
+- `pnpm --filter @rag-system/api typecheck`
+- `pnpm check:encoding`
+
+后续只有在第一版稳定后，再考虑：
+
+- external-source + local KB 的混合证据路径
+- answer quality self-check node
+- LangSmith tracing 的可选开关
+- 将表现稳定的 graph 能力回流到默认 ask path
