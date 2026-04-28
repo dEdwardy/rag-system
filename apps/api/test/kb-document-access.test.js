@@ -1,118 +1,129 @@
-const assert = require("node:assert/strict");
-const { test } = require("node:test");
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { test } from 'vitest';
 
-const { DocumentsController } = require("../src/modules/documents/documents.controller.ts");
-const { DocumentsService } = require("../src/modules/documents/documents.service.ts");
+const require = createRequire(import.meta.url);
+const {
+  DocumentsController
+} = require('../src/modules/documents/documents.controller.ts');
+const {
+  DocumentsService
+} = require('../src/modules/documents/documents.service.ts');
 
 function buildRequest() {
   return {
     authContext: {
       identity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       },
       currentIdentity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       }
     }
   };
 }
 
-test("DocumentsController passes request identity to knowledge-base and document reads/writes", async () => {
+test('DocumentsController passes request identity to knowledge-base and document reads/writes', async () => {
   const calls = [];
   const controller = new DocumentsController({
     listKnowledgeBaseDocuments: async (knowledgeBaseId, input, identity) => {
-      calls.push({ type: "list-kb-documents", knowledgeBaseId, input, identity });
+      calls.push({
+        type: 'list-kb-documents',
+        knowledgeBaseId,
+        input,
+        identity
+      });
       return [];
     },
     reindexKnowledgeBase: async (knowledgeBaseId, identity) => {
-      calls.push({ type: "reindex-kb", knowledgeBaseId, identity });
+      calls.push({ type: 'reindex-kb', knowledgeBaseId, identity });
       return { knowledgeBaseId, requestedCount: 0, documentIds: [] };
     },
     createDocument: async (knowledgeBaseId, input, identity) => {
-      calls.push({ type: "create-document", knowledgeBaseId, input, identity });
-      return { id: "document-1" };
+      calls.push({ type: 'create-document', knowledgeBaseId, input, identity });
+      return { id: 'document-1' };
     },
     getDocument: async (documentId, identity) => {
-      calls.push({ type: "get-document", documentId, identity });
+      calls.push({ type: 'get-document', documentId, identity });
       return { id: documentId };
     }
   });
 
   const request = buildRequest();
-  await controller.listKnowledgeBaseDocuments("kb-1", {}, request);
-  await controller.reindexKnowledgeBase("kb-1", request);
+  await controller.listKnowledgeBaseDocuments('kb-1', {}, request);
+  await controller.reindexKnowledgeBase('kb-1', request);
   await controller.createDocument(
-    "kb-1",
+    'kb-1',
     {
-      sourceType: "upload",
-      sourceName: "notes.txt",
-      title: "notes",
-      mimeType: "text/plain",
-      storageKey: "uploads/notes.txt"
+      sourceType: 'upload',
+      sourceName: 'notes.txt',
+      title: 'notes',
+      mimeType: 'text/plain',
+      storageKey: 'uploads/notes.txt'
     },
     request
   );
-  await controller.getDocument("document-1", request);
+  await controller.getDocument('document-1', request);
 
   assert.deepEqual(calls, [
     {
-      type: "list-kb-documents",
-      knowledgeBaseId: "kb-1",
+      type: 'list-kb-documents',
+      knowledgeBaseId: 'kb-1',
       input: {},
       identity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       }
     },
     {
-      type: "reindex-kb",
-      knowledgeBaseId: "kb-1",
+      type: 'reindex-kb',
+      knowledgeBaseId: 'kb-1',
       identity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       }
     },
     {
-      type: "create-document",
-      knowledgeBaseId: "kb-1",
+      type: 'create-document',
+      knowledgeBaseId: 'kb-1',
       input: {
-        sourceType: "upload",
-        sourceName: "notes.txt",
-        title: "notes",
-        mimeType: "text/plain",
-        storageKey: "uploads/notes.txt"
+        sourceType: 'upload',
+        sourceName: 'notes.txt',
+        title: 'notes',
+        mimeType: 'text/plain',
+        storageKey: 'uploads/notes.txt'
       },
       identity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       }
     },
     {
-      type: "get-document",
-      documentId: "document-1",
+      type: 'get-document',
+      documentId: 'document-1',
       identity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       }
     }
   ]);
 });
 
-test("DocumentsService reindexKnowledgeBase scopes KB access and requests each document reindex", async () => {
+test('DocumentsService reindexKnowledgeBase scopes KB access and requests each document reindex', async () => {
   const kbChecks = [];
   const listCalls = [];
   const reindexCalls = [];
@@ -125,55 +136,59 @@ test("DocumentsService reindexKnowledgeBase scopes KB access and requests each d
     },
     prisma: {
       document: {
-        findMany: async args => {
+        findMany: async (args) => {
           listCalls.push(args);
-          return [{ id: "doc-2" }, { id: "doc-1" }];
+          return [{ id: 'doc-2' }, { id: 'doc-1' }];
         }
       }
     },
-    reindexDocument: async documentId => {
+    reindexDocument: async (documentId) => {
       reindexCalls.push(documentId);
       return { id: documentId };
     }
   });
 
-  const result = await DocumentsService.prototype.reindexKnowledgeBase.call(fakeService, "kb-1", {
-    tenantId: "tenant-auth",
-    userId: "user-auth"
-  });
+  const result = await DocumentsService.prototype.reindexKnowledgeBase.call(
+    fakeService,
+    'kb-1',
+    {
+      tenantId: 'tenant-auth',
+      userId: 'user-auth'
+    }
+  );
 
   assert.deepEqual(kbChecks, [
     {
-      knowledgeBaseId: "kb-1",
+      knowledgeBaseId: 'kb-1',
       scope: {
-        tenantId: "tenant-auth",
-        userId: "user-auth"
+        tenantId: 'tenant-auth',
+        userId: 'user-auth'
       }
     }
   ]);
   assert.deepEqual(listCalls, [
     {
       where: {
-        kbId: "kb-1"
+        kbId: 'kb-1'
       },
       select: {
         id: true,
         sourceType: true
       },
       orderBy: {
-        updatedAt: "desc"
+        updatedAt: 'desc'
       }
     }
   ]);
-  assert.deepEqual(reindexCalls, ["doc-2", "doc-1"]);
+  assert.deepEqual(reindexCalls, ['doc-2', 'doc-1']);
   assert.deepEqual(result, {
-    knowledgeBaseId: "kb-1",
+    knowledgeBaseId: 'kb-1',
     requestedCount: 2,
-    documentIds: ["doc-2", "doc-1"]
+    documentIds: ['doc-2', 'doc-1']
   });
 });
 
-test("DocumentsService scopes getDocument by owning knowledge-base identity", async () => {
+test('DocumentsService scopes getDocument by owning knowledge-base identity', async () => {
   const calls = {
     documentGet: [],
     knowledgeBaseGet: []
@@ -181,9 +196,9 @@ test("DocumentsService scopes getDocument by owning knowledge-base identity", as
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
     prisma: {
       document: {
-        findUnique: async args => {
+        findUnique: async (args) => {
           calls.documentGet.push(args);
-          return { id: "document-1", kbId: "kb-1" };
+          return { id: 'document-1', kbId: 'kb-1' };
         }
       }
     },
@@ -195,31 +210,53 @@ test("DocumentsService scopes getDocument by owning knowledge-base identity", as
     }
   });
 
-  const result = await DocumentsService.prototype.getDocument.call(fakeService, "document-1", {
-    tenantId: "tenant-auth",
-    userId: "user-auth"
-  });
+  const result = await DocumentsService.prototype.getDocument.call(
+    fakeService,
+    'document-1',
+    {
+      tenantId: 'tenant-auth',
+      userId: 'user-auth'
+    }
+  );
 
-  assert.deepEqual(result, { id: "document-1", kbId: "kb-1" });
+  assert.deepEqual(result, { id: 'document-1', kbId: 'kb-1' });
   assert.deepEqual(calls.documentGet, [
     {
+      select: {
+        id: true,
+        kbId: true,
+        title: true,
+        sourceType: true,
+        sourceName: true,
+        mimeType: true,
+        storageKey: true,
+        sourceConfigJson: true,
+        status: true,
+        processingStage: true,
+        chunkCount: true,
+        diagnosticsJson: true,
+        errorMessage: true,
+        version: true,
+        createdAt: true,
+        updatedAt: true
+      },
       where: {
-        id: "document-1"
+        id: 'document-1'
       }
     }
   ]);
   assert.deepEqual(calls.knowledgeBaseGet, [
     {
-      knowledgeBaseId: "kb-1",
+      knowledgeBaseId: 'kb-1',
       scope: {
-        tenantId: "tenant-auth",
-        userId: "user-auth"
+        tenantId: 'tenant-auth',
+        userId: 'user-auth'
       }
     }
   ]);
 });
 
-test("DocumentsService skips knowledge-base fallback when document list already resolves", async () => {
+test('DocumentsService skips knowledge-base fallback when document list already resolves', async () => {
   const calls = {
     documentFindMany: [],
     knowledgeBaseGet: []
@@ -227,31 +264,37 @@ test("DocumentsService skips knowledge-base fallback when document list already 
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
     prisma: {
       document: {
-        findMany: async args => {
+        findMany: async (args) => {
           calls.documentFindMany.push(args);
-          return [{ id: "document-1" }];
+          return [{ id: 'document-1' }];
         }
       }
     },
     knowledgeBasesService: {
       getKnowledgeBase: async (...args) => {
         calls.knowledgeBaseGet.push(args);
-        return { id: "kb-1" };
+        return { id: 'kb-1' };
       }
     }
   });
 
-  const result = await DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "kb-1", {}, {
-    tenantId: "tenant-auth",
-    userId: "user-auth"
-  });
+  const result =
+    await DocumentsService.prototype.listKnowledgeBaseDocuments.call(
+      fakeService,
+      'kb-1',
+      {},
+      {
+        tenantId: 'tenant-auth',
+        userId: 'user-auth'
+      }
+    );
 
-  assert.deepEqual(result, [{ id: "document-1" }]);
+  assert.deepEqual(result, [{ id: 'document-1' }]);
   assert.equal(calls.documentFindMany.length, 1);
   assert.equal(calls.knowledgeBaseGet.length, 0);
 });
 
-test("DocumentsService falls back to knowledge-base lookup when document list is empty", async () => {
+test('DocumentsService falls back to knowledge-base lookup when document list is empty', async () => {
   const calls = {
     documentFindMany: [],
     knowledgeBaseGet: []
@@ -259,7 +302,7 @@ test("DocumentsService falls back to knowledge-base lookup when document list is
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
     prisma: {
       document: {
-        findMany: async args => {
+        findMany: async (args) => {
           calls.documentFindMany.push(args);
           return [];
         }
@@ -268,22 +311,34 @@ test("DocumentsService falls back to knowledge-base lookup when document list is
     knowledgeBasesService: {
       getKnowledgeBase: async (...args) => {
         calls.knowledgeBaseGet.push(args);
-        return { id: "kb-1" };
+        return { id: 'kb-1' };
       }
     }
   });
 
-  const result = await DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "kb-1", {}, {
-    tenantId: "tenant-auth",
-    userId: "user-auth"
-  });
+  const result =
+    await DocumentsService.prototype.listKnowledgeBaseDocuments.call(
+      fakeService,
+      'kb-1',
+      {},
+      {
+        tenantId: 'tenant-auth',
+        userId: 'user-auth'
+      }
+    );
 
   assert.deepEqual(result, []);
   assert.equal(calls.documentFindMany.length, 1);
-  assert.deepEqual(calls.knowledgeBaseGet, [["kb-1", { tenantId: "tenant-auth", userId: "user-auth" }, { preserveForbiddenOnMiss: true }]]);
+  assert.deepEqual(calls.knowledgeBaseGet, [
+    [
+      'kb-1',
+      { tenantId: 'tenant-auth', userId: 'user-auth' },
+      { preserveForbiddenOnMiss: true }
+    ]
+  ]);
 });
 
-test("DocumentsService checks scoped knowledge-base access before listing documents", async () => {
+test('DocumentsService checks scoped knowledge-base access before listing documents', async () => {
   const kbChecks = [];
   const listCalls = [];
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
@@ -295,7 +350,7 @@ test("DocumentsService checks scoped knowledge-base access before listing docume
     },
     prisma: {
       document: {
-        findMany: async args => {
+        findMany: async (args) => {
           listCalls.push(args);
           return [];
         }
@@ -305,47 +360,49 @@ test("DocumentsService checks scoped knowledge-base access before listing docume
 
   await DocumentsService.prototype.listKnowledgeBaseDocuments.call(
     fakeService,
-    "kb-1",
+    'kb-1',
     {},
-    { tenantId: "tenant-auth", userId: "user-auth" }
+    { tenantId: 'tenant-auth', userId: 'user-auth' }
   );
 
   assert.deepEqual(kbChecks, [
     {
-      knowledgeBaseId: "kb-1",
+      knowledgeBaseId: 'kb-1',
       scope: {
-        tenantId: "tenant-auth",
-        userId: "user-auth"
+        tenantId: 'tenant-auth',
+        userId: 'user-auth'
       }
     }
   ]);
   assert.deepEqual(listCalls, [
     {
       where: {
-        kbId: "kb-1",
+        kbId: 'kb-1',
         knowledgeBase: {
-          tenantId: "tenant-auth",
-          ownerId: "user-auth"
+          tenantId: 'tenant-auth',
+          ownerId: 'user-auth'
         }
       },
       orderBy: {
-        updatedAt: "desc"
+        updatedAt: 'desc'
       }
     }
   ]);
 });
 
-test("DocumentsService denies knowledge-base document list when owner scope check fails", async () => {
+test('DocumentsService denies knowledge-base document list when owner scope check fails', async () => {
   const listCalls = [];
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
     knowledgeBasesService: {
       getKnowledgeBase: async () => {
-        throw new Error("Access blocked by owner_only_v1 policy (owner_mismatch: resource owner does not match current user).");
+        throw new Error(
+          'Access blocked by owner_only_v1 policy (owner_mismatch: resource owner does not match current user).'
+        );
       }
     },
     prisma: {
       document: {
-        findMany: async args => {
+        findMany: async (args) => {
           listCalls.push(args);
           return [];
         }
@@ -354,58 +411,70 @@ test("DocumentsService denies knowledge-base document list when owner scope chec
   });
 
   await assert.rejects(
-    DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "kb-1", {}, { tenantId: "tenant-auth", userId: "user-auth" }),
+    DocumentsService.prototype.listKnowledgeBaseDocuments.call(
+      fakeService,
+      'kb-1',
+      {},
+      { tenantId: 'tenant-auth', userId: 'user-auth' }
+    ),
     /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
   );
   assert.deepEqual(listCalls, [
     {
       where: {
-        kbId: "kb-1",
+        kbId: 'kb-1',
         knowledgeBase: {
-          tenantId: "tenant-auth",
-          ownerId: "user-auth"
+          tenantId: 'tenant-auth',
+          ownerId: 'user-auth'
         }
       },
       orderBy: {
-        updatedAt: "desc"
+        updatedAt: 'desc'
       }
     }
   ]);
 });
 
-test("DocumentsService denies document detail when owning knowledge-base access fails", async () => {
+test('DocumentsService denies document detail when owning knowledge-base access fails', async () => {
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
     prisma: {
       document: {
-        findUnique: async () => ({ id: "document-1", kbId: "kb-1" })
+        findUnique: async () => ({ id: 'document-1', kbId: 'kb-1' })
       }
     },
     knowledgeBasesService: {
       getKnowledgeBase: async () => {
-        throw new Error("Access blocked by owner_only_v1 policy (owner_mismatch: resource owner does not match current user).");
+        throw new Error(
+          'Access blocked by owner_only_v1 policy (owner_mismatch: resource owner does not match current user).'
+        );
       }
     }
   });
 
   await assert.rejects(
-    DocumentsService.prototype.getDocument.call(fakeService, "document-1", { tenantId: "tenant-auth", userId: "user-auth" }),
+    DocumentsService.prototype.getDocument.call(fakeService, 'document-1', {
+      tenantId: 'tenant-auth',
+      userId: 'user-auth'
+    }),
     /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
   );
 });
 
-test("DocumentsService denies document write create when owning knowledge-base access fails", async () => {
+test('DocumentsService denies document write create when owning knowledge-base access fails', async () => {
   const createCalls = [];
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
     knowledgeBasesService: {
       getKnowledgeBase: async () => {
-        throw new Error("Access blocked by owner_only_v1 policy (owner_mismatch: resource owner does not match current user).");
+        throw new Error(
+          'Access blocked by owner_only_v1 policy (owner_mismatch: resource owner does not match current user).'
+        );
       }
     },
     prisma: {
       document: {
-        create: async args => {
+        create: async (args) => {
           createCalls.push(args);
-          return { id: "document-1" };
+          return { id: 'document-1' };
         }
       }
     }
@@ -414,15 +483,15 @@ test("DocumentsService denies document write create when owning knowledge-base a
   await assert.rejects(
     DocumentsService.prototype.createDocument.call(
       fakeService,
-      "kb-1",
+      'kb-1',
       {
-        sourceType: "upload",
-        sourceName: "notes.txt",
-        title: "notes",
-        mimeType: "text/plain",
-        storageKey: "uploads/notes.txt"
+        sourceType: 'upload',
+        sourceName: 'notes.txt',
+        title: 'notes',
+        mimeType: 'text/plain',
+        storageKey: 'uploads/notes.txt'
       },
-      { tenantId: "tenant-auth", userId: "user-auth" }
+      { tenantId: 'tenant-auth', userId: 'user-auth' }
     ),
     /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
   );
