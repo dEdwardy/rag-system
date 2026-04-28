@@ -18,10 +18,12 @@ import { TracesService } from '../traces/traces.service';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import {
   documentLookupSchema,
+  langGraphAnswerSchema,
   ragAnswerSchema,
   ragSearchSchema,
   traceLookupSchema
 } from './agent-tools.schemas';
+import { LangGraphAnswerService } from './langgraph-answer.service';
 
 type ToolRequest = {
   authContext?: RequestAuthContext;
@@ -55,13 +57,38 @@ type BoundedMultiStepDiagnostics = {
   mergedSourceCount: number;
 };
 
+type LangGraphRetrievalStepDiagnostics = {
+  pass?: 'first_pass' | 'second_pass';
+  requestedQuestion?: string | null;
+  query?: {
+    original?: string | null;
+    retrieval?: string | null;
+    rewritten?: string | null;
+  } | null;
+  chunkCount?: number;
+  sourceCount?: number;
+  chunkIds?: string[];
+  documentIds?: string[];
+  strategySummary?: unknown;
+  execution?: unknown;
+  profile?: unknown;
+};
+
+type LangGraphMergedRetrievalDiagnostics = {
+  chunkCount?: number;
+  sourceCount?: number;
+  chunkIds?: string[];
+  documentIds?: string[];
+};
+
 @AuthenticatedRoute()
 @Controller('agent-tools')
 export class AgentToolsController {
   constructor(
     private readonly askAssistantService: AskAssistantService,
     private readonly tracesService: TracesService,
-    private readonly documentsService: DocumentsService
+    private readonly documentsService: DocumentsService,
+    private readonly langGraphAnswerService?: LangGraphAnswerService
   ) {}
 
   @Post('rag_search')
@@ -202,6 +229,60 @@ export class AgentToolsController {
           });
 
     return this.normalizeRagAnswerResult(result, boundedMultiStep);
+  }
+
+  @Post('langgraph_answer')
+  async langGraphAnswer(
+    @Body(new ZodValidationPipe(langGraphAnswerSchema))
+    input: Omit<ReturnType<typeof langGraphAnswerSchema.parse>, 'secret'> & {
+      secret: string;
+    },
+    @Req() request?: ToolRequest
+  ) {
+    this.assertToolSecret(input.secret);
+    if (this.langGraphAnswerService == null) {
+      throw new Error('LangGraph answer service is not available.');
+    }
+
+    const authContext = this.resolveToolAuthContext(input, request);
+    const graphResult = await this.langGraphAnswerService.answer({
+      assistantId: input.assistantId,
+      question: input.question,
+      conversationId: input.conversationId,
+      authContext,
+      boundedMultiStep: input.boundedMultiStep
+    });
+    const boundedMultiStep = this.buildGraphBoundedMultiStepDiagnostics({
+      boundedMultiStepInput: input.boundedMultiStep,
+      originalQuestion: input.question,
+      firstPassResult: graphResult.primarySearchResult,
+      secondPassResult: graphResult.secondPassResult,
+      secondPassQuery: graphResult.secondPassQuery
+    });
+    const normalized = this.normalizeRagAnswerResult(
+      graphResult.answerResult,
+      boundedMultiStep
+    );
+
+    return {
+      ...normalized,
+      langGraph: {
+        routeDecision: graphResult.routeDecision,
+        steps: graphResult.steps,
+        stepCount: graphResult.steps.length,
+        secondPassQuery: graphResult.secondPassQuery,
+        retrieval: this.buildLangGraphRetrievalDiagnostics(graphResult.steps)
+      },
+      diagnostics: {
+        ...normalized.diagnostics,
+        langGraph: {
+          routeDecision: graphResult.routeDecision,
+          stepCount: graphResult.steps.length,
+          secondPassUsed: graphResult.secondPassResult != null,
+          retrieval: this.buildLangGraphRetrievalDiagnostics(graphResult.steps)
+        }
+      }
+    };
   }
 
   @Post('trace_lookup')
@@ -465,6 +546,123 @@ export class AgentToolsController {
     };
   }
 
+  private buildGraphBoundedMultiStepDiagnostics(input: {
+    boundedMultiStepInput?: BoundedMultiStepInput;
+    originalQuestion: string;
+    firstPassResult: AssistantSearchResult | null;
+    secondPassResult: AssistantSearchResult | null;
+    secondPassQuery: string | null;
+  }): BoundedMultiStepDiagnostics {
+    if (input.firstPassResult == null) {
+      return this.buildDisabledBoundedMultiStepDiagnostics();
+    }
+
+    const mergedChunks = this.mergeChunks(
+      input.firstPassResult.chunks,
+      input.secondPassResult?.chunks ?? []
+    );
+    const mergedContextGroups = this.mergeContextGroups(
+      input.firstPassResult.contextGroups,
+      input.secondPassResult?.contextGroups ?? []
+    );
+    const diagnostics = this.buildBoundedMultiStepDiagnostics({
+      boundedMultiStepInput: input.boundedMultiStepInput,
+      originalQuestion: input.originalQuestion,
+      firstPassResult: input.firstPassResult,
+      secondPassResult: input.secondPassResult,
+      mergedChunks,
+      mergedContextGroups
+    });
+
+    if (input.secondPassQuery != null && diagnostics.secondPassQuery == null) {
+      return {
+        ...diagnostics,
+        secondPassQuery: input.secondPassQuery
+      };
+    }
+
+    return diagnostics;
+  }
+
+  private buildLangGraphRetrievalDiagnostics(
+    steps: {
+      name: string;
+      diagnostics?: Record<string, unknown>;
+    }[]
+  ) {
+    const firstPass = this.readGraphRetrievalStepDiagnostics(
+      steps.find((step) => step.name === 'run_primary_retrieval')?.diagnostics
+    );
+    const secondPass = this.readGraphRetrievalStepDiagnostics(
+      steps.find((step) => step.name === 'run_second_pass')?.diagnostics
+    );
+    const merged = this.readGraphMergedRetrievalDiagnostics(
+      steps.find((step) => step.name === 'finalize_answer')?.diagnostics
+    );
+
+    return {
+      firstPass,
+      secondPass,
+      merged
+    };
+  }
+
+  private readGraphRetrievalStepDiagnostics(
+    value: Record<string, unknown> | undefined
+  ): LangGraphRetrievalStepDiagnostics | null {
+    if (value == null) {
+      return null;
+    }
+
+    const queryRecord =
+      typeof value.query === 'object' && value.query !== null
+        ? (value.query as Record<string, unknown>)
+        : null;
+
+    return {
+      pass:
+        value.pass === 'first_pass' || value.pass === 'second_pass'
+          ? value.pass
+          : undefined,
+      requestedQuestion: this.readStringValue(value.requestedQuestion),
+      query:
+        queryRecord == null
+          ? null
+          : {
+              original: this.readStringValue(queryRecord.original),
+              retrieval: this.readStringValue(queryRecord.retrieval),
+              rewritten: this.readStringValue(queryRecord.rewritten)
+            },
+      chunkCount: this.readNumberValue(value.chunkCount),
+      sourceCount: this.readNumberValue(value.sourceCount),
+      chunkIds: this.readStringArray(value.chunkIds),
+      documentIds: this.readStringArray(value.documentIds),
+      strategySummary: value.strategySummary ?? null,
+      execution: value.execution ?? null,
+      profile: value.profile ?? null
+    };
+  }
+
+  private readGraphMergedRetrievalDiagnostics(
+    value: Record<string, unknown> | undefined
+  ): LangGraphMergedRetrievalDiagnostics | null {
+    const merged =
+      value != null && typeof value.mergedRetrieval === 'object'
+        ? (value.mergedRetrieval as Record<string, unknown>)
+        : null;
+
+    if (merged == null) {
+      return null;
+    }
+
+    return {
+      chunkCount: this.readNumberValue(merged.chunkCount),
+      sourceCount: this.readNumberValue(merged.sourceCount),
+      chunkIds: this.readStringArray(merged.chunkIds),
+      documentIds: this.readStringArray(merged.documentIds)
+    };
+  }
+
   private resolveSecondPassQuery(input: {
     originalQuestion: string;
     boundedMultiStepInput?: BoundedMultiStepInput;
@@ -565,6 +763,18 @@ export class AgentToolsController {
 
   private readStringValue(value: unknown) {
     return typeof value === 'string' && value.trim().length > 0 ? value : null;
+  }
+
+  private readNumberValue(value: unknown) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  private readStringArray(value: unknown) {
+    return Array.isArray(value)
+      ? value.filter(
+          (item): item is string => this.readStringValue(item) != null
+        )
+      : [];
   }
 
   private readString(value: unknown) {
