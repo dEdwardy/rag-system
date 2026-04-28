@@ -20,6 +20,7 @@ const fastTestFiles = new Set([
   'test/auth-surface-route-policy.test.js',
   'test/chunking.test.js',
   'test/document-runs-summary.test.js',
+  'test/embedding-cache.test.js',
   'test/external-source-sync.test.js',
   'test/fetch-with-retry.test.js',
   'test/http-exception-filter.test.js',
