@@ -106,3 +106,19 @@ function collectCatalogKeys(source) {
 
   return keys;
 }
+// AppShell keeps its own copy table, which drifted: the Chinese section heading
+// was identical to the navigation item right below it, so the sidebar read
+// 工作区设置 twice. Section headings must stay distinct from their items.
+test('app shell section headings differ from the items they group', () => {
+  const source = readFileSync(resolve(__dirname, '../src/app/AppShell.tsx'), 'utf8');
+  const zhBlock = source.slice(source.indexOf('  zh: {'), source.indexOf('  en: {'));
+
+  const readValue = (key) => {
+    const match = zhBlock.match(new RegExp(`${key}:\\s*'([^']*)'`));
+    return match ? match[1] : null;
+  };
+
+  assert.notEqual(readValue('mainHeading'), readValue('chat'));
+  assert.notEqual(readValue('setupHeading'), readValue('knowledgeBase'));
+  assert.notEqual(readValue('setupHeading'), readValue('assistant'));
+});

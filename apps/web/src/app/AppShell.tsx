@@ -69,7 +69,7 @@ const APP_SHELL_TEXT: Record<
 > = {
   zh: {
     mainHeading: '开始使用',
-    setupHeading: '工作区设置',
+    setupHeading: '设置',
     advancedHeading: '管理工作台',
     workbenchHome: '概览',
     chat: '对话',
