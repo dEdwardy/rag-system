@@ -2864,6 +2864,38 @@ export function ReportCenterPage() {
                   : '-'}
               </Text>
             </Paper>
+            <Paper className="workspace-subpanel" p="md" radius="xl">
+              <Text className="workspace-section-heading">
+                {locale === 'zh' ? '检索召回 Recall@k' : 'Retrieval recall@k'}
+              </Text>
+              <Text c="var(--app-text)" fw={700} mt={6} size="xl">
+                {runEvalMutation.data.summary?.retrievalRecallAtK != null
+                  ? `${(runEvalMutation.data.summary.retrievalRecallAtK * 100).toFixed(1)}%`
+                  : '-'}
+              </Text>
+              <Text c="var(--app-text-muted)" mt={2} size="xs">
+                {runEvalMutation.data.summary?.retrievalEvaluatedQuestionCount
+                  ? locale === 'zh'
+                    ? `${runEvalMutation.data.summary.retrievalEvaluatedQuestionCount} 题有期望证据`
+                    : `${runEvalMutation.data.summary.retrievalEvaluatedQuestionCount} scored`
+                  : locale === 'zh'
+                    ? '本题库未声明期望证据'
+                    : 'no expected evidence declared'}
+              </Text>
+            </Paper>
+            <Paper className="workspace-subpanel" p="md" radius="xl">
+              <Text className="workspace-section-heading">
+                {locale === 'zh' ? '检索 MRR' : 'Retrieval MRR'}
+              </Text>
+              <Text c="var(--app-text)" fw={700} mt={6} size="xl">
+                {runEvalMutation.data.summary?.retrievalMrr != null
+                  ? runEvalMutation.data.summary.retrievalMrr.toFixed(3)
+                  : '-'}
+              </Text>
+              <Text c="var(--app-text-muted)" mt={2} size="xs">
+                {locale === 'zh' ? '首个命中的排名倒数' : 'reciprocal rank of first hit'}
+              </Text>
+            </Paper>
           </div>
 
           <Paper

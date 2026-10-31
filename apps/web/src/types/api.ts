@@ -638,6 +638,11 @@ export type EvalQuestionSetRunSummary = {
   strongRate: number;
   fallbackRate: number;
   averageCitationCount: number;
+  /** Omitted by summaries stored before retrieval scoring existed. */
+  retrievalEvaluatedQuestionCount?: number;
+  /** Null when the question set declares no expected evidence. */
+  retrievalRecallAtK?: number | null;
+  retrievalMrr?: number | null;
 };
 
 export type EvalQuestionSetRunComparisonMetric = {
@@ -648,7 +653,9 @@ export type EvalQuestionSetRunComparisonMetric = {
     | 'groundedRate'
     | 'strongRate'
     | 'fallbackRate'
-    | 'averageCitationCount';
+    | 'averageCitationCount'
+    | 'retrievalRecallAtK'
+    | 'retrievalMrr';
   current: number;
   baseline: number;
   delta: number;
