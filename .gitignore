@@ -55,6 +55,7 @@ __pycache__/
 ragas_results/
 p5-test.json
 package-lock.json
+.archify/
 
 apps/web/.agents/
 apps/web/.claude/
