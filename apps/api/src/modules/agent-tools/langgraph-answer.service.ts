@@ -1,13 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { tool } from '@langchain/core/tools';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { z } from 'zod';
 import type { RequestAuthContext } from '../auth/auth-identity.contract';
 import { AskAssistantService } from '../assistants/ask-assistant.service';
+import type { AskRouteDecision } from '../assistants/ask-route-decision';
 import {
-  resolveAskRouteDecision,
-  type AskRouteDecision
-} from '../assistants/ask-route-decision';
+  AskRouteClassifier,
+  resolveAskRouteDecisionWithLlm
+} from '../assistants/ask-route-classifier';
 
 type LangGraphAnswerInput = {
   assistantId: string;
@@ -61,22 +62,32 @@ export class LangGraphAnswerService {
   private readonly graph;
   private readonly tools;
 
-  constructor(private readonly askAssistantService: AskAssistantService) {
+  constructor(
+    private readonly askAssistantService: AskAssistantService,
+    @Optional() private readonly routeClassifier?: AskRouteClassifier
+  ) {
     this.tools = this.buildTools();
     const graphBuilder = new StateGraph(LangGraphAnswerState)
       .addNode('route_question', async (state) => {
-        const routeDecision = resolveAskRouteDecision(state.question);
+        const resolved = this.routeClassifier
+          ? await this.routeClassifier.classify(state.question)
+          : await resolveAskRouteDecisionWithLlm({
+              question: state.question,
+              complete: null
+            });
         return {
-          routeDecision,
+          routeDecision: resolved.decision,
           steps: [
             {
               name: 'route_question',
               toolName: null,
               status: 'completed' as const,
-              summary: `selected ${routeDecision.routeType}`,
+              summary: `selected ${resolved.decision.routeType}`,
               diagnostics: {
-                routeType: routeDecision.routeType,
-                routeReason: routeDecision.routeReason
+                routeType: resolved.decision.routeType,
+                routeReason: resolved.decision.routeReason,
+                routeSource: resolved.source,
+                routeDetail: resolved.detail
               }
             }
           ]

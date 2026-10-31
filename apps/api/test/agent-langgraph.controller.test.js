@@ -330,3 +330,53 @@ test('AgentToolsController rejects langgraph_answer when the side path is disabl
     delete process.env.LANGGRAPH_AGENT_ENABLED;
   }
 });
+
+test('AgentToolsController records where the route decision came from', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+  let searchCalled = false;
+  const askAssistantService = {
+    searchAssistant: async () => {
+      searchCalled = true;
+      throw new Error('should not search a policy route');
+    },
+    askAssistant: async () => ({
+      answer: 'policy answer',
+      citations: [],
+      answerStatus: 'grounded',
+      routeType: 'policy_reply',
+      routeReason: 'policy_question'
+    })
+  };
+  const controller = new AgentToolsController(
+    askAssistantService,
+    {
+      getTrace: async () => ({ id: 'trace-1' })
+    },
+    {
+      getDocument: async () => ({ id: 'doc-1', status: 'ready' }),
+      listDocumentChunks: async () => []
+    },
+    new LangGraphAnswerService(askAssistantService, {
+      classify: async () => ({
+        decision: {
+          routeType: 'policy_reply',
+          routeReason: 'policy_question'
+        },
+        source: 'llm',
+        detail: 'fake classifier'
+      })
+    })
+  );
+
+  const result = await controller.langGraphAnswer({
+    secret: 'expected-secret',
+    assistantId: 'assistant-1',
+    question: 'Who decided which rules you follow?'
+  });
+
+  assert.equal(searchCalled, false);
+  assert.equal(result.langGraph.routeDecision.routeType, 'policy_reply');
+  assert.equal(result.langGraph.steps[0].name, 'route_question');
+  assert.equal(result.langGraph.steps[0].diagnostics.routeSource, 'llm');
+  assert.equal(result.langGraph.steps[0].diagnostics.routeDetail, 'fake classifier');
+});

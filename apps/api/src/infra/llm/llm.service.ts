@@ -78,6 +78,7 @@ export class LlmService {
       userPrompt: string;
       fullPrompt: string;
     };
+    signal?: AbortSignal;
   }): Promise<string> {
     const runtimeConfig = resolveLlmRuntimeConfig();
 
@@ -94,7 +95,8 @@ export class LlmService {
           options: {
             temperature: 0
           }
-        })
+        }),
+        signal: input.signal
       });
 
       if (!response.ok) {
@@ -130,7 +132,8 @@ export class LlmService {
             content: input.prompt.userPrompt
           }
         ]
-      })
+      }),
+      signal: input.signal
     });
 
     if (!response.ok) {
