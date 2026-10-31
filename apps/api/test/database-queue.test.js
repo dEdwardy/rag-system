@@ -22,7 +22,6 @@ test("QueueService stores ingestion jobs in the database queue when QUEUE_PROVID
         databasePollIntervalMs: 1000,
         databaseRetryDelayMs: 5000,
         databaseMaxAttempts: 3,
-        pgmqVisibilityTimeoutSeconds: 300
       })
     },
     fakePrisma
@@ -55,7 +54,6 @@ test("IngestionService completes database-backed jobs without Redis queue runtim
     runtimeConfig: {
       databaseRetryDelayMs: 5000,
       databaseMaxAttempts: 3,
-      pgmqVisibilityTimeoutSeconds: 300
     },
     handleFailedJob: async () => {
       throw new Error("handleFailedJob should not be called on success");
@@ -102,7 +100,6 @@ test("IngestionService retries failed database-backed jobs and forwards final-fa
     runtimeConfig: {
       databaseRetryDelayMs: 5000,
       databaseMaxAttempts: 3,
-      pgmqVisibilityTimeoutSeconds: 300
     },
     handleFailedJob: async (job, error) => {
       failedJobs.push({ job, error });

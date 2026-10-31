@@ -1,1 +1,13 @@
-CREATE EXTENSION IF NOT EXISTS pgmq;
+-- pgmq was retired as a queue provider. `QUEUE_PROVIDER` now accepts only
+-- `database` (default) or `redis`.
+--
+-- This migration intentionally does NOT create the pgmq extension anymore. It
+-- used to run `CREATE EXTENSION IF NOT EXISTS pgmq`, which made a from-scratch
+-- `prisma migrate deploy` fail on any Postgres image without pgmq installed
+-- (including the `pgvector/pgvector:pg16` image used by both the local and the
+-- shared infra compose stacks).
+--
+-- The extension is left untouched on databases that already have it installed,
+-- because `DROP EXTENSION pgmq` fails whenever pgmq objects (queues, functions)
+-- still exist. Dropping it is an optional manual cleanup, not a migration.
+SELECT 1;

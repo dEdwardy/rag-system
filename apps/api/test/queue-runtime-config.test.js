@@ -6,18 +6,17 @@ import {
   resolveQueueRuntimeConfig
 } from '../src/infra/queue/queue-runtime-config.ts';
 
-test('resolveQueueRuntimeConfig defaults to pgmq', () => {
+test('resolveQueueRuntimeConfig defaults to database', () => {
   const config = resolveQueueRuntimeConfig({});
 
   assert.deepEqual(config, {
-    provider: 'pgmq',
+    provider: 'database',
     redisUrl: null,
     queuePrefix: null,
     enableDocumentIngestionWorker: true,
     databasePollIntervalMs: 1000,
     databaseRetryDelayMs: 5000,
     databaseMaxAttempts: 3,
-    pgmqVisibilityTimeoutSeconds: 300,
     maxConcurrentIngestionTasks: 3,
     maxTaskTimeoutMs: 300000
   });
@@ -40,27 +39,6 @@ test('resolveQueueRuntimeConfig supports database provider', () => {
     databasePollIntervalMs: 250,
     databaseRetryDelayMs: 3000,
     databaseMaxAttempts: 5,
-    pgmqVisibilityTimeoutSeconds: 300,
-    maxConcurrentIngestionTasks: 3,
-    maxTaskTimeoutMs: 300000
-  });
-});
-
-test('resolveQueueRuntimeConfig supports pgmq provider', () => {
-  const config = resolveQueueRuntimeConfig({
-    QUEUE_PROVIDER: 'pgmq',
-    QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS: '45'
-  });
-
-  assert.deepEqual(config, {
-    provider: 'pgmq',
-    redisUrl: null,
-    queuePrefix: null,
-    enableDocumentIngestionWorker: true,
-    databasePollIntervalMs: 1000,
-    databaseRetryDelayMs: 5000,
-    databaseMaxAttempts: 3,
-    pgmqVisibilityTimeoutSeconds: 45,
     maxConcurrentIngestionTasks: 3,
     maxTaskTimeoutMs: 300000
   });
@@ -81,10 +59,23 @@ test('resolveQueueRuntimeConfig supports redis provider', () => {
     databasePollIntervalMs: 1000,
     databaseRetryDelayMs: 5000,
     databaseMaxAttempts: 3,
-    pgmqVisibilityTimeoutSeconds: 300,
     maxConcurrentIngestionTasks: 3,
     maxTaskTimeoutMs: 300000
   });
+});
+
+test('resolveQueueRuntimeConfig requires REDIS_URL for the redis provider', () => {
+  assert.throws(
+    () => resolveQueueRuntimeConfig({ QUEUE_PROVIDER: 'redis' }),
+    QueueRuntimeConfigError
+  );
+});
+
+test('resolveQueueRuntimeConfig rejects the retired pgmq provider', () => {
+  assert.throws(
+    () => resolveQueueRuntimeConfig({ QUEUE_PROVIDER: 'pgmq' }),
+    QueueRuntimeConfigError
+  );
 });
 
 test('resolveQueueRuntimeConfig rejects invalid provider', () => {

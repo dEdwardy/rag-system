@@ -9,7 +9,6 @@ import {
 } from "./queue-runtime-config";
 import {
   DatabaseQueueProviderService,
-  PgmqQueueProviderService,
   RedisQueueProviderService,
   QUEUE_PROVIDER_SERVICE,
   type QueueProviderService
@@ -36,11 +35,7 @@ import { QueueService } from "./queue.service";
           return new DatabaseQueueProviderService(queueRuntimeConfigService, prisma);
         }
 
-        if (runtimeConfig.provider === "redis") {
-          return new RedisQueueProviderService(queueRuntimeConfigService);
-        }
-
-        return new PgmqQueueProviderService(prisma);
+        return new RedisQueueProviderService(queueRuntimeConfigService);
       }
     },
     QueueService

@@ -61,7 +61,6 @@ test("QueueService stores ingestion jobs in redis when QUEUE_PROVIDER=redis", as
         databasePollIntervalMs: 1000,
         databaseRetryDelayMs: 5000,
         databaseMaxAttempts: 3,
-        pgmqVisibilityTimeoutSeconds: 300,
         maxConcurrentIngestionTasks: 3,
         maxTaskTimeoutMs: 300000
       })

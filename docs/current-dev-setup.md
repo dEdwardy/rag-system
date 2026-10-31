@@ -99,10 +99,9 @@ Current local PostgreSQL connection values:
 - password: `postgres`
 - URL: `postgresql://postgres:postgres@localhost:5432/rag_system`
 
-Queue runtime now runs in two supported modes:
+Queue runtime runs in two supported modes. The `pgmq` provider was retired:
 
-- `QUEUE_PROVIDER=pgmq`: Supabase Queues / `pgmq`-backed ingestion queue
-- `QUEUE_PROVIDER=database`: PostgreSQL-backed ingestion queue mode for local/self-hosted Postgres
+- `QUEUE_PROVIDER=database` (**default**): PostgreSQL-backed ingestion queue mode for local/self-hosted Postgres
 - `QUEUE_PROVIDER=redis`: Redis-backed ingestion queue mode for local/self-hosted infra
 
 Database queue runtime settings:
@@ -118,7 +117,7 @@ QUEUE_MAX_CONCURRENT_TASKS=1
 - the database queue stores durable ingestion jobs in `IngestionQueueJob`
 - retries are handled by the API worker poll loop using the configured delay/max-attempt settings above
 - for rate-limited embedding providers, keep `QUEUE_MAX_CONCURRENT_TASKS=1` so batch uploads are ingested serially instead of fanning out concurrent embedding calls
-- when using the local Docker Postgres stack without Redis queue enabled yet, `QUEUE_PROVIDER=database` remains the simplest fallback
+- `QUEUE_PROVIDER=database` is the default and needs no extra service, so a fresh checkout can ingest without Redis
 
 Redis queue runtime settings:
 
@@ -134,21 +133,6 @@ QUEUE_MAX_CONCURRENT_TASKS=1
 
 - Redis queue currently uses a lightweight pending-list + delayed-retry implementation intended for local/self-hosted use
 - local Docker Desktop baseline now prefers `QUEUE_PROVIDER=redis`
-
-Supabase Queues / `pgmq` runtime settings:
-
-```text
-QUEUE_PROVIDER=pgmq
-QUEUE_DATABASE_POLL_INTERVAL_MS=1000
-QUEUE_DATABASE_RETRY_DELAY_MS=5000
-QUEUE_DATABASE_MAX_ATTEMPTS=3
-QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS=300
-```
-
-- `pgmq` requires the `pgmq` extension to exist on the target database; apply the approved migration rollout before switching runtime traffic
-- the API ensures the configured ingestion queue exists at runtime using the current `QUEUE_PREFIX`
-- message retry delay still uses `QUEUE_DATABASE_RETRY_DELAY_MS`, while `QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS` controls how long an in-flight message stays invisible before it can be delivered again
-- the local Docker Postgres stack in `docker-compose.local-infra.yml` does not install `pgmq`; use `QUEUE_PROVIDER=database` locally unless you provision `pgmq` separately
 
 Apply migrations:
 
@@ -206,7 +190,7 @@ pnpm --filter @rag-system/api start:dev
 This expects the local PostgreSQL stack to be running.
 
 - when `QUEUE_PROVIDER=database`, the ingestion queue runs from PostgreSQL
-- when `QUEUE_PROVIDER=pgmq`, the ingestion queue runs through the Supabase `pgmq` extension
+- when `QUEUE_PROVIDER=database`, the ingestion queue runs from PostgreSQL; when `QUEUE_PROVIDER=redis`, it runs from Redis
 - when `QUEUE_PROVIDER=redis`, the ingestion queue runs from Redis using the configured `REDIS_URL`
 - local Docker Desktop baseline recommendation:
 
@@ -1595,7 +1579,7 @@ Boundary note for contributors (implementation decision aid):
 - If a change only swaps a replaceable layer, keep it additive and behavior-preserving for core contracts (`ask` payload shape, `traceSummary` readability/semantics, fallback outcomes).
 
 - Supabase-first object storage runtime, with explicit local fallback only for tests/debug (`STORAGE_PROVIDER=local` or explicit `STORAGE_ROOT`)
-- Database-backed document ingestion queue (`QUEUE_PROVIDER=database` / `QUEUE_PROVIDER=pgmq`)
+- Database-backed document ingestion queue (`QUEUE_PROVIDER=database`) and Redis-backed queue (`QUEUE_PROVIDER=redis`)
 - Basic parsing for `.md` / `.txt` / `.docx` / text-based `.pdf`
 - Multi-chunk splitting with heading-aware grouping and oversized-paragraph splitting
 - Ollama/OpenAI embedding generation with local fallback

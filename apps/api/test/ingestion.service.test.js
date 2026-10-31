@@ -191,16 +191,16 @@ test("IngestionService logs and swallows worker poll failures", async () => {
     }
   });
 
-  await IngestionService.prototype.runWorkerPollSafely.call(service, "pgmq", async () => {
+  await IngestionService.prototype.runWorkerPollSafely.call(service, "redis", async () => {
     throw new Error("database temporarily unavailable");
   });
 
   assert.equal(loggedErrors.length, 1);
-  assert.match(loggedErrors[0].message, /Document ingestion pgmq worker poll failed/);
+  assert.match(loggedErrors[0].message, /Document ingestion redis worker poll failed/);
   assert.match(loggedErrors[0].message, /database temporarily unavailable/);
 });
 
-test("IngestionService logs and swallows pgmq startup failures", async () => {
+test("IngestionService logs and swallows worker startup failures", async () => {
   const loggedErrors = [];
   const fakeService = Object.assign(Object.create(IngestionService.prototype), {
     logger: {
@@ -210,24 +210,22 @@ test("IngestionService logs and swallows pgmq startup failures", async () => {
       }
     },
     runtimeConfig: {
-      provider: "pgmq",
+      provider: "redis",
       enableDocumentIngestionWorker: true,
       databasePollIntervalMs: 1000,
       databaseRetryDelayMs: 5000,
-      databaseMaxAttempts: 3,
-      pgmqVisibilityTimeoutSeconds: 300
+      databaseMaxAttempts: 3
     },
     queueRuntimeConfigService: {
       getConfig: () => ({
-        provider: "pgmq",
+        provider: "redis",
         enableDocumentIngestionWorker: true,
         databasePollIntervalMs: 1000,
         databaseRetryDelayMs: 5000,
-        databaseMaxAttempts: 3,
-        pgmqVisibilityTimeoutSeconds: 300
+        databaseMaxAttempts: 3
       })
     },
-    startPgmqWorker: async () => {
+    startRedisWorker: async () => {
       throw new Error("database unavailable during queue startup");
     }
   });
@@ -236,6 +234,6 @@ test("IngestionService logs and swallows pgmq startup failures", async () => {
   await new Promise(resolve => setImmediate(resolve));
 
   assert.equal(loggedErrors.length, 1);
-  assert.match(loggedErrors[0].message, /Document ingestion pgmq startup worker poll failed/);
+  assert.match(loggedErrors[0].message, /Document ingestion redis startup worker poll failed/);
   assert.match(loggedErrors[0].message, /database unavailable during queue startup/);
 });

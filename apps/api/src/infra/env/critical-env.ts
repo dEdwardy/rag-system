@@ -30,9 +30,9 @@ const criticalEnvSchema = z
     OSS_BUCKET_UPLOADS: trimmedOptionalString,
     OSS_BUCKET_GENERATED: trimmedOptionalString,
     QUEUE_PROVIDER: z
-      .enum(['database', 'pgmq', 'redis'])
+      .enum(['database', 'redis'])
       .optional()
-      .default('pgmq'),
+      .default('database'),
     REDIS_URL: trimmedOptionalString,
     AUTH_SESSION_STORE_PROVIDER: z.enum(['database', 'redis']).optional(),
     AUTH_SESSION_STORE_KEY_PREFIX: trimmedOptionalString,

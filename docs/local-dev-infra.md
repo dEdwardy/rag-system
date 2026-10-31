@@ -61,7 +61,7 @@ REDIS_URL=redis://127.0.0.1:6379
 VECTOR_STORE_PROVIDER=pgvector
 ```
 
-The local infra stack does not include the `pgmq` extension. Prefer Redis queue locally; use PostgreSQL-backed queue mode only as a fallback if you are debugging queue behavior without Redis.
+The `pgmq` queue provider has been retired: `QUEUE_PROVIDER` now accepts only `database` (default) or `redis`. The local infra stack does not ship the `pgmq` extension, and no longer needs to — the `pgmq` migration is a no-op, so a from-scratch `prisma migrate deploy` works against this stack.
 
 Storage runtime now exclusively uses Supabase Storage: normal development must configure the required `SUPABASE_*` storage variables. Local filesystem storage has been removed.
 

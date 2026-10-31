@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 
-export type QueueProvider = "database" | "pgmq" | "redis";
+export type QueueProvider = "database" | "redis";
 
 export type QueueRuntimeConfig = {
   provider: QueueProvider;
@@ -10,7 +10,6 @@ export type QueueRuntimeConfig = {
   databasePollIntervalMs: number;
   databaseRetryDelayMs: number;
   databaseMaxAttempts: number;
-  pgmqVisibilityTimeoutSeconds: number;
   maxConcurrentIngestionTasks: number;
   maxTaskTimeoutMs: number;
 };
@@ -25,11 +24,13 @@ export class QueueRuntimeConfigError extends Error {
 }
 
 export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env): QueueRuntimeConfig {
-  const provider = (env.QUEUE_PROVIDER?.trim() || "pgmq") as QueueProvider;
+  // `database` stays the default because it needs no external dependency: a fresh
+  // environment can start ingesting without Redis or a pgmq extension installed.
+  const provider = (env.QUEUE_PROVIDER?.trim() || "database") as QueueProvider;
 
-  if (provider !== "database" && provider !== "pgmq" && provider !== "redis") {
+  if (provider !== "database" && provider !== "redis") {
     throw new QueueRuntimeConfigError(
-      `Unsupported QUEUE_PROVIDER "${env.QUEUE_PROVIDER}". Expected "database", "pgmq", or "redis".`
+      `Unsupported QUEUE_PROVIDER "${env.QUEUE_PROVIDER}". Expected "database" or "redis".`
     );
   }
 
@@ -41,11 +42,6 @@ export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env):
   const databasePollIntervalMs = parsePositiveInteger(env.QUEUE_DATABASE_POLL_INTERVAL_MS, 1000, "QUEUE_DATABASE_POLL_INTERVAL_MS");
   const databaseRetryDelayMs = parsePositiveInteger(env.QUEUE_DATABASE_RETRY_DELAY_MS, 5000, "QUEUE_DATABASE_RETRY_DELAY_MS");
   const databaseMaxAttempts = parsePositiveInteger(env.QUEUE_DATABASE_MAX_ATTEMPTS, 3, "QUEUE_DATABASE_MAX_ATTEMPTS");
-  const pgmqVisibilityTimeoutSeconds = parsePositiveInteger(
-    env.QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS,
-    300,
-    "QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS"
-  );
   const maxConcurrentIngestionTasks = parsePositiveInteger(env.QUEUE_MAX_CONCURRENT_TASKS, 3, "QUEUE_MAX_CONCURRENT_TASKS");
   const maxTaskTimeoutMs = parsePositiveInteger(env.QUEUE_TASK_TIMEOUT_MS, 300000, "QUEUE_TASK_TIMEOUT_MS");
 
@@ -57,7 +53,6 @@ export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env):
     databasePollIntervalMs,
     databaseRetryDelayMs,
     databaseMaxAttempts,
-    pgmqVisibilityTimeoutSeconds,
     maxConcurrentIngestionTasks,
     maxTaskTimeoutMs
   };

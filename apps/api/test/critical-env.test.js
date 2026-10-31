@@ -2,20 +2,21 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { validateCriticalRuntimeEnv } from "../src/infra/env/critical-env.ts";
 
-test("validateCriticalRuntimeEnv accepts current Supabase pgvector pgmq shape", () => {
+test("validateCriticalRuntimeEnv accepts current Supabase pgvector redis shape", () => {
   const env = validateCriticalRuntimeEnv({
     DATABASE_URL: "postgresql://user:pass@localhost:5432/db",
     SUPABASE_URL: "https://example.supabase.co",
     SUPABASE_SERVICE_ROLE_KEY: "secret",
     SUPABASE_STORAGE_BUCKET_UPLOADS: "uploads",
     SUPABASE_STORAGE_BUCKET_GENERATED: "generated",
-    QUEUE_PROVIDER: "pgmq",
+    QUEUE_PROVIDER: "redis",
+    REDIS_URL: "redis://127.0.0.1:6379",
     VECTOR_STORE_PROVIDER: "pgvector",
     OLLAMA_BASE_URL: "http://127.0.0.1:11434",
     OLLAMA_EMBEDDING_MODEL: "nomic-embed-text"
   });
 
-  assert.equal(env.QUEUE_PROVIDER, "pgmq");
+  assert.equal(env.QUEUE_PROVIDER, "redis");
   assert.equal(env.VECTOR_STORE_PROVIDER, "pgvector");
 });
 

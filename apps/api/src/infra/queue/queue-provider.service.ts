@@ -119,56 +119,6 @@ export class DatabaseQueueProviderService implements QueueProviderService {
 }
 
 @Injectable()
-export class PgmqQueueProviderService implements QueueProviderService {
-  private readonly ensuredPgmqQueues = new Set<string>();
-
-  constructor(private readonly prisma: PrismaService) {}
-
-  async addDocumentIngestionJob(documentId: string, documentVersion?: number) {
-    const queueName = getDocumentIngestionQueueName();
-    await this.ensurePgmqQueueExists(queueName);
-
-    await this.prisma.$executeRaw(
-      Prisma.sql`
-        SELECT pgmq.send(
-          ${queueName},
-          ${JSON.stringify({ documentId, documentVersion: documentVersion ?? null })}::jsonb,
-          ${JSON.stringify({ jobKey: this.buildDatabaseJobKey(documentId, documentVersion) })}::jsonb
-        )
-      `
-    );
-  }
-
-  async ensureDocumentIngestionQueueReady() {
-    await this.ensurePgmqQueueExists(getDocumentIngestionQueueName());
-  }
-
-  private async ensurePgmqQueueExists(queueName: string) {
-    if (this.ensuredPgmqQueues.has(queueName)) {
-      return;
-    }
-
-    const existingRows = await this.prisma.$queryRaw<Array<{ queue_name: string }>>(
-      Prisma.sql`SELECT queue_name FROM pgmq.list_queues() WHERE queue_name = ${queueName}`
-    );
-
-    if (existingRows.length === 0) {
-      await this.prisma.$executeRaw(Prisma.sql`SELECT pgmq.create(${queueName})`);
-    }
-
-    this.ensuredPgmqQueues.add(queueName);
-  }
-
-  private buildDocumentIngestionJobId(documentId: string, documentVersion: number) {
-    return `ingest-document-${documentId}-${documentVersion}`;
-  }
-
-  private buildDatabaseJobKey(documentId: string, documentVersion?: number) {
-    return documentVersion === undefined ? `ingest-document-${documentId}` : this.buildDocumentIngestionJobId(documentId, documentVersion);
-  }
-}
-
-@Injectable()
 export class RedisQueueProviderService implements QueueProviderService {
   private readonly runtimeConfig;
   private clientPromise: Promise<RedisQueueClient> | null = null;
