@@ -58,3 +58,51 @@ test('split locale catalogs keep current Chinese workspace labels without replac
   assert.doesNotMatch(source, /\uFFFD/);
   assert.doesNotMatch(source, /default-kb|Default KB/);
 });
+
+// Guards the direction that users actually feel: a key present in English but
+// missing in Chinese renders English text inside a Chinese UI. The reverse
+// direction (Chinese keys absent from English) is tracked separately.
+test('every English catalog key also exists in the Chinese catalog', () => {
+  const englishKeys = collectCatalogKeys(readFileSync(englishMessagesPath, 'utf8'));
+  const chineseKeys = collectCatalogKeys(readFileSync(chineseMessagesPath, 'utf8'));
+  const missingInChinese = [...englishKeys].filter((key) => !chineseKeys.has(key));
+
+  assert.deepEqual(missingInChinese, [], 'English keys missing from messages.zh.ts');
+});
+
+test('neither catalog contains placeholder-only values', () => {
+  for (const path of [englishMessagesPath, chineseMessagesPath]) {
+    const source = readFileSync(path, 'utf8');
+    const placeholderValues = [...source.matchAll(/^\s+\w+:\s*'(\?+)'\s*,?$/gm)].map(
+      (match) => match[1]
+    );
+
+    assert.deepEqual(placeholderValues, [], `${path} contains ?-only values`);
+  }
+});
+
+function collectCatalogKeys(source) {
+  const keys = new Set();
+  const stack = [];
+
+  for (const rawLine of source.split('\n')) {
+    const line = rawLine.trim();
+    const opening = line.match(/^(\w+):\s*\{$/);
+    if (opening) {
+      stack.push(opening[1]);
+      continue;
+    }
+
+    if (line === '}' || line === '},' || line === '} as const;') {
+      stack.pop();
+      continue;
+    }
+
+    const leaf = line.match(/^(\w+):\s*['"`]/) ?? line.match(/^(\w+):$/);
+    if (leaf) {
+      keys.add([...stack, leaf[1]].join('.'));
+    }
+  }
+
+  return keys;
+}
