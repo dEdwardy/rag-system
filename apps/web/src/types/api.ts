@@ -929,6 +929,8 @@ export type Message = {
   content: string;
   traceId: string | null;
   createdAt: string;
+  /** Present on assistant messages; needed to resolve the `[n]` markers. */
+  citations?: Citation[];
 };
 
 export type TraceRecord = {

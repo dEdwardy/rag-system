@@ -217,7 +217,8 @@ function syncFinalTurnToMessageCache(input: {
     role: 'assistant',
     content: finalData.answer,
     traceId: finalData.traceId,
-    createdAt: streamTurn.assistantMessage.createdAt
+    createdAt: streamTurn.assistantMessage.createdAt,
+    citations: finalData.citations
   };
 
   queryClient.setQueryData<Message[]>(
