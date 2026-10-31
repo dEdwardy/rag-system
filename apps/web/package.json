@@ -11,6 +11,7 @@
     "audit:pages": "node scripts/audit-page-states.mjs",
     "smoke:routes": "node scripts/smoke-routes.mjs",
     "smoke:citation": "node scripts/verify-citation.mjs",
+    "smoke:locale": "node scripts/verify-locale.mjs",
     "typecheck": "tsc --noEmit",
     "test:vitest:file": "node scripts/run-vitest-file.mjs",
     "test:all": "pnpm run test:guard",
