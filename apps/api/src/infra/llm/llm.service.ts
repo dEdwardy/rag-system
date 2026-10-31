@@ -4,12 +4,19 @@ import {
   GenerateAnswerOutput,
   GenerateAnswerStreamInput,
   GenerateAnswerStreamOutput,
+  GenerateWithToolsInput,
+  GenerateWithToolsOutput,
   RewriteQueryInput,
   RewriteQueryOutput
 } from "./llm.types";
 import { resolveLlmRuntimeConfig } from "./llm-runtime-config";
 import { PromptManagerService } from "./prompt-manager.service";
 import { structuredAnswerSchema } from "./structured-answer.schema";
+import {
+  LlmToolCallingUnavailableError,
+  requestOllamaToolCompletion,
+  requestOpenAiToolCompletion
+} from "./tool-calling";
 
 @Injectable()
 export class LlmService {
@@ -146,6 +153,57 @@ export class LlmService {
     };
 
     return payload.choices?.[0]?.message?.content?.trim() ?? "";
+  }
+
+  async generateWithTools(
+    input: GenerateWithToolsInput
+  ): Promise<GenerateWithToolsOutput> {
+    const runtimeConfig = resolveLlmRuntimeConfig();
+
+    if (runtimeConfig.ollamaBaseUrl && runtimeConfig.ollamaModel) {
+      try {
+        return await requestOllamaToolCompletion({
+          target: {
+            baseUrl: runtimeConfig.ollamaBaseUrl,
+            model: runtimeConfig.ollamaModel
+          },
+          request: input
+        });
+      } catch (error) {
+        if (this.isAbortError(error)) {
+          throw error;
+        }
+        const message =
+          error instanceof Error ? error.message : "Unknown Ollama error.";
+        this.logger.warn(
+          `Falling back after Ollama tool call error: ${message}`
+        );
+      }
+    }
+
+    if (runtimeConfig.openAiApiKey) {
+      try {
+        return await requestOpenAiToolCompletion({
+          target: {
+            baseUrl: runtimeConfig.openAiBaseUrl,
+            model: runtimeConfig.openAiChatModel,
+            apiKey: runtimeConfig.openAiApiKey
+          },
+          request: input
+        });
+      } catch (error) {
+        if (this.isAbortError(error)) {
+          throw error;
+        }
+        const message =
+          error instanceof Error ? error.message : "Unknown LLM error.";
+        this.logger.warn(
+          `Falling back after OpenAI tool call error: ${message}`
+        );
+      }
+    }
+
+    throw new LlmToolCallingUnavailableError();
   }
 
   async rewriteQuery(input: RewriteQueryInput): Promise<RewriteQueryOutput> {

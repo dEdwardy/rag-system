@@ -30,6 +30,7 @@ const fastTestFiles = new Set([
   'test/fetch-with-retry.test.js',
   'test/http-exception-filter.test.js',
   'test/agent-langgraph.controller.test.js',
+  'test/agent-loop.test.js',
   'test/agent-tools.controller.test.js',
   'test/ingestion-concurrency.test.js',
   'test/ingestion.orchestrator.test.js',
@@ -43,6 +44,7 @@ const fastTestFiles = new Set([
   'test/retrieval-profiles-auth-scope.test.js',
   'test/retrieval.test.js',
   'test/storage.service.test.js',
+  'test/tool-calling.test.js',
   'test/traces.service.test.js',
   'test/vector-store-runtime-config.test.js',
   'test/vitest-config.test.js'

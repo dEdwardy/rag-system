@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   NotFoundException,
+  Optional,
   Post,
   Req,
   ServiceUnavailableException,
@@ -18,6 +19,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { TracesService } from '../traces/traces.service';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import {
+  agentAnswerSchema,
   documentLookupSchema,
   langGraphAnswerSchema,
   ragAnswerSchema,
@@ -26,6 +28,7 @@ import {
 } from './agent-tools.schemas';
 import { LangGraphAnswerService } from './langgraph-answer.service';
 import { isLangGraphAgentEnabled } from './agent-feature-flags';
+import { LangGraphAgentLoopService } from './langgraph-agent-loop.service';
 
 type ToolRequest = {
   authContext?: RequestAuthContext;
@@ -90,7 +93,9 @@ export class AgentToolsController {
     private readonly askAssistantService: AskAssistantService,
     private readonly tracesService: TracesService,
     private readonly documentsService: DocumentsService,
-    private readonly langGraphAnswerService?: LangGraphAnswerService
+    private readonly langGraphAnswerService?: LangGraphAnswerService,
+    @Optional()
+    private readonly agentLoopService?: LangGraphAgentLoopService
   ) {}
 
   @Post('rag_search')
@@ -288,6 +293,45 @@ export class AgentToolsController {
           secondPassUsed: graphResult.secondPassResult != null,
           retrieval: this.buildLangGraphRetrievalDiagnostics(graphResult.steps)
         }
+      }
+    };
+  }
+
+  @Post('agent_answer')
+  async agentAnswer(
+    @Body(new ZodValidationPipe(agentAnswerSchema))
+    input: Omit<ReturnType<typeof agentAnswerSchema.parse>, 'secret'> & {
+      secret: string;
+    },
+    @Req() request?: ToolRequest
+  ) {
+    this.assertToolSecret(input.secret);
+    if (!isLangGraphAgentEnabled()) {
+      throw new ServiceUnavailableException(
+        'LangGraph agent side path is disabled. Set LANGGRAPH_AGENT_ENABLED=true to enable it.'
+      );
+    }
+    if (this.agentLoopService == null) {
+      throw new Error('Agent loop service is not available.');
+    }
+
+    const authContext = this.resolveToolAuthContext(input, request);
+    const result = await this.agentLoopService.answer({
+      assistantId: input.assistantId,
+      question: input.question,
+      conversationId: input.conversationId,
+      authContext
+    });
+
+    return {
+      ...(result.answerResult ?? {}),
+      agentLoop: {
+        steps: result.steps,
+        stepCount: result.steps.length,
+        iterations: result.iterations,
+        searchedQueries: result.searchedQueries,
+        retrievedChunkCount: result.retrievedChunkCount,
+        planUnavailableReason: result.planUnavailableReason
       }
     };
   }

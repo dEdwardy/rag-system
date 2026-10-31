@@ -81,3 +81,34 @@ export type JudgeRerankInput = {
     score: number;
   }>;
 };
+
+export type LlmToolDefinition = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+};
+
+export type LlmToolCall = {
+  id: string;
+  name: string;
+  argumentsJson: string;
+};
+
+export type LlmChatMessage =
+  | { role: "system"; content: string }
+  | { role: "user"; content: string }
+  | { role: "assistant"; content: string | null; toolCalls?: LlmToolCall[] }
+  | { role: "tool"; toolCallId: string; name: string; content: string };
+
+export type GenerateWithToolsInput = {
+  messages: LlmChatMessage[];
+  tools: LlmToolDefinition[];
+  temperature?: number;
+  signal?: AbortSignal;
+};
+
+export type GenerateWithToolsOutput = {
+  content: string | null;
+  toolCalls: LlmToolCall[];
+  modelName: string;
+};
