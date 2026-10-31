@@ -1282,7 +1282,7 @@ test("DocumentIngestionProcessor does not reopen a non-retryable failed same-ver
 
 test("IngestionService can disable worker startup while preserving queue producer behavior", async () => {
   const queuedJobs = [];
-  let connectionQuitCalls = 0;
+  const abortController = new AbortController();
 
   const fakeService = Object.assign(Object.create(IngestionService.prototype), {
     logger: {
@@ -1298,11 +1298,8 @@ test("IngestionService can disable worker startup while preserving queue produce
         enableDocumentIngestionWorker: false
       })
     },
-    connection: {
-      quit: async () => {
-        connectionQuitCalls += 1;
-      }
-    },
+    activeTasks: new Set(["task-1"]),
+    taskAbortControllers: new Map([["task-1", abortController]]),
     documentIngestionProcessor: {
       processDocument: async () => {
         throw new Error("worker should not process jobs when disabled");
@@ -1321,5 +1318,7 @@ test("IngestionService can disable worker startup while preserving queue produce
     }
   ]);
   assert.equal(fakeService.worker, undefined);
-  assert.equal(connectionQuitCalls, 1);
+  assert.equal(abortController.signal.aborted, true);
+  assert.equal(fakeService.taskAbortControllers.size, 0);
+  assert.equal(fakeService.activeTasks.size, 0);
 });
