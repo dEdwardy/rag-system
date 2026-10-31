@@ -108,10 +108,20 @@ export function I18nProvider({ children, initialLocale, initialMessages }: I18nP
 
   const t = useCallback(
     (key: string, values?: TranslationValues) => {
-      const translated = resolvePath(activeMessages, key) ?? (fallbackMessages ? resolvePath(fallbackMessages, key) : null) ?? key;
+      const active = resolvePath(activeMessages, key);
+      const fallback = active == null && fallbackMessages ? resolvePath(fallbackMessages, key) : null;
+      const translated = active ?? fallback ?? key;
+
+      // A key that only resolves through the fallback catalog means the active
+      // locale is incomplete, which previously showed English inside a Chinese
+      // UI with no signal. Surface it in development only.
+      if (import.meta.env.DEV && active == null && fallback != null && locale !== "en") {
+        warnMissingTranslation(key, locale);
+      }
+
       return interpolate(translated, values);
     },
-    [activeMessages, fallbackMessages]
+    [activeMessages, fallbackMessages, locale]
   );
 
   const formatDateTime = useCallback((value: string) => dateTimeFormatter.format(new Date(value)), [dateTimeFormatter]);
@@ -133,4 +143,17 @@ export function useI18n() {
   }
 
   return context;
+}
+
+const reportedMissingTranslations = new Set<string>();
+
+function warnMissingTranslation(key: string, locale: string) {
+  if (reportedMissingTranslations.has(key)) {
+    return;
+  }
+
+  reportedMissingTranslations.add(key);
+  console.warn(
+    `[i18n] missing "${locale}" translation for "${key}"; falling back to English.`
+  );
 }
