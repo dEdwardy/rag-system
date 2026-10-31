@@ -1511,7 +1511,8 @@ pnpm test:api
 - latest recorded result for that full API suite:
   - `116 / 116` passing
 - stale ingestion jobs now also mark their superseded run as `skipped` with structured diagnostics instead of leaving an older run stuck in a pending state
-- backend now also supports `POST /assistants/:id/ask/stream` for NDJSON-based chat streaming
+- backend now also supports `POST /assistants/:id/ask/stream` for SSE-based chat streaming (`text/event-stream` frames with `id:` + `event:` + `data:`); the web client consumes it via `fetch` + `ReadableStream` rather than `EventSource`, so the POST body and cookie auth still work
+- the stream is written through `apps/api/src/common/sse-stream-writer.ts`, which owns lazy header emission, 15s `: ping` heartbeats, delta coalescing, backpressure via `drain`, and stream stats; `docker/nginx.conf` disables `proxy_buffering`/`gzip` and raises `proxy_read_timeout` for the stream route
 - the current stream path now forwards native answer-generation text deltas from the configured provider during the generation phase
 - it still keeps citations, trace ids, and the completed ask payload in the final completion event instead of attempting full structured real-time metadata streaming
 - when the ask pipeline fails after the stream starts, the stream emits one structured `error` event that preserves the existing diagnostics shape (`message`, `code`, `traceId`, `details`)

@@ -1,26 +1,29 @@
 import { Modal, Stack, Text } from '@mantine/core';
 import { useState } from 'react';
 import type { Citation } from '../../types/api';
+import {
+  resolveCitationMarkerDisplay,
+  splitCitationText
+} from './citation-marker';
 
 type CitationAnswerTextProps = {
   text: string;
   citations: Citation[];
   locale: 'zh' | 'en';
+  streaming?: boolean;
 };
-
-/** Matches the `[n]` markers the answer model emits for its sources. */
-const MARKER_SPLIT_PATTERN = /(\[\d+\])/g;
-const MARKER_ONLY_PATTERN = /^\[(\d+)\]$/;
 
 /**
  * Renders an answer while turning its `[n]` citation markers into clickable
- * chips. The answer text is otherwise plain, so before this the markers were
- * literal characters with no way to reach the source they pointed at.
+ * chips. While the answer is still streaming, citation metadata is not known
+ * yet, so markers are rendered as inert placeholders until the final payload
+ * arrives and replaces them with real chips.
  */
 export function CitationAnswerText({
   text,
   citations,
-  locale
+  locale,
+  streaming = false
 }: CitationAnswerTextProps) {
   const [openNumber, setOpenNumber] = useState<number | null>(null);
   const citationsByNumber = new Map<number, Citation>();
@@ -30,33 +33,53 @@ export function CitationAnswerText({
   });
 
   const activeCitation =
-    openNumber == null ? null : citationsByNumber.get(openNumber) ?? null;
-  const parts = text.split(MARKER_SPLIT_PATTERN);
+    openNumber == null ? null : (citationsByNumber.get(openNumber) ?? null);
+  const parts = splitCitationText(text);
 
   return (
     <>
       <p className="whitespace-pre-wrap">
         {parts.map((part, index) => {
-          const match = MARKER_ONLY_PATTERN.exec(part);
-          if (!match) {
-            return part;
+          if (part.type === 'text') {
+            return part.text;
           }
 
-          const number = Number(match[1]);
-          const citation = citationsByNumber.get(number);
+          const display = resolveCitationMarkerDisplay({
+            number: part.number,
+            citationCount: citations.length,
+            streaming
+          });
+
+          if (display.kind === 'text') {
+            return display.text;
+          }
+
+          if (display.kind === 'placeholder') {
+            return (
+              <span
+                key={`placeholder-${part.number}-${index}`}
+                aria-hidden="true"
+                className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-dashed border-[var(--app-border)] bg-[var(--app-bg-subtle)] px-1 align-super text-[11px] leading-none text-[var(--app-text-muted)] opacity-70"
+              >
+                {display.number}
+              </span>
+            );
+          }
+
+          const citation = citationsByNumber.get(display.number);
           if (!citation) {
-            return part;
+            return `[${display.number}]`;
           }
 
           return (
             <button
-              key={`${number}-${index}`}
+              key={`${display.number}-${index}`}
               type="button"
               title={buildCitationLabel(citation, locale)}
-              onClick={() => setOpenNumber(number)}
+              onClick={() => setOpenNumber(display.number)}
               className="mx-0.5 inline-flex h-5 min-w-5 cursor-pointer items-center justify-center rounded-full border border-[var(--app-border)] bg-[var(--app-bg-subtle)] px-1 align-super text-[11px] leading-none text-[var(--app-text-muted)] transition hover:border-[var(--app-accent)] hover:text-[var(--app-text)]"
             >
-              {number}
+              {display.number}
             </button>
           );
         })}

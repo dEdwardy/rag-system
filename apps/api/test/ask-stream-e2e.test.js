@@ -1,14 +1,14 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { spawn, execFileSync } = require("node:child_process");
-const { randomUUID } = require("node:crypto");
-const { existsSync, mkdirSync, rmSync } = require("node:fs");
-const { resolve } = require("node:path");
-const { PrismaClient } = require("@prisma/client");
-const { seedDefaultRecords } = require("./support/seed-default-records.js");
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { spawn, execFileSync } = require('node:child_process');
+const { randomUUID } = require('node:crypto');
+const { existsSync, mkdirSync, rmSync } = require('node:fs');
+const { resolve } = require('node:path');
+const { PrismaClient } = require('@prisma/client');
+const { seedDefaultRecords } = require('./support/seed-default-records.js');
 
-const repoRoot = resolve(__dirname, "../../..");
-const apiRoot = resolve(repoRoot, "apps/api");
+const repoRoot = resolve(__dirname, '../../..');
+const apiRoot = resolve(repoRoot, 'apps/api');
 const apiDistEntry = resolveBuiltApiEntry();
 const prisma = new PrismaClient();
 
@@ -16,11 +16,15 @@ test.before(() => {
   seedDefaultRecords(apiRoot);
 });
 
-test("Ask stream E2E: upload -> stream ask -> final payload", async () => {
+test('Ask stream E2E: upload -> stream ask -> final payload', async () => {
   await resetTestState();
 
   const port = 3108;
-  const storageRoot = resolve(repoRoot, "storage", `test-ask-stream-${randomUUID()}`);
+  const storageRoot = resolve(
+    repoRoot,
+    'storage',
+    `test-ask-stream-${randomUUID()}`
+  );
   const queuePrefix = `test-ask-stream-${randomUUID()}`;
   mkdirSync(storageRoot, { recursive: true });
 
@@ -32,7 +36,7 @@ test("Ask stream E2E: upload -> stream ask -> final payload", async () => {
       STORAGE_ROOT: storageRoot,
       QUEUE_PREFIX: queuePrefix
     },
-    stdio: "ignore"
+    stdio: 'ignore'
   });
 
   try {
@@ -41,68 +45,82 @@ test("Ask stream E2E: upload -> stream ask -> final payload", async () => {
     const marker = `ask-stream-marker-${randomUUID()}`;
     const formData = new FormData();
     formData.set(
-      "file",
+      'file',
       new Blob(
         [
           [
-            "# Ask Stream Test",
-            "",
-            "The streamed ask response should eventually return a final payload.",
+            '# Ask Stream Test',
+            '',
+            'The streamed ask response should eventually return a final payload.',
             `Unique marker: ${marker}`
-          ].join("\n")
+          ].join('\n')
         ],
-        { type: "text/markdown" }
+        { type: 'text/markdown' }
       ),
-      "ask-stream-test.md"
+      'ask-stream-test.md'
     );
 
-    const uploadResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/upload`, {
-      method: "POST",
-      body: formData
-    });
+    const uploadResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/documents/upload`,
+      {
+        method: 'POST',
+        body: formData
+      }
+    );
     assert.equal(uploadResponse.status, 201);
 
     const uploadedDocument = await uploadResponse.json();
     await waitForDocumentReady(port, uploadedDocument.id, 20000);
 
-    const streamResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask/stream`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/x-ndjson"
-      },
-      body: JSON.stringify({
-        question: `What unique marker is in the document? Return ${marker}.`
-      })
-    });
-
-    assert.equal(streamResponse.status, 200);
-    assert.match(streamResponse.headers.get("content-type") ?? "", /application\/x-ndjson/i);
-
-    const events = await readNdjsonEvents(streamResponse);
-
-    assert.deepEqual(
-      events.filter(event => event.type === "status").map(event => event.phase),
-      ["started", "retrieving", "generating"]
+    const streamResponse = await fetch(
+      `http://localhost:${port}/assistants/default-assistant/ask/stream`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream'
+        },
+        body: JSON.stringify({
+          question: `What unique marker is in the document? Return ${marker}.`
+        })
+      }
     );
 
-    const answerDeltas = events.filter(event => event.type === "answer_delta");
+    assert.equal(streamResponse.status, 200);
+    assert.match(
+      streamResponse.headers.get('content-type') ?? '',
+      /text\/event-stream/i
+    );
+    assert.equal(streamResponse.headers.get('x-accel-buffering'), 'no');
+
+    const events = await readSseEvents(streamResponse);
+
+    assert.deepEqual(
+      events
+        .filter((event) => event.type === 'status')
+        .map((event) => event.phase),
+      ['started', 'retrieving', 'generating']
+    );
+
+    const answerDeltas = events.filter(
+      (event) => event.type === 'answer_delta'
+    );
     assert.ok(answerDeltas.length > 0);
 
-    const finalEvent = events.find(event => event.type === "final");
+    const finalEvent = events.find((event) => event.type === 'final');
     assert.ok(finalEvent);
-    assert.equal(typeof finalEvent.data?.conversationId, "string");
-    assert.equal(typeof finalEvent.data?.traceId, "string");
-    assert.equal(typeof finalEvent.data?.answer, "string");
+    assert.equal(typeof finalEvent.data?.conversationId, 'string');
+    assert.equal(typeof finalEvent.data?.traceId, 'string');
+    assert.equal(typeof finalEvent.data?.answer, 'string');
     assert.ok(finalEvent.data.answer.includes(marker));
     assert.ok(Array.isArray(finalEvent.data.citations));
-    assert.equal(events.at(-1)?.type, "final");
+    assert.equal(events.at(-1)?.type, 'final');
     assert.deepEqual(
-      answerDeltas.map(event => event.delta).join(""),
+      answerDeltas.map((event) => event.delta).join(''),
       finalEvent.data.answer
     );
   } finally {
-    server.kill("SIGTERM");
+    server.kill('SIGTERM');
     rmSync(storageRoot, { recursive: true, force: true });
   }
 });
@@ -111,11 +129,24 @@ test.after(async () => {
   await prisma.$disconnect();
 });
 
-async function readNdjsonEvents(response) {
+async function readSseEvents(response) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = "";
+  let buffer = '';
   const events = [];
+
+  const pushFrame = (frame) => {
+    const lines = frame.split('\n');
+    const data = lines
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice('data:'.length).replace(/^ /, ''))
+      .join('\n')
+      .trim();
+
+    if (data) {
+      events.push(JSON.parse(data));
+    }
+  };
 
   while (true) {
     const { value, done } = await reader.read();
@@ -124,27 +155,25 @@ async function readNdjsonEvents(response) {
     }
 
     buffer += decoder.decode(value, { stream: true });
+    buffer = buffer.replace(/\r\n/g, '\n');
 
     while (true) {
-      const newlineIndex = buffer.indexOf("\n");
-      if (newlineIndex < 0) {
+      const frameEndIndex = buffer.indexOf('\n\n');
+      if (frameEndIndex < 0) {
         break;
       }
 
-      const line = buffer.slice(0, newlineIndex).trim();
-      buffer = buffer.slice(newlineIndex + 1);
-
-      if (!line) {
-        continue;
-      }
-
-      events.push(JSON.parse(line));
+      pushFrame(buffer.slice(0, frameEndIndex));
+      buffer = buffer.slice(frameEndIndex + 2);
     }
   }
 
+  buffer += decoder.decode();
+  buffer = buffer.replace(/\r\n/g, '\n');
+
   const trailing = buffer.trim();
   if (trailing) {
-    events.push(JSON.parse(trailing));
+    pushFrame(trailing);
   }
 
   return events;
@@ -179,35 +208,44 @@ async function waitForDocumentReady(port, documentId, timeoutMs) {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
-    const response = await fetch(`http://localhost:${port}/documents/${documentId}`);
+    const response = await fetch(
+      `http://localhost:${port}/documents/${documentId}`
+    );
     if (response.ok) {
       const document = await response.json();
-      if (document.status === "ready") {
+      if (document.status === 'ready') {
         return document;
       }
 
-      if (document.status === "failed") {
-        throw new Error(`Document processing failed: ${document.errorMessage ?? "unknown error"}`);
+      if (document.status === 'failed') {
+        throw new Error(
+          `Document processing failed: ${document.errorMessage ?? 'unknown error'}`
+        );
       }
     }
 
     await sleep(500);
   }
 
-  throw new Error(`Timed out waiting for document ${documentId} to become ready.`);
+  throw new Error(
+    `Timed out waiting for document ${documentId} to become ready.`
+  );
 }
 
 function sleep(ms) {
-  return new Promise(resolvePromise => {
+  return new Promise((resolvePromise) => {
     setTimeout(resolvePromise, ms);
   });
 }
 
 function resolveBuiltApiEntry() {
-  const preferredEntry = resolve(repoRoot, "apps/api/dist/apps/api/src/main.js");
+  const preferredEntry = resolve(
+    repoRoot,
+    'apps/api/dist/apps/api/src/main.js'
+  );
   if (existsSync(preferredEntry)) {
     return preferredEntry;
   }
 
-  return resolve(repoRoot, "apps/api/dist/main.js");
+  return resolve(repoRoot, 'apps/api/dist/main.js');
 }

@@ -1,5 +1,7 @@
 # Native Answer Streaming Implementation Plan
 
+> **Superseded transport:** the `NDJSON` transport decision in this plan has been replaced by `text/event-stream` (SSE) via `apps/api/src/common/sse-stream-writer.ts`. See `docs/current-progress.md` for the current state.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Upgrade `POST /assistants/:id/ask/stream` from completed-answer progressive reveal to provider-native answer text streaming while still finalizing citations, trace ids, and execution metadata in the last event.
@@ -59,6 +61,7 @@
 ### Task 1: Lock The Real Streaming Contract In Tests
 
 **Files:**
+
 - Modify: `apps/api/test/ask-stream-e2e.test.js`
 - Create: `apps/api/test/llm-answer-stream.test.js`
 - Create: `apps/api/test/ask-stream-service.test.js`
@@ -117,6 +120,7 @@ git commit -m "test: lock native ask stream contract"
 ### Task 2: Add LLM Provider-Native Streaming
 
 **Files:**
+
 - Modify: `apps/api/src/infra/llm/llm.types.ts`
 - Modify: `apps/api/src/infra/llm/llm.service.ts`
 - Test: `apps/api/test/llm-answer-stream.test.js`
@@ -163,6 +167,7 @@ git commit -m "feat: add provider-native answer streaming"
 ### Task 3: Split Answer Finalization From Answer Generation
 
 **Files:**
+
 - Modify: `apps/api/src/modules/answering/answering.service.ts`
 - Test: `apps/api/test/ask-stream-service.test.js`
 
@@ -208,6 +213,7 @@ git commit -m "refactor: split streamed answer finalization"
 ### Task 4: Add Dedicated Ask Stream Orchestration
 
 **Files:**
+
 - Modify: `apps/api/src/modules/assistants/ask-assistant.service.ts`
 - Modify: `apps/api/src/modules/assistants/assistants.controller.ts`
 - Test: `apps/api/test/ask-stream-service.test.js`
@@ -264,6 +270,7 @@ git commit -m "feat: stream native ask deltas"
 ### Task 5: Align The Web Stream Consumer
 
 **Files:**
+
 - Modify: `apps/web/src/lib/api.ts`
 - Modify: `apps/web/src/features/api/hooks.ts`
 - Modify: `apps/web/src/pages/chat/ChatPage.tsx`
@@ -315,6 +322,7 @@ git commit -m "feat: align web client with native answer streaming"
 ### Task 6: Sync Docs And Run Final Serial Verification
 
 **Files:**
+
 - Modify: `docs/current-dev-setup.md`
 - Modify: `docs/current-progress.md`
 

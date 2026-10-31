@@ -1205,6 +1205,7 @@ export function ChatPage() {
                                 : []
                             }
                             locale={locale}
+                            streaming={isStreamingAssistant}
                             text={message.content}
                           />
                         ) : isStreamingAssistant ? (

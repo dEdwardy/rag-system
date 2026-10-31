@@ -13,7 +13,7 @@ async function loadApiModule() {
   return import(apiModuleUrl);
 }
 
-test('apiStreamRequest rejects when the NDJSON stream emits an error event', async () => {
+test('apiStreamRequest rejects when the SSE stream emits an error event', async () => {
   const { apiStreamRequest } = await loadApiModule();
   const originalFetch = global.fetch;
   const seenEvents = [];
@@ -24,11 +24,13 @@ test('apiStreamRequest rejects when the NDJSON stream emits an error event', asy
         start(controller) {
           const encoder = new TextEncoder();
           controller.enqueue(
-            encoder.encode('{"type":"status","phase":"started"}\n')
+            encoder.encode(
+              'id: 1\nevent: status\ndata: {"type":"status","phase":"started"}\n\n'
+            )
           );
           controller.enqueue(
             encoder.encode(
-              '{"type":"error","message":"Ask pipeline failed.","code":"ASK_PIPELINE_FAILED","traceId":"trace-stream-1","details":{"stage":"answering"}}\n'
+              'id: 2\nevent: error\ndata: {"type":"error","message":"Ask pipeline failed.","code":"ASK_PIPELINE_FAILED","traceId":"trace-stream-1","details":{"stage":"answering"},"retryable":true}\n\n'
             )
           );
           controller.close();
@@ -37,7 +39,7 @@ test('apiStreamRequest rejects when the NDJSON stream emits an error event', asy
       {
         status: 200,
         headers: {
-          'Content-Type': 'application/x-ndjson; charset=utf-8'
+          'Content-Type': 'text/event-stream; charset=utf-8'
         }
       }
     );
@@ -62,6 +64,7 @@ test('apiStreamRequest rejects when the NDJSON stream emits an error event', asy
         assert.deepEqual(error.details, {
           stage: 'answering'
         });
+        assert.equal(error.retryable, true);
         return true;
       }
     );
@@ -81,7 +84,8 @@ test('apiStreamRequest rejects when the NDJSON stream emits an error event', asy
       traceId: 'trace-stream-1',
       details: {
         stage: 'answering'
-      }
+      },
+      retryable: true
     }
   ]);
 });
@@ -141,4 +145,67 @@ test('apiStreamRequest preserves structured diagnostics from pre-stream HTTP err
   }
 
   assert.deepEqual(seenEvents, []);
+});
+
+test('apiStreamRequest parses split, CRLF, multi-line, comment and deduplicated SSE frames', async () => {
+  const { apiStreamRequest } = await loadApiModule();
+  const originalFetch = global.fetch;
+  const seenEvents = [];
+  const chunks = [
+    'id: 1\r\nevent: status\r\ndata: {"type":"status",',
+    '"phase":"started"}\r\n\r\n',
+    ': ping\n\n',
+    'id: 2\nevent: answer_delta\ndata: {"type":"answer_delta",\ndata: "delta":"Hel"}\n\n',
+    'id: 2\nevent: answer_delta\ndata: {"type":"answer_delta","delta":"DUPLICATE"}\n\n',
+    'data: not-json\n\n',
+    'id: 3\nevent: answer_delta\ndata: {"type":"answer_delta","delta":"lo"}\n\n'
+  ];
+
+  global.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          for (const chunk of chunks) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+          controller.close();
+        }
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8'
+        }
+      }
+    );
+
+  try {
+    await apiStreamRequest('/assistants/default-assistant/ask/stream', {
+      method: 'POST',
+      body: {
+        question: 'Parse SSE frames.'
+      },
+      onEvent: (event) => {
+        seenEvents.push(event);
+      }
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+
+  assert.deepEqual(seenEvents, [
+    {
+      type: 'status',
+      phase: 'started'
+    },
+    {
+      type: 'answer_delta',
+      delta: 'Hel'
+    },
+    {
+      type: 'answer_delta',
+      delta: 'lo'
+    }
+  ]);
 });

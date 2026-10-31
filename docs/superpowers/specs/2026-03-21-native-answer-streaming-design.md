@@ -1,5 +1,7 @@
 # Native Answer Streaming Design
 
+> **Superseded transport:** this spec kept `NDJSON` as the transport for that increment. `POST /assistants/:id/ask/stream` now uses `text/event-stream` (SSE) through `apps/api/src/common/sse-stream-writer.ts`; see `docs/current-progress.md` for the current state. The streaming _behavior_ described here (provider-native deltas plus a final payload) still applies.
+
 ## Task Identification
 
 This design defines the next controlled increment for chat streaming after the first-round `NDJSON` progressive UX transport.

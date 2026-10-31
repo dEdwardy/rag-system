@@ -905,6 +905,7 @@ export type AskStreamEvent =
       code?: string;
       traceId?: string | null;
       details?: JsonValue | null;
+      retryable?: boolean;
     };
 
 export type Conversation = {

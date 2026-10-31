@@ -104,7 +104,9 @@ test('apiStreamRequest refreshes on 401 before opening the retried stream', asyn
       new ReadableStream({
         start(controller) {
           controller.enqueue(
-            new TextEncoder().encode('{"type":"status","phase":"retried"}\n')
+            new TextEncoder().encode(
+              'id: 1\nevent: status\ndata: {"type":"status","phase":"retried"}\n\n'
+            )
           );
           controller.close();
         }
@@ -112,7 +114,7 @@ test('apiStreamRequest refreshes on 401 before opening the retried stream', asyn
       {
         status: 200,
         headers: {
-          'Content-Type': 'application/x-ndjson; charset=utf-8'
+          'Content-Type': 'text/event-stream; charset=utf-8'
         }
       }
     );

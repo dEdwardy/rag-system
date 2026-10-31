@@ -117,6 +117,7 @@ type StreamErrorPayload = {
   code?: string;
   traceId?: string | null;
   details?: unknown;
+  retryable?: boolean;
 };
 
 export async function apiRequest<T>(
@@ -184,6 +185,26 @@ export async function apiStreamRequest<TEvent>(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let lastEventId = 0;
+
+  const emitFrame = (frame: string) => {
+    const parsed = parseSseFrame(frame);
+    if (parsed == null) {
+      return;
+    }
+
+    if (parsed.id != null) {
+      if (parsed.id <= lastEventId) {
+        return;
+      }
+
+      lastEventId = parsed.id;
+    }
+
+    const event = parsed.data as TEvent;
+    options.onEvent(event);
+    throwIfStreamError(event);
+  };
 
   while (true) {
     const { value, done } = await reader.read();
@@ -192,31 +213,72 @@ export async function apiStreamRequest<TEvent>(
     }
 
     buffer += decoder.decode(value, { stream: true });
+    buffer = buffer.replace(/\r\n/g, '\n');
 
     while (true) {
-      const newlineIndex = buffer.indexOf('\n');
-      if (newlineIndex < 0) {
+      const frameEndIndex = buffer.indexOf('\n\n');
+      if (frameEndIndex < 0) {
         break;
       }
 
-      const line = buffer.slice(0, newlineIndex).trim();
-      buffer = buffer.slice(newlineIndex + 1);
-
-      if (!line) {
-        continue;
-      }
-
-      const event = JSON.parse(line) as TEvent;
-      options.onEvent(event);
-      throwIfStreamError(event);
+      const frame = buffer.slice(0, frameEndIndex);
+      buffer = buffer.slice(frameEndIndex + 2);
+      emitFrame(frame);
     }
   }
 
+  buffer += decoder.decode();
+  buffer = buffer.replace(/\r\n/g, '\n');
+
   const trailing = buffer.trim();
   if (trailing) {
-    const event = JSON.parse(trailing) as TEvent;
-    options.onEvent(event);
-    throwIfStreamError(event);
+    emitFrame(trailing);
+  }
+}
+
+function parseSseFrame(
+  frame: string
+): { id: number | null; data: unknown } | null {
+  const dataLines: string[] = [];
+  let eventId: number | null = null;
+
+  for (const rawLine of frame.split('\n')) {
+    const line = rawLine.trimEnd();
+    if (!line || line.startsWith(':')) {
+      continue;
+    }
+
+    if (line.startsWith('id:')) {
+      const rawId = line.slice('id:'.length).trim();
+      const parsedId = Number.parseInt(rawId, 10);
+      eventId = Number.isNaN(parsedId) ? null : parsedId;
+      continue;
+    }
+
+    if (!line.startsWith('data:')) {
+      continue;
+    }
+
+    const data = line.slice('data:'.length);
+    dataLines.push(data.startsWith(' ') ? data.slice(1) : data);
+  }
+
+  if (dataLines.length === 0) {
+    return null;
+  }
+
+  const payload = dataLines.join('\n').trim();
+  if (!payload) {
+    return null;
+  }
+
+  try {
+    return {
+      id: eventId,
+      data: JSON.parse(payload) as unknown
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -280,7 +342,7 @@ function resolveRequestHeaders(body: unknown, stream: boolean) {
   }
 
   if (stream) {
-    headers.Accept = 'application/x-ndjson';
+    headers.Accept = 'text/event-stream';
   }
 
   return Object.keys(headers).length > 0 ? headers : undefined;
@@ -440,10 +502,12 @@ function throwIfStreamError(
     code?: string;
     traceId?: string | null;
     details?: unknown;
+    retryable?: boolean;
   };
   error.code = event.code;
   error.traceId = event.traceId ?? null;
   error.details = event.details ?? null;
+  error.retryable = event.retryable;
   throw error;
 }
 

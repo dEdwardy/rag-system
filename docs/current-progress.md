@@ -499,7 +499,9 @@
     - `pnpm --filter @rag-system/web typecheck`
 
 - `api best-practices hardening wave` 已完成一轮窄范围后端维护收口
-  - `apps/api/src/modules/assistants/assistants.controller.ts` 现在会在 `ask/stream` 首字节发出前保留正常 HTTP 失败语义；只有流真正开始后，才回落到 NDJSON `error` event 诊断，避免把 `404/5xx` 预流式失败吞成 `200`
+  - `apps/api/src/modules/assistants/assistants.controller.ts` 现在会在 `ask/stream` 首字节发出前保留正常 HTTP 失败语义；只有流真正开始后，才回落到流内 `error` event 诊断，避免把 `404/5xx` 预流式失败吞成 `200`
+  - `ask/stream` 传输已从 NDJSON 切换为 SSE：新增 `apps/api/src/common/sse-stream-writer.ts` 统一处理 `text/event-stream` 帧、懒发 header、15s 心跳、delta 合并、`drain` 背压、`id:` 去重与流诊断指标；前端 `apiStreamRequest` 改为按 `\n\n` 切帧解析并兼容 CRLF、注释帧和多行 data
+  - `docker/nginx.conf` 为 stream 路由关闭 `proxy_buffering` / `gzip` 并延长 `proxy_read_timeout`，`CitationAnswerText` 在流式期间把未知 `[n]` 渲染为不可点击占位，`final` 后再切换为可点击引用
   - `apps/api/src/common/http-exception.filter.ts` 提取了统一异常响应构建逻辑，streaming controller 可在 pre-stream 阶段复用现有错误 JSON 结构，而不是单独拼装返回体
   - `apps/api/src/modules/auth/auth.service.ts` 已把 OAuth 回调后的本地持久化阶段收敛到单个事务：身份链接、用户创建/复用、默认 workspace 初始化、session 创建同属一个写入边界
   - `apps/api/src/modules/auth/auth.controller.ts`、`auth.module.ts`、`auth-rate-limit.guard.ts` 为公开 auth 路由补了基于路由 metadata 的限流保护，当前覆盖 `login`、OAuth start、OAuth callback
