@@ -22,11 +22,11 @@ export class MessagesService {
     traceId: true
   } as const;
 
-  listConversationMessages(
+  async listConversationMessages(
     conversationId: string,
     scope?: { tenantId: string; userId: string } | null
   ) {
-    return this.prisma.message.findMany({
+    const messages = await this.prisma.message.findMany({
       select: this.messageListSelect,
       where: {
         conversationId,
@@ -43,6 +43,42 @@ export class MessagesService {
         createdAt: 'asc'
       }
     });
+
+    return this.withTraceCitations(messages);
+  }
+
+  /**
+   * Messages do not store citations themselves, so they are read back from the
+   * answer trace. Without this the chat UI could not resolve the `[n]` markers
+   * an answer carries once the conversation was reloaded from the server.
+   */
+  private async withTraceCitations<
+    T extends { role: MessageRole; traceId: string | null }
+  >(messages: T[]) {
+    const traceIds = messages
+      .filter(message => message.role === MessageRole.assistant && message.traceId != null)
+      .map(message => message.traceId as string);
+
+    if (traceIds.length === 0) {
+      return messages;
+    }
+
+    const traces = await this.prisma.answerTrace.findMany({
+      where: { id: { in: [...new Set(traceIds)] } },
+      select: { id: true, citationsJson: true }
+    });
+    const citationsByTraceId = new Map<string, unknown[]>(
+      traces.map(trace => [
+        trace.id,
+        Array.isArray(trace.citationsJson) ? (trace.citationsJson as unknown[]) : []
+      ])
+    );
+
+    return messages.map(message =>
+      message.role === MessageRole.assistant && message.traceId != null
+        ? { ...message, citations: citationsByTraceId.get(message.traceId) ?? [] }
+        : message
+    );
   }
 
   listConversationMessagesForReuse(
