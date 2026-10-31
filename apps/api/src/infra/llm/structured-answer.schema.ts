@@ -17,14 +17,10 @@ const citationEvidenceItemSchema = z.object({
     })
 });
 
-export const structuredAnswerSchema = z.object({
-  answer: z
-    .string()
-    .transform(value => value.trim())
-    .refine(value => value.length > 0, {
-      message: "answer must not be empty"
-    }),
-  status: z.enum(["grounded", "insufficient_context"]).optional(),
+export const structuredAnswerSchema = z
+  .object({
+    answer: z.string().transform(value => value.trim()),
+    status: z.enum(["grounded", "insufficient_context"]).optional(),
   citations: z
     .array(positiveCitationSchema)
     .optional()

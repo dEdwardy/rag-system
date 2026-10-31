@@ -324,9 +324,11 @@ test("LlmService falls back when structured answer payload fails schema validati
       chunks: []
     });
 
-    assert.equal(result.answer, '{"status":"grounded","citations":[2],"missingInformation":[]}');
-    assert.equal(result.answerStatus, undefined);
-    assert.deepEqual(result.citedChunkNumbers, [2]);
+    // The payload carries no answer field at all. Returning it verbatim used to
+    // surface raw JSON to the user; it must read as a refusal instead.
+    assert.equal(result.answer, '资料中没有足够信息来回答这个问题。');
+    assert.equal(result.answerStatus, 'insufficient_context');
+    assert.deepEqual(result.citedChunkNumbers, []);
     assert.deepEqual(result.missingInformation, []);
   } finally {
     global.fetch = originalFetch;
@@ -502,4 +504,34 @@ test("LlmService local fallback grounded answer follows same_as_question languag
     process.env.OLLAMA_MODEL = originalModel;
     process.env.OPENAI_API_KEY = originalApiKey;
   }
+});
+
+test("LlmService fills a refusal when the structured answer is empty", () => {
+  const service = createLlmService();
+
+  const result = service.parseStructuredAnswer({
+    rawAnswer: '{"answer":"","status":"insufficient_context","citations":[],"missingInformation":[]}',
+    modelName: 'test-model',
+    promptId: 'answer.v3',
+    usedFallback: false
+  });
+
+  assert.equal(result.answer, '资料中没有足够信息来回答这个问题。');
+  assert.equal(result.answerStatus, 'insufficient_context');
+  assert.deepEqual(result.citedChunkNumbers, []);
+});
+
+test("LlmService still rejects an empty answer without an insufficient_context status", () => {
+  const service = createLlmService();
+
+  const result = service.parseStructuredAnswer({
+    rawAnswer: '{"answer":"","status":"grounded"}',
+    modelName: 'test-model',
+    promptId: 'answer.v3',
+    usedFallback: false
+  });
+
+  // Falls into the unreadable-payload branch, so it never leaks raw JSON.
+  assert.equal(result.answer, '资料中没有足够信息来回答这个问题。');
+  assert.equal(result.answerStatus, 'insufficient_context');
 });

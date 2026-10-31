@@ -12,6 +12,21 @@ import {
 import { resolveLlmRuntimeConfig } from "./llm-runtime-config";
 import { PromptManagerService } from "./prompt-manager.service";
 import { structuredAnswerSchema } from "./structured-answer.schema";
+
+/**
+ * Shown when the model refuses but leaves the answer text empty, or when its
+ * structured payload cannot be read at all. Without this the raw JSON payload
+ * ended up as the user-visible answer.
+ */
+export function buildInsufficientContextAnswer(language?: string): string {
+  const normalized = (language ?? "").trim().toLowerCase();
+  const isChinese =
+    normalized === "zh" || normalized === "same_as_question" || normalized === "auto" || normalized === "";
+
+  return isChinese
+    ? "资料中没有足够信息来回答这个问题。"
+    : "There is not enough information in the sources to answer this question.";
+}
 import {
   LlmToolCallingUnavailableError,
   requestOllamaToolCompletion,
@@ -791,7 +806,18 @@ export class LlmService {
   private parseAnswerOutput(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName" | "promptId" | "usedFallback"> {
     const parsed = this.tryParseStructuredAnswer(rawAnswer);
     if (parsed) {
-      return parsed;
+      // A refusal payload legitimately carries an empty answer; never surface
+      // an empty bubble, and never fall through to the raw JSON below.
+      if (parsed.answer.length > 0) {
+        return parsed;
+      }
+
+      return {
+        ...parsed,
+        answer: buildInsufficientContextAnswer(),
+        // An empty answer can never be "grounded", whatever the payload claims.
+        answerStatus: "insufficient_context"
+      };
     }
 
     if (this.looksLikeStructuredPayload(rawAnswer)) {
@@ -805,6 +831,16 @@ export class LlmService {
           citationEvidence: []
         };
       }
+
+      // The payload could not be read and had no answer text: show a refusal
+      // instead of leaking the raw model output to the user.
+      return {
+        answer: buildInsufficientContextAnswer(),
+        answerStatus: "insufficient_context",
+        missingInformation: [],
+        citedChunkNumbers: [],
+        citationEvidence: []
+      };
     }
 
     return {
