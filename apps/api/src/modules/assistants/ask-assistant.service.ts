@@ -6,6 +6,7 @@ import { PromptManagerService } from '../../infra/llm/prompt-manager.service';
 import { FeedSourceService } from '../../infra/feed-source/feed-source.service';
 import { SitemapSourceService } from '../../infra/sitemap-source/sitemap-source.service';
 import { WebPageService } from '../../infra/web-page/web-page.service';
+import { isConversationReuseEnabled } from './conversation-reuse-flag';
 import { resolveReusableAnswerContent } from './reused-answer-content';
 import {
   ConcurrencyLimiter,
@@ -354,7 +355,8 @@ export class AskAssistantService {
     const routeDecision = this.resolveRouteDecision(input.question);
     const reusableConversationAnswer =
       input.conversationId != null &&
-      routeDecision.routeType === 'knowledge_base'
+      routeDecision.routeType === 'knowledge_base' &&
+      isConversationReuseEnabled()
         ? await this.findReusableConversationAnswer({
             conversationId: conversation.id,
             assistantId: assistant.id,
@@ -648,7 +650,8 @@ export class AskAssistantService {
       unknown
     > | null> =
       input.conversationId != null &&
-      routeDecision.routeType === 'knowledge_base'
+      routeDecision.routeType === 'knowledge_base' &&
+      isConversationReuseEnabled()
         ? conversationPromise.then(({ value: conversation }) =>
             this.findReusableConversationAnswer({
               conversationId: conversation.id,

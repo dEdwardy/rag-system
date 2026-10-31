@@ -46,6 +46,7 @@ const fastTestFiles = new Set([
   'test/retrieval.test.js',
   'test/reused-answer-content.test.js',
   'test/messages.service.test.js',
+  'test/conversation-reuse-flag.test.js',
   'test/storage.service.test.js',
   'test/tool-calling.test.js',
   'test/traces.service.test.js',
