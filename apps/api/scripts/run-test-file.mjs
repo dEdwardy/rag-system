@@ -26,6 +26,7 @@ const fastTestFiles = new Set([
   'test/document-runs.service.test.js',
   'test/embedding-cache.test.js',
   'test/eval-question-sets.service.test.js',
+  'test/eval-retrieval-metrics.test.js',
   'test/external-source-sync.test.js',
   'test/fetch-with-retry.test.js',
   'test/http-exception-filter.test.js',

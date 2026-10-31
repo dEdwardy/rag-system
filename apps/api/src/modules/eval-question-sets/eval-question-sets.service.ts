@@ -13,6 +13,12 @@ import {
   type RunEvalQuestionSetInput,
   type UpdateEvalQuestionSetInput
 } from './eval-question-set.schemas';
+import {
+  computeRetrievalMetrics,
+  summarizeRetrievalMetrics,
+  type RetrievalExpectation,
+  type RetrievalMetrics
+} from './eval-retrieval-metrics';
 
 type EvalRunSummaryMetricKey =
   | 'succeeded'
@@ -21,7 +27,9 @@ type EvalRunSummaryMetricKey =
   | 'groundedRate'
   | 'strongRate'
   | 'fallbackRate'
-  | 'averageCitationCount';
+  | 'averageCitationCount'
+  | 'retrievalRecallAtK'
+  | 'retrievalMrr';
 
 type EvalRunSummary = {
   total: number;
@@ -32,6 +40,9 @@ type EvalRunSummary = {
   strongRate: number;
   fallbackRate: number;
   averageCitationCount: number;
+  retrievalEvaluatedQuestionCount: number;
+  retrievalRecallAtK: number | null;
+  retrievalMrr: number | null;
 };
 
 type EvalRunQualityGateMode = 'warn' | 'fail';
@@ -127,6 +138,7 @@ type EvalQuestionAskResultView = {
   qualityEvaluation?: unknown;
   answeringMetadata?: unknown;
   citations?: unknown;
+  retrievedChunks?: unknown;
 };
 
 type EvalRunQuestionRegression = {
@@ -160,6 +172,7 @@ type EvalRunItem = {
   qualityPrimaryIssue: string | null;
   citationCount: number;
   usedFallback: boolean | null;
+  retrieval: RetrievalMetrics | null;
   error: { message: string; code: string | null } | null;
 };
 
@@ -561,6 +574,9 @@ export class EvalQuestionSetsService {
     }
 
     const questions = this.readQuestions(snapshot.questionsJson);
+    const questionExpectations = this.readQuestionExpectations(
+      snapshot.questionsJson
+    );
     const currentQuestions = this.readQuestions(questionSet.questionsJson);
     const questionSetDrift = this.buildQuestionSetDrift(
       currentQuestions,
@@ -596,6 +612,11 @@ export class EvalQuestionSetsService {
             ? result.citations.length
             : 0,
           usedFallback: this.readBoolean(answeringMetadata?.usedFallback),
+          retrieval: this.buildItemRetrieval({
+            expectations: questionExpectations,
+            question,
+            result
+          }),
           error: null
         });
       } catch (error) {
@@ -610,6 +631,7 @@ export class EvalQuestionSetsService {
           qualityPrimaryIssue: null,
           citationCount: 0,
           usedFallback: null,
+          retrieval: null,
           error: {
             message: this.readRunErrorMessage(error),
             code: this.readRunErrorCode(error)
@@ -873,7 +895,111 @@ export class EvalQuestionSetsService {
       return [];
     }
 
-    return input.filter((question) => typeof question === 'string');
+    return input
+      .map((entry) => {
+        if (typeof entry === 'string') {
+          return entry;
+        }
+
+        const record = this.readObject(entry);
+        return record != null ? this.readString(record.question) : null;
+      })
+      .filter((question): question is string => question != null);
+  }
+
+  /**
+   * Expected-evidence lookup keyed by question text. Question sets written
+   * before expectations existed only store plain strings, so the map is empty
+   * for them and retrieval metrics are simply not evaluated.
+   */
+  private readQuestionExpectations(
+    input: Prisma.JsonValue
+  ): Map<string, RetrievalExpectation> {
+    const expectations = new Map<string, RetrievalExpectation>();
+
+    if (!Array.isArray(input)) {
+      return expectations;
+    }
+
+    for (const entry of input) {
+      const record = this.readObject(entry);
+      if (record == null) {
+        continue;
+      }
+
+      const question = this.readString(record.question);
+      if (question == null) {
+        continue;
+      }
+
+      expectations.set(question, {
+        expectedDocumentIds: this.readStringArray(record.expectedDocumentIds),
+        expectedChunkIds: this.readStringArray(record.expectedChunkIds)
+      });
+    }
+
+    return expectations;
+  }
+
+  private buildItemRetrieval(input: {
+    expectations: Map<string, RetrievalExpectation>;
+    question: string;
+    result: EvalQuestionAskResultView;
+  }): RetrievalMetrics | null {
+    const expectation = input.expectations.get(input.question);
+    if (expectation == null) {
+      return null;
+    }
+
+    return computeRetrievalMetrics({
+      expectation,
+      observation: this.readRetrievedChunks(input.result.retrievedChunks)
+    });
+  }
+
+  /**
+   * Retrieval ids come from the ask result itself, so scoring retrieval costs
+   * no extra model call and no extra retrieval pass.
+   */
+  private readRetrievedChunks(value: unknown): {
+    retrievedChunkIds: string[];
+    retrievedDocumentIds: string[];
+  } {
+    if (!Array.isArray(value)) {
+      return { retrievedChunkIds: [], retrievedDocumentIds: [] };
+    }
+
+    const retrievedChunkIds: string[] = [];
+    const retrievedDocumentIds: string[] = [];
+
+    for (const entry of value) {
+      const record = this.readObject(entry);
+      if (record == null) {
+        continue;
+      }
+
+      const chunkId = this.readString(record.chunkId);
+      const documentId = this.readString(record.documentId);
+
+      if (chunkId != null) {
+        retrievedChunkIds.push(chunkId);
+      }
+
+      if (documentId != null) {
+        retrievedDocumentIds.push(documentId);
+      }
+    }
+
+    return { retrievedChunkIds, retrievedDocumentIds };
+  }
+
+  private readStringArray(value: unknown): string[] {    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.filter(
+      (item): item is string => typeof item === 'string' && item.length > 0
+    );
   }
 
   private readObject(value: unknown): Record<string, unknown> | null {
@@ -940,6 +1066,7 @@ export class EvalQuestionSetsService {
       qualityOverall: string | null;
       citationCount: number;
       usedFallback: boolean | null;
+      retrieval?: RetrievalMetrics | null;
     }>
   ): EvalRunSummary {
     const total = items.length;
@@ -960,6 +1087,11 @@ export class EvalQuestionSetsService {
       (acc, item) => acc + item.citationCount,
       0
     );
+    const retrievalSummary = summarizeRetrievalMetrics(
+      items
+        .map((item) => item.retrieval)
+        .filter((metric): metric is RetrievalMetrics => metric != null)
+    );
 
     return {
       total,
@@ -971,7 +1103,11 @@ export class EvalQuestionSetsService {
       fallbackRate: this.toRate(fallbackUsed, total),
       averageCitationCount: this.roundMetric(
         total > 0 ? totalCitationCount / total : 0
-      )
+      ),
+      retrievalEvaluatedQuestionCount:
+        retrievalSummary?.evaluatedQuestionCount ?? 0,
+      retrievalRecallAtK: retrievalSummary?.retrievalRecallAtK ?? null,
+      retrievalMrr: retrievalSummary?.retrievalMrr ?? null
     };
   }
 
@@ -1084,7 +1220,34 @@ export class EvalQuestionSetsService {
         delta: this.roundMetric(
           current.averageCitationCount - baseline.averageCitationCount
         )
-      }
+      },
+      // Retrieval metrics only compare when both runs actually evaluated
+      // retrieval; a question set without expectations has nothing to compare.
+      ...(current.retrievalRecallAtK != null &&
+      baseline.retrievalRecallAtK != null
+        ? [
+            {
+              metric: 'retrievalRecallAtK' as const,
+              current: current.retrievalRecallAtK,
+              baseline: baseline.retrievalRecallAtK,
+              delta: this.roundMetric(
+                current.retrievalRecallAtK - baseline.retrievalRecallAtK
+              )
+            }
+          ]
+        : []),
+      ...(current.retrievalMrr != null && baseline.retrievalMrr != null
+        ? [
+            {
+              metric: 'retrievalMrr' as const,
+              current: current.retrievalMrr,
+              baseline: baseline.retrievalMrr,
+              delta: this.roundMetric(
+                current.retrievalMrr - baseline.retrievalMrr
+              )
+            }
+          ]
+        : [])
     ];
 
     return {
@@ -1133,7 +1296,12 @@ export class EvalQuestionSetsService {
       groundedRate,
       strongRate,
       fallbackRate,
-      averageCitationCount
+      averageCitationCount,
+      // Summaries written before retrieval metrics existed simply omit these.
+      retrievalEvaluatedQuestionCount:
+        this.readNumber(rawSummary.retrievalEvaluatedQuestionCount) ?? 0,
+      retrievalRecallAtK: this.readNumber(rawSummary.retrievalRecallAtK),
+      retrievalMrr: this.readNumber(rawSummary.retrievalMrr)
     };
   }
 

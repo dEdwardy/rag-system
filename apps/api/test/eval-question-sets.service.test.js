@@ -564,7 +564,10 @@ test('EvalQuestionSetsService runQuestionSet uses selected baseline snapshot que
     groundedRate: 1,
     strongRate: 1,
     fallbackRate: 0,
-    averageCitationCount: 1
+    averageCitationCount: 1,
+    retrievalEvaluatedQuestionCount: 0,
+    retrievalRecallAtK: null,
+    retrievalMrr: null
   });
   assert.deepEqual(result.qualityGate, {
     mode: 'warn',
@@ -649,6 +652,7 @@ test('EvalQuestionSetsService runQuestionSet uses selected baseline snapshot que
     'qualityPrimaryIssue',
     'citationCount',
     'usedFallback',
+    'retrieval',
     'error'
   ]);
   assert.match(result.reportExports.markdown.content, /# P5 v1 eval report/);
@@ -751,6 +755,7 @@ test('EvalQuestionSetsService runQuestionSet allows baseline override and captur
     qualityPrimaryIssue: null,
     citationCount: 0,
     usedFallback: null,
+    retrieval: null,
     error: {
       message: 'Ask pipeline failed.',
       code: 'ASK_PIPELINE_FAILED'
@@ -764,7 +769,10 @@ test('EvalQuestionSetsService runQuestionSet allows baseline override and captur
     groundedRate: 0,
     strongRate: 0,
     fallbackRate: 0,
-    averageCitationCount: 0
+    averageCitationCount: 0,
+    retrievalEvaluatedQuestionCount: 0,
+    retrievalRecallAtK: null,
+    retrievalMrr: null
   });
   assert.deepEqual(result.qualityGate, {
     mode: 'warn',
