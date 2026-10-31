@@ -23,7 +23,7 @@ export function buildAgentSurfaceLabels(locale: 'zh' | 'en') {
         mode: '模式',
         tools: '工具',
         routeExamples: '知识库 / 策略回复 / 外部来源',
-        modeExamples: 'manual / workflow',
+        modeExamples: '手动（manual） / 工作流（workflow）',
         toolExamples: '知识库搜索 / 外部来源抓取 / 策略回复',
         defaultPrimaryLabel: '打开 trace'
       }
