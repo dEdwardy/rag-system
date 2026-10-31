@@ -8,6 +8,7 @@
     "tmp",
     "storage",
     ".playwright-cli",
-    ".sisyphus"
+    ".sisyphus",
+    ".agents"
   ]
 }

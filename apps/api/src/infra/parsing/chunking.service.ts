@@ -177,7 +177,7 @@ export class ChunkingService {
       return "quote";
     }
 
-    if (/^```/.test(paragraph) || /^( {4}|\t)\S/.test(paragraph)) {
+    if (paragraph.startsWith("```") || /^( {4}|\t)\S/.test(paragraph)) {
       return "code";
     }
 
