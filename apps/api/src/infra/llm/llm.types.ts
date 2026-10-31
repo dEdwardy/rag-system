@@ -1,11 +1,11 @@
 export type AnswerPolicy = {
-  responseStyle: "concise" | "balanced" | "detailed";
-  tone: "neutral" | "friendly" | "direct";
-  outputFormat: "paragraph" | "bullets" | "markdown";
-  language: "auto" | "same_as_question" | "zh" | "en";
-  citationMode: "required" | "optional";
+  responseStyle: 'concise' | 'balanced' | 'detailed';
+  tone: 'neutral' | 'friendly' | 'direct';
+  outputFormat: 'paragraph' | 'bullets' | 'markdown';
+  language: 'auto' | 'same_as_question' | 'zh' | 'en';
+  citationMode: 'required' | 'optional';
   maxCitations: number;
-  noAnswerBehavior: "say_insufficient_context" | "best_effort";
+  noAnswerBehavior: 'say_insufficient_context' | 'best_effort';
   includeMissingInformation: boolean;
 };
 
@@ -19,11 +19,23 @@ export type RetrievedChunkInput = {
   sectionTitle: string | null;
 };
 
+export type ConversationHistoryMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export type LlmUsage = {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+};
+
 export type GenerateAnswerInput = {
   question: string;
   systemPrompt: string;
   answerPolicy: AnswerPolicy;
   chunks: RetrievedChunkInput[];
+  history?: ConversationHistoryMessage[];
 };
 
 export type GenerateAnswerStreamInput = GenerateAnswerInput & {
@@ -36,7 +48,8 @@ export type GenerateAnswerOutput = {
   modelName: string;
   promptId: string;
   usedFallback: boolean;
-  answerStatus?: "grounded" | "insufficient_context";
+  usage?: LlmUsage | null;
+  answerStatus?: 'grounded' | 'insufficient_context';
   missingInformation?: string[];
   citedChunkNumbers?: number[];
   citationEvidence?: Array<{
@@ -50,7 +63,8 @@ export type GenerateAnswerStreamOutput = {
   modelName: string;
   promptId: string;
   usedFallback: boolean;
-  answerStatus?: "grounded" | "insufficient_context";
+  usage?: LlmUsage | null;
+  answerStatus?: 'grounded' | 'insufficient_context';
   missingInformation?: string[];
   citedChunkNumbers?: number[];
   citationEvidence?: Array<{
@@ -61,6 +75,7 @@ export type GenerateAnswerStreamOutput = {
 
 export type RewriteQueryInput = {
   question: string;
+  history?: ConversationHistoryMessage[];
   signal?: AbortSignal;
 };
 
@@ -95,10 +110,10 @@ export type LlmToolCall = {
 };
 
 export type LlmChatMessage =
-  | { role: "system"; content: string }
-  | { role: "user"; content: string }
-  | { role: "assistant"; content: string | null; toolCalls?: LlmToolCall[] }
-  | { role: "tool"; toolCallId: string; name: string; content: string };
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; content: string | null; toolCalls?: LlmToolCall[] }
+  | { role: 'tool'; toolCallId: string; name: string; content: string };
 
 export type GenerateWithToolsInput = {
   messages: LlmChatMessage[];

@@ -1,57 +1,63 @@
-const assert = require("node:assert/strict");
-const { createLlmService, withEnv, withFetchMock } = require("./support/llm-test-helpers.js");
-const { resolveLlmRuntimeConfig } = require("../src/infra/llm/llm-runtime-config.ts");
+const assert = require('node:assert/strict');
+const {
+  createLlmService,
+  withEnv,
+  withFetchMock
+} = require('./support/llm-test-helpers.js');
+const {
+  resolveLlmRuntimeConfig
+} = require('../src/infra/llm/llm-runtime-config.ts');
 
 const conciseAnswerPolicy = {
-  responseStyle: "concise",
-  citationMode: "required",
+  responseStyle: 'concise',
+  citationMode: 'required',
   maxCitations: 2,
-  noAnswerBehavior: "say_insufficient_context"
+  noAnswerBehavior: 'say_insufficient_context'
 };
 
 const localizedAnswerPolicy = {
-  responseStyle: "concise",
-  tone: "neutral",
-  outputFormat: "paragraph",
-  citationMode: "required",
+  responseStyle: 'concise',
+  tone: 'neutral',
+  outputFormat: 'paragraph',
+  citationMode: 'required',
   maxCitations: 2,
-  noAnswerBehavior: "say_insufficient_context",
+  noAnswerBehavior: 'say_insufficient_context',
   includeMissingInformation: true
 };
 
-test("resolveLlmRuntimeConfig preserves current defaults", () => {
+test('resolveLlmRuntimeConfig preserves current defaults', () => {
   const config = resolveLlmRuntimeConfig({});
 
   assert.equal(config.ollamaBaseUrl, null);
   assert.equal(config.ollamaModel, null);
   assert.equal(config.openAiApiKey, null);
-  assert.equal(config.openAiBaseUrl, "https://api.openai.com/v1");
-  assert.equal(config.openAiChatModel, "gpt-4.1-mini");
+  assert.equal(config.openAiBaseUrl, 'https://api.openai.com/v1');
+  assert.equal(config.openAiChatModel, 'gpt-4.1-mini');
   assert.equal(config.answerTemperature, 0.2);
   assert.equal(config.rewriteTemperature, 0);
 });
 
-test("resolveLlmRuntimeConfig accepts bounded runtime overrides", () => {
+test('resolveLlmRuntimeConfig accepts bounded runtime overrides', () => {
   const config = resolveLlmRuntimeConfig({
-    OLLAMA_BASE_URL: "http://ollama.local:11434/",
-    OLLAMA_MODEL: "qwen-test",
-    OPENAI_API_KEY: "key",
-    OPENAI_BASE_URL: "https://openai.example/v1/",
-    OPENAI_CHAT_MODEL: "gpt-test",
-    LLM_ANSWER_TEMPERATURE: "0.45",
-    LLM_REWRITE_TEMPERATURE: "0.05"
+    OLLAMA_BASE_URL: 'http://ollama.local:11434/',
+    OLLAMA_MODEL: 'qwen-test',
+    OPENAI_API_KEY: 'key',
+    OPENAI_BASE_URL: 'https://openai.example/v1/',
+    OPENAI_CHAT_MODEL: 'gpt-test',
+    LLM_ANSWER_TEMPERATURE: '0.45',
+    LLM_REWRITE_TEMPERATURE: '0.05'
   });
 
-  assert.equal(config.ollamaBaseUrl, "http://ollama.local:11434/");
-  assert.equal(config.ollamaModel, "qwen-test");
-  assert.equal(config.openAiApiKey, "key");
-  assert.equal(config.openAiBaseUrl, "https://openai.example/v1");
-  assert.equal(config.openAiChatModel, "gpt-test");
+  assert.equal(config.ollamaBaseUrl, 'http://ollama.local:11434/');
+  assert.equal(config.ollamaModel, 'qwen-test');
+  assert.equal(config.openAiApiKey, 'key');
+  assert.equal(config.openAiBaseUrl, 'https://openai.example/v1');
+  assert.equal(config.openAiChatModel, 'gpt-test');
   assert.equal(config.answerTemperature, 0.45);
   assert.equal(config.rewriteTemperature, 0.05);
 });
 
-test("LlmService uses OpenAI runtime overrides for URL, model, and temperatures", async () => {
+test('LlmService uses OpenAI runtime overrides for URL, model, and temperatures', async () => {
   const service = createLlmService();
   const seenCalls = [];
 
@@ -59,59 +65,62 @@ test("LlmService uses OpenAI runtime overrides for URL, model, and temperatures"
     {
       OLLAMA_BASE_URL: undefined,
       OLLAMA_MODEL: undefined,
-      OPENAI_API_KEY: "test-key",
-      OPENAI_BASE_URL: "https://openai.example/v1/",
-      OPENAI_CHAT_MODEL: "gpt-custom",
-      LLM_ANSWER_TEMPERATURE: "0.35",
-      LLM_REWRITE_TEMPERATURE: "0.15"
+      OPENAI_API_KEY: 'test-key',
+      OPENAI_BASE_URL: 'https://openai.example/v1/',
+      OPENAI_CHAT_MODEL: 'gpt-custom',
+      LLM_ANSWER_TEMPERATURE: '0.35',
+      LLM_REWRITE_TEMPERATURE: '0.15'
     },
     async () => {
-      await withFetchMock(async (url, options) => {
-        seenCalls.push({ url, body: JSON.parse(options.body) });
+      await withFetchMock(
+        async (url, options) => {
+          seenCalls.push({ url, body: JSON.parse(options.body) });
 
-        return {
-          ok: true,
-          json: async () => ({
-            choices: [
-              {
-                message: {
-                  content:
-                    seenCalls.length === 1
-                      ? '{"answer":"Managed answer","status":"grounded","citations":[1],"missingInformation":[]}'
-                      : "managed rewritten query"
+          return {
+            ok: true,
+            json: async () => ({
+              choices: [
+                {
+                  message: {
+                    content:
+                      seenCalls.length === 1
+                        ? '{"answer":"Managed answer","status":"grounded","citations":[1],"missingInformation":[]}'
+                        : 'managed rewritten query'
+                  }
                 }
-              }
-            ]
-          })
-        };
-      }, async () => {
-        const answer = await service.generateAnswer({
-          question: "Where is the answer?",
-          systemPrompt: "ignored direct system prompt",
-          answerPolicy: conciseAnswerPolicy,
-          chunks: []
-        });
-        const rewrite = await service.rewriteQuery({
-          question: "Please tell me about product ABC in short"
-        });
+              ]
+            })
+          };
+        },
+        async () => {
+          const answer = await service.generateAnswer({
+            question: 'Where is the answer?',
+            systemPrompt: 'ignored direct system prompt',
+            answerPolicy: conciseAnswerPolicy,
+            chunks: []
+          });
+          const rewrite = await service.rewriteQuery({
+            question: 'Please tell me about product ABC in short'
+          });
 
-        assert.equal(answer.modelName, "gpt-custom");
-        assert.equal(rewrite.modelName, "gpt-custom");
-      });
+          assert.equal(answer.modelName, 'gpt-custom');
+          assert.equal(rewrite.modelName, 'gpt-custom');
+        }
+      );
     }
   );
 
   assert.equal(seenCalls.length, 2);
-  assert.equal(seenCalls[0].url, "https://openai.example/v1/chat/completions");
-  assert.equal(seenCalls[0].body.model, "gpt-custom");
+  assert.equal(seenCalls[0].url, 'https://openai.example/v1/chat/completions');
+  assert.equal(seenCalls[0].body.model, 'gpt-custom');
   assert.equal(seenCalls[0].body.temperature, 0.35);
-  assert.equal(seenCalls[0].body.reasoning_effort, "minimal");
-  assert.equal(seenCalls[1].url, "https://openai.example/v1/chat/completions");
-  assert.equal(seenCalls[1].body.model, "gpt-custom");
+  assert.equal(seenCalls[0].body.reasoning_effort, 'minimal');
+  assert.equal(seenCalls[1].url, 'https://openai.example/v1/chat/completions');
+  assert.equal(seenCalls[1].body.model, 'gpt-custom');
   assert.equal(seenCalls[1].body.temperature, 0.15);
 });
 
-test("LlmService uses prompt manager output for Ollama answer generation", async () => {
+test('LlmService uses prompt manager output for Ollama answer generation', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -128,22 +137,22 @@ test("LlmService uses prompt manager output for Ollama answer generation", async
     };
   };
 
-  process.env.OLLAMA_BASE_URL = "http://localhost:11434";
-  process.env.OLLAMA_MODEL = "test-model";
+  process.env.OLLAMA_BASE_URL = 'http://localhost:11434';
+  process.env.OLLAMA_MODEL = 'test-model';
 
   const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
-      question: "Where is the answer?",
-      systemPrompt: "ignored direct system prompt",
+      question: 'Where is the answer?',
+      systemPrompt: 'ignored direct system prompt',
       answerPolicy: conciseAnswerPolicy,
       chunks: []
     });
 
-    assert.equal(result.answer, "Managed answer");
+    assert.equal(result.answer, 'Managed answer');
     assert.equal(seenBodies.length, 1);
-    assert.equal(seenBodies[0].prompt, "managed full prompt");
+    assert.equal(seenBodies[0].prompt, 'managed full prompt');
   } finally {
     global.fetch = originalFetch;
     process.env.OLLAMA_BASE_URL = originalBaseUrl;
@@ -151,7 +160,7 @@ test("LlmService uses prompt manager output for Ollama answer generation", async
   }
 });
 
-test("LlmService uses prompt manager output for Ollama rewrite generation", async () => {
+test('LlmService uses prompt manager output for Ollama rewrite generation', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -162,24 +171,24 @@ test("LlmService uses prompt manager output for Ollama rewrite generation", asyn
     return {
       ok: true,
       json: async () => ({
-        response: "managed rewritten query"
+        response: 'managed rewritten query'
       })
     };
   };
 
-  process.env.OLLAMA_BASE_URL = "http://localhost:11434";
-  process.env.OLLAMA_MODEL = "test-model";
+  process.env.OLLAMA_BASE_URL = 'http://localhost:11434';
+  process.env.OLLAMA_MODEL = 'test-model';
 
   const service = createLlmService();
 
   try {
     const result = await service.rewriteQuery({
-      question: "Please tell me about product ABC in short"
+      question: 'Please tell me about product ABC in short'
     });
 
-    assert.equal(result.rewrittenQuery, "managed rewritten query");
+    assert.equal(result.rewrittenQuery, 'managed rewritten query');
     assert.equal(seenBodies.length, 1);
-    assert.equal(seenBodies[0].prompt, "managed rewrite full prompt");
+    assert.equal(seenBodies[0].prompt, 'managed rewrite full prompt');
   } finally {
     global.fetch = originalFetch;
     process.env.OLLAMA_BASE_URL = originalBaseUrl;
@@ -187,7 +196,7 @@ test("LlmService uses prompt manager output for Ollama rewrite generation", asyn
   }
 });
 
-test("LlmService normalizes structured answer JSON with schema constraints", async () => {
+test('LlmService normalizes structured answer JSON with schema constraints', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -200,23 +209,23 @@ test("LlmService normalizes structured answer JSON with schema constraints", asy
     })
   });
 
-  process.env.OLLAMA_BASE_URL = "http://localhost:11434";
-  process.env.OLLAMA_MODEL = "test-model";
+  process.env.OLLAMA_BASE_URL = 'http://localhost:11434';
+  process.env.OLLAMA_MODEL = 'test-model';
 
   const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
-      question: "Where is the answer?",
-      systemPrompt: "ignored direct system prompt",
+      question: 'Where is the answer?',
+      systemPrompt: 'ignored direct system prompt',
       answerPolicy: conciseAnswerPolicy,
       chunks: []
     });
 
-    assert.equal(result.answer, "Structured answer");
-    assert.equal(result.answerStatus, "grounded");
+    assert.equal(result.answer, 'Structured answer');
+    assert.equal(result.answerStatus, 'grounded');
     assert.deepEqual(result.citedChunkNumbers, [1, 2]);
-    assert.deepEqual(result.missingInformation, ["Need price"]);
+    assert.deepEqual(result.missingInformation, ['Need price']);
   } finally {
     global.fetch = originalFetch;
     process.env.OLLAMA_BASE_URL = originalBaseUrl;
@@ -224,7 +233,7 @@ test("LlmService normalizes structured answer JSON with schema constraints", asy
   }
 });
 
-test("LlmService preserves first-seen order when deduplicating missingInformation", async () => {
+test('LlmService preserves first-seen order when deduplicating missingInformation', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -237,20 +246,24 @@ test("LlmService preserves first-seen order when deduplicating missingInformatio
     })
   });
 
-  process.env.OLLAMA_BASE_URL = "http://localhost:11434";
-  process.env.OLLAMA_MODEL = "test-model";
+  process.env.OLLAMA_BASE_URL = 'http://localhost:11434';
+  process.env.OLLAMA_MODEL = 'test-model';
 
   const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
-      question: "Where is the answer?",
-      systemPrompt: "ignored direct system prompt",
+      question: 'Where is the answer?',
+      systemPrompt: 'ignored direct system prompt',
       answerPolicy: conciseAnswerPolicy,
       chunks: []
     });
 
-    assert.deepEqual(result.missingInformation, ["Need price", "Need timeline", "Need owner"]);
+    assert.deepEqual(result.missingInformation, [
+      'Need price',
+      'Need timeline',
+      'Need owner'
+    ]);
   } finally {
     global.fetch = originalFetch;
     process.env.OLLAMA_BASE_URL = originalBaseUrl;
@@ -258,7 +271,7 @@ test("LlmService preserves first-seen order when deduplicating missingInformatio
   }
 });
 
-test("LlmService parses structured citation evidence objects", async () => {
+test('LlmService parses structured citation evidence objects', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -271,25 +284,25 @@ test("LlmService parses structured citation evidence objects", async () => {
     })
   });
 
-  process.env.OLLAMA_BASE_URL = "http://localhost:11434";
-  process.env.OLLAMA_MODEL = "test-model";
+  process.env.OLLAMA_BASE_URL = 'http://localhost:11434';
+  process.env.OLLAMA_MODEL = 'test-model';
 
   const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
-      question: "Where is the marker?",
-      systemPrompt: "ignored direct system prompt",
+      question: 'Where is the marker?',
+      systemPrompt: 'ignored direct system prompt',
       answerPolicy: conciseAnswerPolicy,
       chunks: []
     });
 
-    assert.equal(result.answer, "Structured answer");
+    assert.equal(result.answer, 'Structured answer');
     assert.deepEqual(result.citedChunkNumbers, [1]);
     assert.deepEqual(result.citationEvidence, [
       {
         source: 1,
-        quote: "retrieved content marker"
+        quote: 'retrieved content marker'
       }
     ]);
   } finally {
@@ -299,7 +312,7 @@ test("LlmService parses structured citation evidence objects", async () => {
   }
 });
 
-test("LlmService falls back when structured answer payload fails schema validation", async () => {
+test('LlmService falls back when structured answer payload fails schema validation', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -311,15 +324,15 @@ test("LlmService falls back when structured answer payload fails schema validati
     })
   });
 
-  process.env.OLLAMA_BASE_URL = "http://localhost:11434";
-  process.env.OLLAMA_MODEL = "test-model";
+  process.env.OLLAMA_BASE_URL = 'http://localhost:11434';
+  process.env.OLLAMA_MODEL = 'test-model';
 
   const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
-      question: "Where is the answer?",
-      systemPrompt: "ignored direct system prompt",
+      question: 'Where is the answer?',
+      systemPrompt: 'ignored direct system prompt',
       answerPolicy: conciseAnswerPolicy,
       chunks: []
     });
@@ -337,7 +350,7 @@ test("LlmService falls back when structured answer payload fails schema validati
   }
 });
 
-test("LlmService local fallback no-hit answer respects explicit zh language policy", async () => {
+test('LlmService local fallback no-hit answer respects explicit zh language policy', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -351,14 +364,17 @@ test("LlmService local fallback no-hit answer respects explicit zh language poli
 
   try {
     const result = await service.generateAnswer({
-      question: "价格是多少？",
-      systemPrompt: "ignored direct system prompt",
-      answerPolicy: { ...localizedAnswerPolicy, language: "zh" },
+      question: '价格是多少？',
+      systemPrompt: 'ignored direct system prompt',
+      answerPolicy: { ...localizedAnswerPolicy, language: 'zh' },
       chunks: []
     });
 
-    assert.equal(result.answer, "我没有在知识库中找到足够相关的信息来回答这个问题。");
-    assert.equal(result.answerStatus, "insufficient_context");
+    assert.equal(
+      result.answer,
+      '我没有在知识库中找到足够相关的信息来回答这个问题。'
+    );
+    assert.equal(result.answerStatus, 'insufficient_context');
   } finally {
     global.fetch = originalFetch;
     process.env.OLLAMA_BASE_URL = originalBaseUrl;
@@ -367,7 +383,7 @@ test("LlmService local fallback no-hit answer respects explicit zh language poli
   }
 });
 
-test("LlmService local fallback no-hit answer follows same_as_question language detection", async () => {
+test('LlmService local fallback no-hit answer follows same_as_question language detection', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -381,14 +397,17 @@ test("LlmService local fallback no-hit answer follows same_as_question language 
 
   try {
     const result = await service.generateAnswer({
-      question: "这个文档里提到了什么？",
-      systemPrompt: "ignored direct system prompt",
-      answerPolicy: { ...localizedAnswerPolicy, language: "same_as_question" },
+      question: '这个文档里提到了什么？',
+      systemPrompt: 'ignored direct system prompt',
+      answerPolicy: { ...localizedAnswerPolicy, language: 'same_as_question' },
       chunks: []
     });
 
-    assert.equal(result.answer, "我没有在知识库中找到足够相关的信息来回答这个问题。");
-    assert.equal(result.answerStatus, "insufficient_context");
+    assert.equal(
+      result.answer,
+      '我没有在知识库中找到足够相关的信息来回答这个问题。'
+    );
+    assert.equal(result.answerStatus, 'insufficient_context');
   } finally {
     global.fetch = originalFetch;
     process.env.OLLAMA_BASE_URL = originalBaseUrl;
@@ -397,7 +416,7 @@ test("LlmService local fallback no-hit answer follows same_as_question language 
   }
 });
 
-test("LlmService local fallback no-hit missingInformation follows same_as_question language detection", async () => {
+test('LlmService local fallback no-hit missingInformation follows same_as_question language detection', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -411,14 +430,15 @@ test("LlmService local fallback no-hit missingInformation follows same_as_questi
 
   try {
     const result = await service.generateAnswer({
-      question: "\u8fd9\u4e2a\u6587\u6863\u91cc\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f",
-      systemPrompt: "ignored direct system prompt",
-      answerPolicy: { ...localizedAnswerPolicy, language: "same_as_question" },
+      question:
+        '\u8fd9\u4e2a\u6587\u6863\u91cc\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f',
+      systemPrompt: 'ignored direct system prompt',
+      answerPolicy: { ...localizedAnswerPolicy, language: 'same_as_question' },
       chunks: []
     });
 
     assert.deepEqual(result.missingInformation, [
-      "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002"
+      '\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002'
     ]);
   } finally {
     global.fetch = originalFetch;
@@ -428,7 +448,7 @@ test("LlmService local fallback no-hit missingInformation follows same_as_questi
   }
 });
 
-test("LlmService local fallback grounded answer respects explicit zh language policy", async () => {
+test('LlmService local fallback grounded answer respects explicit zh language policy', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -442,22 +462,26 @@ test("LlmService local fallback grounded answer respects explicit zh language po
 
   try {
     const result = await service.generateAnswer({
-      question: "\u8fd9\u4e2a\u6587\u6863\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f",
-      systemPrompt: "ignored direct system prompt",
-      answerPolicy: { ...localizedAnswerPolicy, language: "zh" },
+      question: '\u8fd9\u4e2a\u6587\u6863\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f',
+      systemPrompt: 'ignored direct system prompt',
+      answerPolicy: { ...localizedAnswerPolicy, language: 'zh' },
       chunks: [
         {
-          content: "\u8fd9\u662f\u68c0\u7d22\u5230\u7684\u4e2d\u6587\u7247\u6bb5\u3002",
-          sourceId: "source-1",
-          chunkId: "chunk-1",
+          content:
+            '\u8fd9\u662f\u68c0\u7d22\u5230\u7684\u4e2d\u6587\u7247\u6bb5\u3002',
+          sourceId: 'source-1',
+          chunkId: 'chunk-1',
           score: 0.8,
           metadata: {}
         }
       ]
     });
 
-    assert.equal(result.answer, "\u6839\u636e\u68c0\u7d22\u5230\u7684\u6765\u6e90 [1]\uff0c\u76ee\u524d\u6700\u76f8\u5173\u7684\u4fe1\u606f\u662f\uff1a\n\n\u8fd9\u662f\u68c0\u7d22\u5230\u7684\u4e2d\u6587\u7247\u6bb5\u3002");
-    assert.equal(result.answerStatus, "grounded");
+    assert.equal(
+      result.answer,
+      '\u6839\u636e\u68c0\u7d22\u5230\u7684\u6765\u6e90 [1]\uff0c\u76ee\u524d\u6700\u76f8\u5173\u7684\u4fe1\u606f\u662f\uff1a\n\n\u8fd9\u662f\u68c0\u7d22\u5230\u7684\u4e2d\u6587\u7247\u6bb5\u3002'
+    );
+    assert.equal(result.answerStatus, 'grounded');
     assert.deepEqual(result.citedChunkNumbers, [1]);
   } finally {
     global.fetch = originalFetch;
@@ -467,7 +491,7 @@ test("LlmService local fallback grounded answer respects explicit zh language po
   }
 });
 
-test("LlmService local fallback grounded answer follows same_as_question language detection", async () => {
+test('LlmService local fallback grounded answer follows same_as_question language detection', async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;
   const originalModel = process.env.OLLAMA_MODEL;
@@ -481,22 +505,26 @@ test("LlmService local fallback grounded answer follows same_as_question languag
 
   try {
     const result = await service.generateAnswer({
-      question: "\u8fd9\u4e2a\u6587\u6863\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f",
-      systemPrompt: "ignored direct system prompt",
-      answerPolicy: { ...localizedAnswerPolicy, language: "same_as_question" },
+      question: '\u8fd9\u4e2a\u6587\u6863\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f',
+      systemPrompt: 'ignored direct system prompt',
+      answerPolicy: { ...localizedAnswerPolicy, language: 'same_as_question' },
       chunks: [
         {
-          content: "\u8fd9\u662f\u68c0\u7d22\u5230\u7684\u4e2d\u6587\u7247\u6bb5\u3002",
-          sourceId: "source-1",
-          chunkId: "chunk-1",
+          content:
+            '\u8fd9\u662f\u68c0\u7d22\u5230\u7684\u4e2d\u6587\u7247\u6bb5\u3002',
+          sourceId: 'source-1',
+          chunkId: 'chunk-1',
           score: 0.8,
           metadata: {}
         }
       ]
     });
 
-    assert.equal(result.answer, "\u6839\u636e\u68c0\u7d22\u5230\u7684\u6765\u6e90 [1]\uff0c\u76ee\u524d\u6700\u76f8\u5173\u7684\u4fe1\u606f\u662f\uff1a\n\n\u8fd9\u662f\u68c0\u7d22\u5230\u7684\u4e2d\u6587\u7247\u6bb5\u3002");
-    assert.equal(result.answerStatus, "grounded");
+    assert.equal(
+      result.answer,
+      '\u6839\u636e\u68c0\u7d22\u5230\u7684\u6765\u6e90 [1]\uff0c\u76ee\u524d\u6700\u76f8\u5173\u7684\u4fe1\u606f\u662f\uff1a\n\n\u8fd9\u662f\u68c0\u7d22\u5230\u7684\u4e2d\u6587\u7247\u6bb5\u3002'
+    );
+    assert.equal(result.answerStatus, 'grounded');
     assert.deepEqual(result.citedChunkNumbers, [1]);
   } finally {
     global.fetch = originalFetch;
@@ -506,11 +534,12 @@ test("LlmService local fallback grounded answer follows same_as_question languag
   }
 });
 
-test("LlmService fills a refusal when the structured answer is empty", () => {
+test('LlmService fills a refusal when the structured answer is empty', () => {
   const service = createLlmService();
 
   const result = service.parseStructuredAnswer({
-    rawAnswer: '{"answer":"","status":"insufficient_context","citations":[],"missingInformation":[]}',
+    rawAnswer:
+      '{"answer":"","status":"insufficient_context","citations":[],"missingInformation":[]}',
     modelName: 'test-model',
     promptId: 'answer.v3',
     usedFallback: false
@@ -521,7 +550,7 @@ test("LlmService fills a refusal when the structured answer is empty", () => {
   assert.deepEqual(result.citedChunkNumbers, []);
 });
 
-test("LlmService still rejects an empty answer without an insufficient_context status", () => {
+test('LlmService still rejects an empty answer without an insufficient_context status', () => {
   const service = createLlmService();
 
   const result = service.parseStructuredAnswer({
@@ -534,4 +563,21 @@ test("LlmService still rejects an empty answer without an insufficient_context s
   // Falls into the unreadable-payload branch, so it never leaks raw JSON.
   assert.equal(result.answer, '资料中没有足够信息来回答这个问题。');
   assert.equal(result.answerStatus, 'insufficient_context');
+});
+test('readOpenAiUsage and readOllamaUsage normalize provider usage payloads', () => {
+  const {
+    readOpenAiUsage,
+    readOllamaUsage
+  } = require('../src/infra/llm/llm.service.ts');
+
+  assert.deepEqual(
+    readOpenAiUsage({ usage: { prompt_tokens: 12, completion_tokens: 5 } }),
+    { promptTokens: 12, completionTokens: 5, totalTokens: 17 }
+  );
+  assert.deepEqual(readOllamaUsage({ prompt_eval_count: 9, eval_count: 4 }), {
+    promptTokens: 9,
+    completionTokens: 4,
+    totalTokens: 13
+  });
+  assert.equal(readOpenAiUsage({ usage: null }), null);
 });

@@ -1,14 +1,28 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
-import { DocumentProcessingStage, DocumentRunFailedStage, DocumentStatus } from "@prisma/client";
-import { PrismaService } from "../../infra/database/prisma.service";
-import { getDocumentIngestionQueueName } from "../../infra/queue/queue.constants";
-import { QueueRuntimeConfigService } from "../../infra/queue/queue-runtime-config";
-import { QueueService } from "../../infra/queue/queue.service";
-import { QUEUE_PROVIDER_SERVICE, type QueueProviderService, type RedisQueuedDocumentJob } from "../../infra/queue/queue-provider.service";
-import { DocumentRunsService } from "../document-runs/document-runs.service";
-import { DocumentIngestionProcessor } from "./document-ingestion.processor";
-import type { DocumentIngestionJob } from "./document-ingestion.processor";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import {
+  DocumentProcessingStage,
+  DocumentRunFailedStage,
+  DocumentStatus
+} from '@prisma/client';
+import { PrismaService } from '../../infra/database/prisma.service';
+import { getDocumentIngestionQueueName } from '../../infra/queue/queue.constants';
+import { QueueRuntimeConfigService } from '../../infra/queue/queue-runtime-config';
+import { QueueService } from '../../infra/queue/queue.service';
+import {
+  QUEUE_PROVIDER_SERVICE,
+  type QueueProviderService,
+  type RedisQueuedDocumentJob
+} from '../../infra/queue/queue-provider.service';
+import { DocumentRunsService } from '../document-runs/document-runs.service';
+import { DocumentIngestionProcessor } from './document-ingestion.processor';
+import type { DocumentIngestionJob } from './document-ingestion.processor';
 
 @Injectable()
 export class IngestionService implements OnModuleInit, OnModuleDestroy {
@@ -21,8 +35,10 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     @Inject(QueueService) private readonly queueService: QueueService,
-    @Inject(QUEUE_PROVIDER_SERVICE) private readonly queueProviderService: QueueProviderService,
-    @Inject(QueueRuntimeConfigService) private readonly queueRuntimeConfigService: QueueRuntimeConfigService,
+    @Inject(QUEUE_PROVIDER_SERVICE)
+    private readonly queueProviderService: QueueProviderService,
+    @Inject(QueueRuntimeConfigService)
+    private readonly queueRuntimeConfigService: QueueRuntimeConfigService,
     private readonly documentIngestionProcessor: DocumentIngestionProcessor,
     private readonly prisma: PrismaService,
     private readonly documentRunsService: DocumentRunsService
@@ -31,51 +47,62 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   }
 
   enqueueDocument(documentId: string, documentVersion?: number) {
-    return this.queueService.addDocumentIngestionJob(documentId, documentVersion);
+    return this.queueService.addDocumentIngestionJob(
+      documentId,
+      documentVersion
+    );
   }
 
   onModuleInit() {
-    this.logger.log("IngestionService onModuleInit entered.");
-    const runtimeConfig = this.runtimeConfig ?? this.queueRuntimeConfigService.getConfig();
+    this.logger.log('IngestionService onModuleInit entered.');
+    const runtimeConfig =
+      this.runtimeConfig ?? this.queueRuntimeConfigService.getConfig();
 
     if (!runtimeConfig.enableDocumentIngestionWorker) {
-      this.logger.log("Document ingestion worker startup disabled by runtime config.");
+      this.logger.log(
+        'Document ingestion worker startup disabled by runtime config.'
+      );
       return;
     }
 
-    if (runtimeConfig.provider === "database") {
+    if (runtimeConfig.provider === 'database') {
       this.startDatabaseWorker();
       return;
     }
 
-    if (runtimeConfig.provider === "redis") {
-      void Promise.resolve().then(() => this.startRedisWorker()).catch(error => {
-        this.logWorkerLoopError("redis startup", error);
-      });
+    if (runtimeConfig.provider === 'redis') {
+      void Promise.resolve()
+        .then(() => this.startRedisWorker())
+        .catch((error) => {
+          this.logWorkerLoopError('redis startup', error);
+        });
     }
   }
 
   private startDatabaseWorker() {
-    this.logger.log("Starting database-backed document ingestion worker.");
+    this.logger.log('Starting database-backed document ingestion worker.');
     this.databasePollTimer = setInterval(() => {
-      void this.runWorkerPollSafely("database", () => this.pollDatabaseQueue());
+      void this.runWorkerPollSafely('database', () => this.pollDatabaseQueue());
     }, this.runtimeConfig.databasePollIntervalMs);
 
-    void this.runWorkerPollSafely("database", () => this.pollDatabaseQueue());
+    void this.runWorkerPollSafely('database', () => this.pollDatabaseQueue());
   }
 
   private async startRedisWorker() {
-    this.logger.log("Starting redis-backed document ingestion worker.");
+    this.logger.log('Starting redis-backed document ingestion worker.');
     await this.queueService.ensureDocumentIngestionQueueReady();
 
     this.databasePollTimer = setInterval(() => {
-      void this.runWorkerPollSafely("redis", () => this.pollRedisQueue());
+      void this.runWorkerPollSafely('redis', () => this.pollRedisQueue());
     }, this.runtimeConfig.databasePollIntervalMs);
 
-    void this.runWorkerPollSafely("redis", () => this.pollRedisQueue());
+    void this.runWorkerPollSafely('redis', () => this.pollRedisQueue());
   }
 
-  private async runWorkerPollSafely(workerName: string, operation: () => Promise<void>) {
+  private async runWorkerPollSafely(
+    workerName: string,
+    operation: () => Promise<void>
+  ) {
     try {
       await operation();
     } catch (error) {
@@ -91,7 +118,10 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.databasePollInFlight = true;
 
     try {
-      while (this.activeTasks.size < this.runtimeConfig.maxConcurrentIngestionTasks) {
+      await this.reapStaleDatabaseJobs();
+      while (
+        this.activeTasks.size < this.runtimeConfig.maxConcurrentIngestionTasks
+      ) {
         const job = await this.claimNextDatabaseJob();
         if (!job) {
           break;
@@ -121,8 +151,19 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.databasePollInFlight = true;
 
     try {
-      while (this.activeTasks.size < this.runtimeConfig.maxConcurrentIngestionTasks) {
-        const job = await this.queueProviderService.claimNextDocumentIngestionJob?.();
+      const recovered =
+        (await this.queueProviderService.recoverStaleDocumentIngestionJobs?.()) ??
+        0;
+      if (recovered > 0) {
+        this.logger.warn(
+          `Recovered ${recovered} stale redis ingestion job(s).`
+        );
+      }
+      while (
+        this.activeTasks.size < this.runtimeConfig.maxConcurrentIngestionTasks
+      ) {
+        const job =
+          await this.queueProviderService.claimNextDocumentIngestionJob?.();
         if (!job) {
           break;
         }
@@ -143,8 +184,59 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async reapStaleDatabaseJobs() {
+    const queueName = getDocumentIngestionQueueName();
+    const leaseMs = (this.runtimeConfig.maxTaskTimeoutMs ?? 300000) * 2;
+    const staleBefore = new Date(Date.now() - leaseMs);
+
+    const recovered = await this.prisma.$executeRaw(
+      Prisma.sql`
+        UPDATE "IngestionQueueJob"
+        SET
+          "status" = 'pending',
+          "availableAt" = NOW(),
+          "lockedAt" = NULL,
+          "lastError" = 'recovered stale processing lease',
+          "updatedAt" = NOW()
+        WHERE "queueName" = ${queueName}
+          AND "status" = 'processing'
+          AND "lockedAt" < ${staleBefore}
+          AND "attempts" < "maxAttempts"
+      `
+    );
+
+    const failed = await this.prisma.$executeRaw(
+      Prisma.sql`
+        UPDATE "IngestionQueueJob"
+        SET
+          "status" = 'failed',
+          "lockedAt" = NULL,
+          "lastError" = 'processing lease expired after max attempts',
+          "updatedAt" = NOW()
+        WHERE "queueName" = ${queueName}
+          AND "status" = 'processing'
+          AND "lockedAt" < ${staleBefore}
+          AND "attempts" >= "maxAttempts"
+      `
+    );
+
+    if (recovered > 0 || failed > 0) {
+      this.logger.warn(
+        `Recovered ${recovered} stale ingestion job(s); failed ${failed} expired job(s).`
+      );
+    }
+  }
+
   private async claimNextDatabaseJob() {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; documentId: string; documentVersion: number | null; attempts: number; maxAttempts: number }>>(
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        documentId: string;
+        documentVersion: number | null;
+        attempts: number;
+        maxAttempts: number;
+      }>
+    >(
       Prisma.sql`
         WITH next_job AS (
           SELECT "id"
@@ -170,7 +262,13 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     return rows[0] ?? null;
   }
 
-  private async processDatabaseJob(job: { id: string; documentId: string; documentVersion: number | null; attempts: number; maxAttempts: number }) {
+  private async processDatabaseJob(job: {
+    id: string;
+    documentId: string;
+    documentVersion: number | null;
+    attempts: number;
+    maxAttempts: number;
+  }) {
     try {
       await this.documentIngestionProcessor.processDocument({
         id: job.id,
@@ -192,15 +290,20 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
         `
       );
     } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error("Unknown ingestion worker error.");
+      const normalizedError =
+        error instanceof Error
+          ? error
+          : new Error('Unknown ingestion worker error.');
       const shouldRetry = job.attempts < job.maxAttempts;
-      const nextAvailableAt = new Date(Date.now() + this.runtimeConfig.databaseRetryDelayMs);
+      const nextAvailableAt = new Date(
+        Date.now() + this.runtimeConfig.databaseRetryDelayMs
+      );
 
       await this.prisma.$executeRaw(
         Prisma.sql`
           UPDATE "IngestionQueueJob"
           SET
-            "status" = ${shouldRetry ? "pending" : "failed"},
+            "status" = ${shouldRetry ? 'pending' : 'failed'},
             "availableAt" = ${shouldRetry ? nextAvailableAt : new Date()},
             "lockedAt" = NULL,
             "lastError" = ${normalizedError.message},
@@ -238,8 +341,14 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
 
       await this.queueProviderService.completeDocumentIngestionJob?.(job);
     } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error("Unknown ingestion worker error.");
-      await this.queueProviderService.retryDocumentIngestionJob?.(job, normalizedError);
+      const normalizedError =
+        error instanceof Error
+          ? error
+          : new Error('Unknown ingestion worker error.');
+      await this.queueProviderService.retryDocumentIngestionJob?.(
+        job,
+        normalizedError
+      );
       await this.handleFailedJob(
         {
           id: `redis-${job.id}`,
@@ -258,18 +367,27 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async handleFailedJob(
-    job: { id?: string; data?: DocumentIngestionJob["data"]; attemptsMade?: number; opts?: { attempts?: number } } | undefined,
+    job:
+      | {
+          id?: string;
+          data?: DocumentIngestionJob['data'];
+          attemptsMade?: number;
+          opts?: { attempts?: number };
+        }
+      | undefined,
     error: Error
   ) {
     try {
-      this.logger.error(`Document ingestion failed for job ${job?.id}: ${error.message}`);
+      this.logger.error(
+        `Document ingestion failed for job ${job?.id}: ${error.message}`
+      );
 
-      if (!job?.data || typeof job.data.documentVersion !== "number") {
+      if (!job?.data || typeof job.data.documentVersion !== 'number') {
         return;
       }
 
       const attempts = job.opts?.attempts ?? 1;
-      if (typeof job.attemptsMade === "number" && job.attemptsMade < attempts) {
+      if (typeof job.attemptsMade === 'number' && job.attemptsMade < attempts) {
         return;
       }
 
@@ -287,14 +405,17 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       if (
         !currentDocument ||
         currentDocument.version !== job.data.documentVersion ||
-        (currentDocument.status !== DocumentStatus.pending && currentDocument.status !== DocumentStatus.processing)
+        (currentDocument.status !== DocumentStatus.pending &&
+          currentDocument.status !== DocumentStatus.processing)
       ) {
         return;
       }
 
-      const failedStage = this.resolveFailedStage(currentDocument.processingStage);
+      const failedStage = this.resolveFailedStage(
+        currentDocument.processingStage
+      );
       const diagnosticsJson = {
-        code: "INGESTION_QUEUE_JOB_FAILED",
+        code: 'INGESTION_QUEUE_JOB_FAILED',
         failedStage,
         retryable: true,
         documentVersion: job.data.documentVersion,
@@ -321,13 +442,22 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      await this.documentRunsService.markRunFailed(job.data.documentId, job.data.documentVersion, {
-        failedStage,
-        diagnosticsJson
-      });
+      await this.documentRunsService.markRunFailed(
+        job.data.documentId,
+        job.data.documentVersion,
+        {
+          failedStage,
+          diagnosticsJson
+        }
+      );
     } catch (reconciliationError) {
-      const message = reconciliationError instanceof Error ? reconciliationError.message : "Unknown ingestion reconciliation error.";
-      this.logger.error(`Document ingestion failure reconciliation failed for job ${job?.id}: ${message}`);
+      const message =
+        reconciliationError instanceof Error
+          ? reconciliationError.message
+          : 'Unknown ingestion reconciliation error.';
+      this.logger.error(
+        `Document ingestion failure reconciliation failed for job ${job?.id}: ${message}`
+      );
     }
   }
 
@@ -344,11 +474,26 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   }
 
   private logWorkerLoopError(workerName: string, error: unknown) {
-    const normalizedError = error instanceof Error ? error : new Error("Unknown ingestion worker polling error.");
-    this.logger.error(`Document ingestion ${workerName} worker poll failed: ${normalizedError.message}`, normalizedError.stack);
+    const normalizedError =
+      error instanceof Error
+        ? error
+        : new Error('Unknown ingestion worker polling error.');
+    this.logger.error(
+      `Document ingestion ${workerName} worker poll failed: ${normalizedError.message}`,
+      normalizedError.stack
+    );
   }
 
-  private async processDatabaseJobWithTimeout(job: { id: string; documentId: string; documentVersion: number | null; attempts: number; maxAttempts: number }, taskId: string) {
+  private async processDatabaseJobWithTimeout(
+    job: {
+      id: string;
+      documentId: string;
+      documentVersion: number | null;
+      attempts: number;
+      maxAttempts: number;
+    },
+    taskId: string
+  ) {
     const abortController = new AbortController();
     this.taskAbortControllers.set(taskId, abortController);
 
@@ -358,14 +503,22 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
         new Promise<void>((_, reject) => {
           const timeout = setTimeout(() => {
             abortController.abort();
-            reject(new Error(`Task ${taskId} timed out after ${this.runtimeConfig.maxTaskTimeoutMs}ms`));
+            reject(
+              new Error(
+                `Task ${taskId} timed out after ${this.runtimeConfig.maxTaskTimeoutMs}ms`
+              )
+            );
           }, this.runtimeConfig.maxTaskTimeoutMs);
-          abortController.signal.addEventListener('abort', () => clearTimeout(timeout));
+          abortController.signal.addEventListener('abort', () =>
+            clearTimeout(timeout)
+          );
         })
       ]);
     } catch (error) {
-      this.logger.error(`Database job ${job.id} failed: ${error instanceof Error ? error.message : String(error)}`);
-      
+      this.logger.error(
+        `Database job ${job.id} failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+
       const shouldRetry = job.attempts < job.maxAttempts;
       if (!shouldRetry) {
         await this.prisma.$executeRaw(
@@ -384,7 +537,10 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async processRedisJobWithTimeout(job: RedisQueuedDocumentJob, taskId: string) {
+  private async processRedisJobWithTimeout(
+    job: RedisQueuedDocumentJob,
+    taskId: string
+  ) {
     const abortController = new AbortController();
     this.taskAbortControllers.set(taskId, abortController);
 
@@ -394,13 +550,21 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
         new Promise<void>((_, reject) => {
           const timeout = setTimeout(() => {
             abortController.abort();
-            reject(new Error(`Task ${taskId} timed out after ${this.runtimeConfig.maxTaskTimeoutMs}ms`));
+            reject(
+              new Error(
+                `Task ${taskId} timed out after ${this.runtimeConfig.maxTaskTimeoutMs}ms`
+              )
+            );
           }, this.runtimeConfig.maxTaskTimeoutMs);
-          abortController.signal.addEventListener("abort", () => clearTimeout(timeout));
+          abortController.signal.addEventListener('abort', () =>
+            clearTimeout(timeout)
+          );
         })
       ]);
     } catch (error) {
-      this.logger.error(`Redis job ${job.id} failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Redis job ${job.id} failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -410,7 +574,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     }
     this.taskAbortControllers.clear();
     this.activeTasks.clear();
-    
+
     if (this.databasePollTimer) {
       clearInterval(this.databasePollTimer);
       this.databasePollTimer = undefined;

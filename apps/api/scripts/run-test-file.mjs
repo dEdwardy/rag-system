@@ -18,6 +18,12 @@ const fastTestFiles = new Set([
   'test/ask-stream-retrieval-failure.test.js',
   'test/ask-stream-service.test.js',
   'test/ask-success.test.js',
+  'test/ask-evidence.test.js',
+  'test/ask-history.test.js',
+  'test/conversation-history.test.js',
+  'test/retrieval-evidence.test.js',
+  'test/source-url-safety.test.js',
+  'test/agent-langgraph-stream.test.js',
   'test/auth-surface-route-policy.test.js',
   'test/chunking.test.js',
   'test/conversations.service.test.js',
@@ -39,17 +45,21 @@ const fastTestFiles = new Set([
   'test/knowledge-bases-auth-write-path.test.js',
   'test/llm-answer-stream.test.js',
   'test/llm.test.js',
+  'test/message-feedback.service.test.js',
   'test/parsing.test.js',
   'test/prompt-manager.test.js',
   'test/auth-provider-boundary.test.js',
   'test/retrieval-profiles-auth-scope.test.js',
+  'test/redis-queue.test.js',
   'test/retrieval.test.js',
   'test/reused-answer-content.test.js',
+  'test/sse-stream-writer.test.js',
   'test/messages.service.test.js',
   'test/conversation-reuse-flag.test.js',
   'test/storage.service.test.js',
   'test/tool-calling.test.js',
   'test/traces.service.test.js',
+  'test/traces-usage-summary.test.js',
   'test/vector-store-runtime-config.test.js',
   'test/vitest-config.test.js'
 ]);
@@ -110,7 +120,12 @@ const result = spawnSync(
     : [tsxCliPath, '--test', '--test-concurrency=1', ...normalizedArgs],
   {
     cwd: apiRoot,
-    stdio: 'inherit'
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      SOURCE_FETCH_ALLOW_PRIVATE_NETWORK:
+        process.env.SOURCE_FETCH_ALLOW_PRIVATE_NETWORK ?? 'true'
+    }
   }
 );
 

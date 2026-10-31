@@ -1,3 +1,5 @@
+import { assertSafeSourceUrl } from './source-url-safety';
+
 type FetchWithRetryInput = {
   url: string;
   headers?: HeadersInit;
@@ -8,34 +10,35 @@ type FetchWithRetryInput = {
 const MAX_FOLLOW_REDIRECTS = 5;
 const MAX_REDIRECT_TARGET_DIAGNOSTIC_LENGTH = 160;
 const FETCH_URL_PREFIX_PATTERN = /^Failed to fetch\s+\S+:\s*/i;
-const FETCH_SOURCE_LABEL_PREFIX_PATTERN = /^Failed to fetch\s+(web page|feed|sitemap):\s*/i;
+const FETCH_SOURCE_LABEL_PREFIX_PATTERN =
+  /^Failed to fetch\s+(web page|feed|sitemap):\s*/i;
 const COURTESY_ROBOTS_TIMEOUT_MS = 5000;
-const COURTESY_USER_AGENT = "rag-system-bot";
+const COURTESY_USER_AGENT = 'rag-system-bot';
 const TRANSIENT_NETWORK_ERROR_CODES = new Set([
-  "ECONNRESET",
-  "ECONNREFUSED",
-  "EHOSTUNREACH",
-  "ENETDOWN",
-  "ENETRESET",
-  "ENETUNREACH",
-  "ENOTFOUND",
-  "EAI_AGAIN",
-  "ETIMEDOUT",
-  "UND_ERR_CONNECT_TIMEOUT",
-  "UND_ERR_HEADERS_TIMEOUT"
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EHOSTUNREACH',
+  'ENETDOWN',
+  'ENETRESET',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ETIMEDOUT',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT'
 ]);
 const FETCH_ERROR_CODE_LABELS = new Map([
-  ["ECONNRESET", "connection reset"],
-  ["ECONNREFUSED", "connection refused"],
-  ["EHOSTUNREACH", "host unreachable"],
-  ["ENETDOWN", "network down"],
-  ["ENETRESET", "network reset"],
-  ["ENETUNREACH", "network unreachable"],
-  ["ENOTFOUND", "host not found"],
-  ["EAI_AGAIN", "temporary DNS lookup failure"],
-  ["ETIMEDOUT", "timed out"],
-  ["UND_ERR_CONNECT_TIMEOUT", "connection timed out"],
-  ["UND_ERR_HEADERS_TIMEOUT", "headers timed out"]
+  ['ECONNRESET', 'connection reset'],
+  ['ECONNREFUSED', 'connection refused'],
+  ['EHOSTUNREACH', 'host unreachable'],
+  ['ENETDOWN', 'network down'],
+  ['ENETRESET', 'network reset'],
+  ['ENETUNREACH', 'network unreachable'],
+  ['ENOTFOUND', 'host not found'],
+  ['EAI_AGAIN', 'temporary DNS lookup failure'],
+  ['ETIMEDOUT', 'timed out'],
+  ['UND_ERR_CONNECT_TIMEOUT', 'connection timed out'],
+  ['UND_ERR_HEADERS_TIMEOUT', 'headers timed out']
 ]);
 
 type DomainFetchState = {
@@ -65,10 +68,18 @@ export const DEFAULT_SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS = 30000;
 const BREAKER_CHALLENGE_PATTERN =
   /attention required|captcha|cf-browser-verification|checking your browser|verify you are human|bot challenge|security check/i;
 
-export function resolveSourceFetchRuntimeConfig(env: NodeJS.ProcessEnv = process.env) {
+export function resolveSourceFetchRuntimeConfig(
+  env: NodeJS.ProcessEnv = process.env
+) {
   return {
-    timeoutMs: readPositiveInteger(env.SOURCE_FETCH_TIMEOUT_MS, DEFAULT_SOURCE_FETCH_TIMEOUT_MS),
-    attempts: readPositiveInteger(env.SOURCE_FETCH_RETRY_ATTEMPTS, DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS),
+    timeoutMs: readPositiveInteger(
+      env.SOURCE_FETCH_TIMEOUT_MS,
+      DEFAULT_SOURCE_FETCH_TIMEOUT_MS
+    ),
+    attempts: readPositiveInteger(
+      env.SOURCE_FETCH_RETRY_ATTEMPTS,
+      DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS
+    ),
     domainMinIntervalMs: readNonNegativeInteger(
       env.SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS,
       DEFAULT_SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS
@@ -85,9 +96,18 @@ export function resolveSourceFetchRuntimeConfig(env: NodeJS.ProcessEnv = process
       env.SOURCE_FETCH_RETRY_BACKOFF_BASE_MS,
       DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS
     ),
-    retryBackoffMaxMs: readNonNegativeInteger(env.SOURCE_FETCH_RETRY_BACKOFF_MAX_MS, DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS),
-    retryJitterMs: readNonNegativeInteger(env.SOURCE_FETCH_RETRY_JITTER_MS, DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS),
-    breakerPauseMs: readNonNegativeInteger(env.SOURCE_FETCH_BREAKER_PAUSE_MS, DEFAULT_SOURCE_FETCH_BREAKER_PAUSE_MS),
+    retryBackoffMaxMs: readNonNegativeInteger(
+      env.SOURCE_FETCH_RETRY_BACKOFF_MAX_MS,
+      DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS
+    ),
+    retryJitterMs: readNonNegativeInteger(
+      env.SOURCE_FETCH_RETRY_JITTER_MS,
+      DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS
+    ),
+    breakerPauseMs: readNonNegativeInteger(
+      env.SOURCE_FETCH_BREAKER_PAUSE_MS,
+      DEFAULT_SOURCE_FETCH_BREAKER_PAUSE_MS
+    ),
     breakerRepeated5xxThreshold: readPositiveInteger(
       env.SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD,
       DEFAULT_SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD
@@ -101,16 +121,23 @@ export function resolveSourceFetchRuntimeConfig(env: NodeJS.ProcessEnv = process
 
 export async function fetchWithRetry(input: FetchWithRetryInput) {
   const runtimeConfig = resolveSourceFetchRuntimeConfig();
-  const attempts = Math.max(1, input.attempts ?? DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS);
+  const attempts = Math.max(
+    1,
+    input.attempts ?? DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS
+  );
   let lastError: unknown;
   let lastResponse: Response | undefined;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const { response, resolvedUrl } = await fetchWithFollowRedirects(input.url, {
-        signal: AbortSignal.timeout(input.timeoutMs),
-        headers: input.headers
-      }, runtimeConfig);
+      const { response, resolvedUrl } = await fetchWithFollowRedirects(
+        input.url,
+        {
+          signal: AbortSignal.timeout(input.timeoutMs),
+          headers: input.headers
+        },
+        runtimeConfig
+      );
       if (shouldRecheckRobotsForResolvedUrl(input.url, resolvedUrl)) {
         await assertRobotsAllowUrl(resolvedUrl);
       }
@@ -123,7 +150,11 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
       lastResponse = response;
       await waitForRetryBackoff(attempt, runtimeConfig);
     } catch (error) {
-      const normalizedError = normalizeFetchError(error, input.url, input.timeoutMs);
+      const normalizedError = normalizeFetchError(
+        error,
+        input.url,
+        input.timeoutMs
+      );
       lastError = normalizedError;
       if (attempt === attempts || !isRetryableFetchException(error)) {
         throw withRetryAttemptContext(normalizedError, attempt);
@@ -137,7 +168,9 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
     return lastResponse;
   }
 
-  throw lastError instanceof Error ? lastError : new Error("Unknown fetch error.");
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Unknown fetch error.');
 }
 
 export async function assertRobotsAllowUrl(url: string) {
@@ -150,12 +183,16 @@ export async function assertRobotsAllowUrl(url: string) {
 
   let response: Response;
   try {
-    const fetched = await fetchWithFollowRedirects(robotsUrl, {
-      signal: AbortSignal.timeout(COURTESY_ROBOTS_TIMEOUT_MS),
-      headers: {
-        Accept: "text/plain"
-      }
-    }, runtimeConfig);
+    const fetched = await fetchWithFollowRedirects(
+      robotsUrl,
+      {
+        signal: AbortSignal.timeout(COURTESY_ROBOTS_TIMEOUT_MS),
+        headers: {
+          Accept: 'text/plain'
+        }
+      },
+      runtimeConfig
+    );
     response = fetched.response;
   } catch {
     return;
@@ -174,11 +211,14 @@ export async function assertRobotsAllowUrl(url: string) {
 export function normalizeSourceFetchFailureMessage(message: string) {
   const trimmedMessage = message.trim();
   return trimmedMessage
-    .replace(FETCH_URL_PREFIX_PATTERN, "")
-    .replace(FETCH_SOURCE_LABEL_PREFIX_PATTERN, "");
+    .replace(FETCH_URL_PREFIX_PATTERN, '')
+    .replace(FETCH_SOURCE_LABEL_PREFIX_PATTERN, '');
 }
 
-export function isUrlWithinDomainBoundary(candidateUrl: string, boundaryUrl: string) {
+export function isUrlWithinDomainBoundary(
+  candidateUrl: string,
+  boundaryUrl: string
+) {
   let candidate: URL;
   let boundary: URL;
 
@@ -210,13 +250,17 @@ function withRetryAttemptContext(error: unknown, attempt: number) {
 
   const message = error.message.trim();
   const shouldAttachAttemptContext =
-    message.startsWith("Failed to fetch ") || message.startsWith("Failed to follow redirect for ");
+    message.startsWith('Failed to fetch ') ||
+    message.startsWith('Failed to follow redirect for ');
 
-  if (!shouldAttachAttemptContext || /\(after \d+ attempts?\)\.?$/i.test(message)) {
+  if (
+    !shouldAttachAttemptContext ||
+    /\(after \d+ attempts?\)\.?$/i.test(message)
+  ) {
     return error;
   }
 
-  const attemptLabel = attempt === 1 ? "attempt" : "attempts";
+  const attemptLabel = attempt === 1 ? 'attempt' : 'attempts';
   return new Error(`${message} (after ${attempt} ${attemptLabel}).`);
 }
 
@@ -230,12 +274,21 @@ async function fetchWithFollowRedirects(
   runtimeConfig: ReturnType<typeof resolveSourceFetchRuntimeConfig>
 ) {
   let currentUrl = url;
+  const allowPrivateNetwork =
+    (process.env.SOURCE_FETCH_ALLOW_PRIVATE_NETWORK ?? '')
+      .trim()
+      .toLowerCase() === 'true';
 
-  for (let redirectCount = 0; redirectCount <= MAX_FOLLOW_REDIRECTS; redirectCount += 1) {
+  for (
+    let redirectCount = 0;
+    redirectCount <= MAX_FOLLOW_REDIRECTS;
+    redirectCount += 1
+  ) {
+    await assertSafeSourceUrl(currentUrl, { allowPrivateNetwork });
     await enforceDomainCrawlBudget(currentUrl, runtimeConfig);
     const response = await fetch(currentUrl, {
       ...init,
-      redirect: "manual"
+      redirect: 'manual'
     });
 
     if (!isRedirectStatus(response.status)) {
@@ -245,9 +298,11 @@ async function fetchWithFollowRedirects(
       };
     }
 
-    const redirectLocation = response.headers.get("location");
+    const redirectLocation = response.headers.get('location');
     if (!redirectLocation) {
-      throw new Error(`Failed to follow redirect for ${currentUrl}: missing redirect location header.`);
+      throw new Error(
+        `Failed to follow redirect for ${currentUrl}: missing redirect location header.`
+      );
     }
 
     const nextUrl = resolveRedirectUrl(currentUrl, redirectLocation);
@@ -259,19 +314,27 @@ async function fetchWithFollowRedirects(
   throw new Error(`Failed to follow redirect for ${url}: too many redirects.`);
 }
 
-function shouldRecheckRobotsForResolvedUrl(sourceUrl: string, resolvedUrl: string) {
+function shouldRecheckRobotsForResolvedUrl(
+  sourceUrl: string,
+  resolvedUrl: string
+) {
   try {
     const source = new URL(sourceUrl);
     const resolved = new URL(resolvedUrl);
-    source.hash = "";
-    resolved.hash = "";
+    source.hash = '';
+    resolved.hash = '';
     return source.toString() !== resolved.toString();
   } catch {
     return sourceUrl !== resolvedUrl;
   }
 }
 
-function assertRedirectDomainBoundary(nextUrl: string, sourceUrl: string, currentUrl: string, rawRedirectTarget: string) {
+function assertRedirectDomainBoundary(
+  nextUrl: string,
+  sourceUrl: string,
+  currentUrl: string,
+  rawRedirectTarget: string
+) {
   if (isUrlWithinDomainBoundary(nextUrl, sourceUrl)) {
     return;
   }
@@ -282,7 +345,13 @@ function assertRedirectDomainBoundary(nextUrl: string, sourceUrl: string, curren
 }
 
 function isRedirectStatus(status: number) {
-  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+  return (
+    status === 301 ||
+    status === 302 ||
+    status === 303 ||
+    status === 307 ||
+    status === 308
+  );
 }
 
 function resolveRedirectUrl(currentUrl: string, redirectLocation: string) {
@@ -295,7 +364,11 @@ function resolveRedirectUrl(currentUrl: string, redirectLocation: string) {
   }
 }
 
-function assertHttpUrl(url: string, sourceUrl: string, rawRedirectTarget: string) {
+function assertHttpUrl(
+  url: string,
+  sourceUrl: string,
+  rawRedirectTarget: string
+) {
   let parsed: URL;
 
   try {
@@ -306,7 +379,7 @@ function assertHttpUrl(url: string, sourceUrl: string, rawRedirectTarget: string
     );
   }
 
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error(
       `Failed to follow redirect for ${sourceUrl}: redirect target must use http/https (${formatRedirectTargetForDiagnostics(rawRedirectTarget)}).`
     );
@@ -321,12 +394,21 @@ function formatRedirectTargetForDiagnostics(target: string) {
   return `${target.slice(0, MAX_REDIRECT_TARGET_DIAGNOSTIC_LENGTH)}...<truncated>`;
 }
 
-async function waitForRetryBackoff(attempt: number, runtimeConfig: ReturnType<typeof resolveSourceFetchRuntimeConfig>) {
+async function waitForRetryBackoff(
+  attempt: number,
+  runtimeConfig: ReturnType<typeof resolveSourceFetchRuntimeConfig>
+) {
   const exponentialDelay =
     runtimeConfig.retryBackoffBaseMs > 0
-      ? Math.min(runtimeConfig.retryBackoffMaxMs, runtimeConfig.retryBackoffBaseMs * 2 ** Math.max(0, attempt - 1))
+      ? Math.min(
+          runtimeConfig.retryBackoffMaxMs,
+          runtimeConfig.retryBackoffBaseMs * 2 ** Math.max(0, attempt - 1)
+        )
       : 0;
-  const jitter = runtimeConfig.retryJitterMs > 0 ? Math.floor(Math.random() * (runtimeConfig.retryJitterMs + 1)) : 0;
+  const jitter =
+    runtimeConfig.retryJitterMs > 0
+      ? Math.floor(Math.random() * (runtimeConfig.retryJitterMs + 1))
+      : 0;
   const delayMs = exponentialDelay + jitter;
 
   if (delayMs <= 0) {
@@ -345,14 +427,22 @@ async function enforceDomainCrawlBudget(
     return;
   }
 
-  const state =
-    domainFetchStates.get(domain) ?? createDomainFetchState();
+  const state = domainFetchStates.get(domain) ?? createDomainFetchState();
   for (;;) {
     const now = Date.now();
-    pruneOutdatedRequests(state.requestTimestamps, now, runtimeConfig.crawlBudgetWindowMs);
+    pruneOutdatedRequests(
+      state.requestTimestamps,
+      now,
+      runtimeConfig.crawlBudgetWindowMs
+    );
 
     const crawlBudgetWaitMs = readCrawlBudgetWaitMs(state, now, runtimeConfig);
-    const waitMs = Math.max(0, state.nextAllowedAt - now, state.breakerPausedUntil - now, crawlBudgetWaitMs);
+    const waitMs = Math.max(
+      0,
+      state.nextAllowedAt - now,
+      state.breakerPausedUntil - now,
+      crawlBudgetWaitMs
+    );
     if (waitMs <= 0) {
       break;
     }
@@ -361,7 +451,11 @@ async function enforceDomainCrawlBudget(
   }
 
   const stampedAt = Date.now();
-  pruneOutdatedRequests(state.requestTimestamps, stampedAt, runtimeConfig.crawlBudgetWindowMs);
+  pruneOutdatedRequests(
+    state.requestTimestamps,
+    stampedAt,
+    runtimeConfig.crawlBudgetWindowMs
+  );
   state.requestTimestamps.push(stampedAt);
   state.nextAllowedAt = stampedAt + runtimeConfig.domainMinIntervalMs;
   domainFetchStates.set(domain, state);
@@ -405,7 +499,10 @@ async function applySitePressureSignals(
 
   if (response.status === 429 && runtimeConfig.breakerPauseMs > 0) {
     const pauseMs = Math.max(runtimeConfig.breakerPauseMs, retryAfterMs);
-    state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + pauseMs);
+    state.breakerPausedUntil = Math.max(
+      state.breakerPausedUntil,
+      now + pauseMs
+    );
     state.consecutiveServerErrorCount = 0;
     domainFetchStates.set(domain, state);
     return;
@@ -415,10 +512,14 @@ async function applySitePressureSignals(
     state.consecutiveServerErrorCount += 1;
     if (
       runtimeConfig.breakerPauseMs > 0 &&
-      state.consecutiveServerErrorCount >= runtimeConfig.breakerRepeated5xxThreshold
+      state.consecutiveServerErrorCount >=
+        runtimeConfig.breakerRepeated5xxThreshold
     ) {
       const pauseMs = Math.max(runtimeConfig.breakerPauseMs, retryAfterMs);
-      state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + pauseMs);
+      state.breakerPausedUntil = Math.max(
+        state.breakerPausedUntil,
+        now + pauseMs
+      );
       state.consecutiveServerErrorCount = 0;
     }
   } else {
@@ -429,8 +530,14 @@ async function applySitePressureSignals(
     runtimeConfig.breakerChallengePauseMs > 0 &&
     (await isLikelyAntiBotChallengeResponse(response))
   ) {
-    const pauseMs = Math.max(runtimeConfig.breakerChallengePauseMs, retryAfterMs);
-    state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + pauseMs);
+    const pauseMs = Math.max(
+      runtimeConfig.breakerChallengePauseMs,
+      retryAfterMs
+    );
+    state.breakerPausedUntil = Math.max(
+      state.breakerPausedUntil,
+      now + pauseMs
+    );
     state.consecutiveServerErrorCount = 0;
   }
 
@@ -438,7 +545,7 @@ async function applySitePressureSignals(
 }
 
 function readRetryAfterDelayMs(response: Response, now: number) {
-  const retryAfterValue = response.headers.get("retry-after")?.trim();
+  const retryAfterValue = response.headers.get('retry-after')?.trim();
   if (!retryAfterValue) {
     return 0;
   }
@@ -461,8 +568,10 @@ async function isLikelyAntiBotChallengeResponse(response: Response) {
     return false;
   }
 
-  const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-  if (!contentType.includes("text/html")) {
+  const contentType = (
+    response.headers.get('content-type') ?? ''
+  ).toLowerCase();
+  if (!contentType.includes('text/html')) {
     return false;
   }
 
@@ -482,15 +591,22 @@ function readDomainFromUrl(url: string) {
   }
 }
 
-function pruneOutdatedRequests(requestTimestamps: number[], now: number, windowMs: number) {
+function pruneOutdatedRequests(
+  requestTimestamps: number[],
+  now: number,
+  windowMs: number
+) {
   const oldestAllowedTimestamp = now - windowMs;
-  while (requestTimestamps.length > 0 && requestTimestamps[0] <= oldestAllowedTimestamp) {
+  while (
+    requestTimestamps.length > 0 &&
+    requestTimestamps[0] <= oldestAllowedTimestamp
+  ) {
     requestTimestamps.shift();
   }
 }
 
 function sleep(durationMs: number) {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     setTimeout(resolve, durationMs);
   });
 }
@@ -503,21 +619,21 @@ function buildRobotsUrl(url: string) {
     return null;
   }
 
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     return null;
   }
 
-  parsed.pathname = "/robots.txt";
-  parsed.search = "";
-  parsed.hash = "";
+  parsed.pathname = '/robots.txt';
+  parsed.search = '';
+  parsed.hash = '';
   return parsed.toString();
 }
 
 function isPathDisallowedByRobots(robotsPayload: string, targetUrl: string) {
-  let targetPath = "/";
+  let targetPath = '/';
   try {
     const parsedTarget = new URL(targetUrl);
-    targetPath = parsedTarget.pathname || "/";
+    targetPath = parsedTarget.pathname || '/';
   } catch {
     return false;
   }
@@ -531,7 +647,7 @@ function isPathDisallowedByRobots(robotsPayload: string, targetUrl: string) {
       continue;
     }
 
-    if (rule.kind === "allow") {
+    if (rule.kind === 'allow') {
       matchedAllowLength = Math.max(matchedAllowLength, rule.path.length);
       continue;
     }
@@ -548,19 +664,19 @@ function isPathDisallowedByRobots(robotsPayload: string, targetUrl: string) {
 
 function parseRobotsRulesForCourtesyAgent(robotsPayload: string) {
   const lines = robotsPayload.split(/\r?\n/);
-  const rules: Array<{ kind: "allow" | "disallow"; path: string }> = [];
+  const rules: Array<{ kind: 'allow' | 'disallow'; path: string }> = [];
   let currentGroupMatches = false;
   let hasUserAgentInCurrentGroup = false;
 
   for (const rawLine of lines) {
-    const line = rawLine.replace(/#.*/, "").trim();
+    const line = rawLine.replace(/#.*/, '').trim();
     if (!line) {
       currentGroupMatches = false;
       hasUserAgentInCurrentGroup = false;
       continue;
     }
 
-    const separatorIndex = line.indexOf(":");
+    const separatorIndex = line.indexOf(':');
     if (separatorIndex <= 0) {
       continue;
     }
@@ -568,14 +684,14 @@ function parseRobotsRulesForCourtesyAgent(robotsPayload: string) {
     const rawDirective = line.slice(0, separatorIndex).trim().toLowerCase();
     const value = line.slice(separatorIndex + 1).trim();
 
-    if (rawDirective === "user-agent") {
+    if (rawDirective === 'user-agent') {
       const normalizedAgent = value.toLowerCase();
       if (!hasUserAgentInCurrentGroup) {
         currentGroupMatches = false;
         hasUserAgentInCurrentGroup = true;
       }
 
-      if (normalizedAgent === "*" || normalizedAgent === COURTESY_USER_AGENT) {
+      if (normalizedAgent === '*' || normalizedAgent === COURTESY_USER_AGENT) {
         currentGroupMatches = true;
       }
 
@@ -586,15 +702,15 @@ function parseRobotsRulesForCourtesyAgent(robotsPayload: string) {
       continue;
     }
 
-    if (rawDirective !== "allow" && rawDirective !== "disallow") {
+    if (rawDirective !== 'allow' && rawDirective !== 'disallow') {
       continue;
     }
 
-    if (!value || value === "") {
+    if (!value || value === '') {
       continue;
     }
 
-    if (!value.startsWith("/")) {
+    if (!value.startsWith('/')) {
       continue;
     }
 
@@ -607,7 +723,11 @@ function parseRobotsRulesForCourtesyAgent(robotsPayload: string) {
   return rules;
 }
 
-function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: number) {
+function normalizeFetchError(
+  error: unknown,
+  sourceUrl: string,
+  timeoutMs: number
+) {
   if (!(error instanceof Error)) {
     return error;
   }
@@ -615,16 +735,16 @@ function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: numbe
   const causeCode = readErrorCode(error.cause);
   const codeLabel = causeCode ? formatFetchErrorCodeLabel(causeCode) : null;
   const isTimeoutFailure =
-    error.name === "AbortError" ||
-    error.name === "TimeoutError" ||
-    causeCode === "UND_ERR_CONNECT_TIMEOUT" ||
-    causeCode === "UND_ERR_HEADERS_TIMEOUT";
+    error.name === 'AbortError' ||
+    error.name === 'TimeoutError' ||
+    causeCode === 'UND_ERR_CONNECT_TIMEOUT' ||
+    causeCode === 'UND_ERR_HEADERS_TIMEOUT';
 
   if (isTimeoutFailure) {
-    const timeoutMessage = error.message.trim().replace(/[.]+$/, "");
+    const timeoutMessage = error.message.trim().replace(/[.]+$/, '');
     return new Error(
       appendFetchErrorCodeLabel(
-        `Failed to fetch ${sourceUrl}: request timed out after ${timeoutMs}ms${timeoutMessage ? `: ${timeoutMessage}` : ""}.`,
+        `Failed to fetch ${sourceUrl}: request timed out after ${timeoutMs}ms${timeoutMessage ? `: ${timeoutMessage}` : ''}.`,
         causeCode,
         codeLabel
       )
@@ -634,26 +754,38 @@ function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: numbe
   const causeMessage =
     error.cause instanceof Error
       ? error.cause.message
-      : typeof error.cause === "string"
+      : typeof error.cause === 'string'
         ? error.cause
-        : "";
-  const combinedMessage = [error.message, causeMessage].filter(Boolean).join(" ");
+        : '';
+  const combinedMessage = [error.message, causeMessage]
+    .filter(Boolean)
+    .join(' ');
 
-  if (/redirect/i.test(combinedMessage) && /url scheme must be a http\(s\) scheme/i.test(combinedMessage)) {
-    return new Error(`Failed to follow redirect for ${sourceUrl}: redirect target must use http/https.`);
+  if (
+    /redirect/i.test(combinedMessage) &&
+    /url scheme must be a http\(s\) scheme/i.test(combinedMessage)
+  ) {
+    return new Error(
+      `Failed to follow redirect for ${sourceUrl}: redirect target must use http/https.`
+    );
   }
 
-  if (error.message.startsWith("Failed to follow redirect for")) {
+  if (error.message.startsWith('Failed to follow redirect for')) {
     return error;
   }
 
-  const normalizedMessage = error.message.trim() || "Unknown fetch error.";
+  const normalizedMessage = error.message.trim() || 'Unknown fetch error.';
   if (normalizedMessage.includes(sourceUrl)) {
     return error;
   }
 
-  return new Error(appendFetchErrorCodeLabel(`Failed to fetch ${sourceUrl}: ${normalizedMessage}`, causeCode, codeLabel));
-
+  return new Error(
+    appendFetchErrorCodeLabel(
+      `Failed to fetch ${sourceUrl}: ${normalizedMessage}`,
+      causeCode,
+      codeLabel
+    )
+  );
 }
 
 export function isRetryableFetchException(error: unknown) {
@@ -661,7 +793,7 @@ export function isRetryableFetchException(error: unknown) {
     return false;
   }
 
-  if (error.name === "AbortError" || error.name === "TimeoutError") {
+  if (error.name === 'AbortError' || error.name === 'TimeoutError') {
     return true;
   }
 
@@ -670,30 +802,34 @@ export function isRetryableFetchException(error: unknown) {
     return true;
   }
 
-  const causeMessage = error.cause instanceof Error ? error.cause.message : "";
+  const causeMessage = error.cause instanceof Error ? error.cause.message : '';
   const combinedMessage = `${error.message} ${causeMessage}`.toLowerCase();
   return (
-    combinedMessage.includes("fetch failed") ||
-    combinedMessage.includes("network error") ||
-    combinedMessage.includes("timed out") ||
-    combinedMessage.includes("timeout")
+    combinedMessage.includes('fetch failed') ||
+    combinedMessage.includes('network error') ||
+    combinedMessage.includes('timed out') ||
+    combinedMessage.includes('timeout')
   );
 }
 
 function readErrorCode(value: unknown) {
-  if (!value || typeof value !== "object") {
+  if (!value || typeof value !== 'object') {
     return null;
   }
 
-  const maybeCode = Reflect.get(value, "code");
-  return typeof maybeCode === "string" ? maybeCode.toUpperCase() : null;
+  const maybeCode = Reflect.get(value, 'code');
+  return typeof maybeCode === 'string' ? maybeCode.toUpperCase() : null;
 }
 
 function formatFetchErrorCodeLabel(code: string) {
   return FETCH_ERROR_CODE_LABELS.get(code) ?? code.toLowerCase();
 }
 
-function appendFetchErrorCodeLabel(message: string, code: string | null, codeLabel: string | null) {
+function appendFetchErrorCodeLabel(
+  message: string,
+  code: string | null,
+  codeLabel: string | null
+) {
   if (!code || !codeLabel) {
     return message;
   }

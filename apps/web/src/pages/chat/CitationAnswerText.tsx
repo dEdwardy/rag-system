@@ -1,10 +1,10 @@
 import { Modal, Stack, Text } from '@mantine/core';
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { Citation } from '../../types/api';
-import {
-  resolveCitationMarkerDisplay,
-  splitCitationText
-} from './citation-marker';
+import { resolveCitationMarkerDisplay } from './citation-marker';
+import { buildCitationMarkdown, parseCitationHref } from './markdown-answer';
 
 type CitationAnswerTextProps = {
   text: string;
@@ -34,56 +34,71 @@ export function CitationAnswerText({
 
   const activeCitation =
     openNumber == null ? null : (citationsByNumber.get(openNumber) ?? null);
-  const parts = splitCitationText(text);
+
+  const renderCitation = (number: number, key: string) => {
+    const display = resolveCitationMarkerDisplay({
+      number,
+      citationCount: citations.length,
+      streaming
+    });
+
+    if (display.kind === 'text') {
+      return display.text;
+    }
+
+    if (display.kind === 'placeholder') {
+      return (
+        <span
+          key={key}
+          aria-hidden="true"
+          className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-dashed border-[var(--app-border)] bg-[var(--app-bg-subtle)] px-1 align-super text-[11px] leading-none text-[var(--app-text-muted)] opacity-70"
+        >
+          {display.number}
+        </span>
+      );
+    }
+
+    const citation = citationsByNumber.get(display.number);
+    if (!citation) {
+      return `[${display.number}]`;
+    }
+
+    return (
+      <button
+        key={key}
+        type="button"
+        title={buildCitationLabel(citation, locale)}
+        onClick={() => setOpenNumber(display.number)}
+        className="mx-0.5 inline-flex h-5 min-w-5 cursor-pointer items-center justify-center rounded-full border border-[var(--app-border)] bg-[var(--app-bg-subtle)] px-1 align-super text-[11px] leading-none text-[var(--app-text-muted)] transition hover:border-[var(--app-accent)] hover:text-[var(--app-text)]"
+      >
+        {display.number}
+      </button>
+    );
+  };
 
   return (
     <>
-      <p className="whitespace-pre-wrap">
-        {parts.map((part, index) => {
-          if (part.type === 'text') {
-            return part.text;
-          }
+      <div className="chat-markdown">
+        <ReactMarkdown
+          components={{
+            a: ({ href, children }) => {
+              const number = parseCitationHref(href);
+              if (number != null) {
+                return renderCitation(number, `markdown-citation-${number}`);
+              }
 
-          const display = resolveCitationMarkerDisplay({
-            number: part.number,
-            citationCount: citations.length,
-            streaming
-          });
-
-          if (display.kind === 'text') {
-            return display.text;
-          }
-
-          if (display.kind === 'placeholder') {
-            return (
-              <span
-                key={`placeholder-${part.number}-${index}`}
-                aria-hidden="true"
-                className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-dashed border-[var(--app-border)] bg-[var(--app-bg-subtle)] px-1 align-super text-[11px] leading-none text-[var(--app-text-muted)] opacity-70"
-              >
-                {display.number}
-              </span>
-            );
-          }
-
-          const citation = citationsByNumber.get(display.number);
-          if (!citation) {
-            return `[${display.number}]`;
-          }
-
-          return (
-            <button
-              key={`${display.number}-${index}`}
-              type="button"
-              title={buildCitationLabel(citation, locale)}
-              onClick={() => setOpenNumber(display.number)}
-              className="mx-0.5 inline-flex h-5 min-w-5 cursor-pointer items-center justify-center rounded-full border border-[var(--app-border)] bg-[var(--app-bg-subtle)] px-1 align-super text-[11px] leading-none text-[var(--app-text-muted)] transition hover:border-[var(--app-accent)] hover:text-[var(--app-text)]"
-            >
-              {display.number}
-            </button>
-          );
-        })}
-      </p>
+              return (
+                <a href={href} rel="noreferrer" target="_blank">
+                  {children}
+                </a>
+              );
+            }
+          }}
+          remarkPlugins={[remarkGfm]}
+        >
+          {buildCitationMarkdown(text)}
+        </ReactMarkdown>
+      </div>
 
       <Modal
         opened={activeCitation != null}

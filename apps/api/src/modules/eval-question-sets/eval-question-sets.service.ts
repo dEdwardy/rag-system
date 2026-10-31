@@ -1,11 +1,13 @@
 import {
   ConflictException,
   Injectable,
-  NotFoundException
+  NotFoundException,
+  Optional
 } from '@nestjs/common';
 import { Prisma, type EvalQuestionSetStatus } from '@prisma/client';
 import { PrismaService } from '../../infra/database/prisma.service';
 import type { AuthIdentity } from '../auth/auth-identity.contract';
+import { LangGraphAnswerService } from '../agent-tools/langgraph-answer.service';
 import { AskAssistantService } from '../assistants/ask-assistant.service';
 import {
   type ChooseEvalQuestionSetBaselineInput,
@@ -270,7 +272,9 @@ const P5_V1_DEMO_REPLAY_QUESTIONS = P5_V1_AGENTIC_EVAL_BASELINE.scenarios.map(
 export class EvalQuestionSetsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly askAssistantService: AskAssistantService
+    private readonly askAssistantService: AskAssistantService,
+    @Optional()
+    private readonly langGraphAnswerService?: LangGraphAnswerService
   ) {}
 
   async createQuestionSet(
@@ -588,13 +592,11 @@ export class EvalQuestionSetsService {
 
     for (const [index, question] of questions.entries()) {
       try {
-        const result = (await this.askAssistantService.askAssistant({
+        const result = (await this.executeEvalQuestion({
           assistantId: input.assistantId,
           question,
-          authContext: {
-            identity,
-            currentIdentity: identity
-          }
+          identity,
+          executionMode: input.executionMode ?? 'default'
         })) as EvalQuestionAskResultView;
         const qualityEvaluation = this.readObject(result.qualityEvaluation);
         const answeringMetadata = this.readObject(result.answeringMetadata);
@@ -728,6 +730,39 @@ export class EvalQuestionSetsService {
     return runResponse;
   }
 
+  private async executeEvalQuestion(input: {
+    assistantId: string;
+    question: string;
+    identity: AuthIdentity;
+    executionMode: 'default' | 'agent';
+  }) {
+    const authContext = {
+      identity: input.identity,
+      currentIdentity: input.identity
+    };
+
+    if (
+      input.executionMode === 'agent' &&
+      this.langGraphAnswerService != null
+    ) {
+      const result = await this.langGraphAnswerService.answer({
+        assistantId: input.assistantId,
+        question: input.question,
+        authContext
+      });
+      if (result.answerResult == null) {
+        throw new Error('Agent eval produced no answer result.');
+      }
+      return result.answerResult;
+    }
+
+    return this.askAssistantService.askAssistant({
+      assistantId: input.assistantId,
+      question: input.question,
+      authContext
+    });
+  }
+
   async runP5V1DemoReplay(identity: AuthIdentity) {
     await this.ensureTenant(identity.tenantId);
     await this.ensureOwner(identity.userId);
@@ -745,7 +780,8 @@ export class EvalQuestionSetsService {
       chosenQuestionSet.id,
       {
         assistantId: P5_V1_DEMO_REPLAY_ASSISTANT_ID,
-        baselineSnapshotId: snapshot.id
+        baselineSnapshotId: snapshot.id,
+        executionMode: 'agent'
       },
       identity
     );
@@ -993,7 +1029,8 @@ export class EvalQuestionSetsService {
     return { retrievedChunkIds, retrievedDocumentIds };
   }
 
-  private readStringArray(value: unknown): string[] {    if (!Array.isArray(value)) {
+  private readStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) {
       return [];
     }
 

@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { LlmService } from '../../infra/llm/llm.service';
 import { PromptManagerService } from '../../infra/llm/prompt-manager.service';
-import { AnswerPolicy } from '../../infra/llm/llm.types';
+import {
+  AnswerPolicy,
+  ConversationHistoryMessage,
+  LlmUsage
+} from '../../infra/llm/llm.types';
 
 type RetrievedChunk = {
   chunkId: string;
@@ -98,6 +102,7 @@ export type AnsweringMetadata = {
     | 'inferred_from_retrieval'
     | 'deterministic_policy';
   answerStatus: 'grounded' | 'insufficient_context';
+  llmUsage?: LlmUsage | null;
   coverageSummary?: {
     questionType: 'summary' | 'other';
     topicCount: number;
@@ -134,6 +139,7 @@ export class AnsweringService {
     answerPolicy?: Partial<AnswerPolicy> | null;
     chunks: RetrievedChunk[];
     contextGroups?: RetrievedContextGroup[];
+    history?: ConversationHistoryMessage[];
   }) {
     const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
     const questionType = this.inferQuestionType(input.question);
@@ -184,7 +190,8 @@ Answering requirement:
       question: input.question,
       systemPrompt,
       answerPolicy,
-      chunks: llmChunks
+      chunks: llmChunks,
+      history: input.history
     });
 
     return this.finalizeResolvedAnswer({
@@ -206,6 +213,7 @@ Answering requirement:
     modelName: string;
     promptId: string;
     usedFallback: boolean;
+    usage?: LlmUsage | null;
     answerStatus?: 'grounded' | 'insufficient_context';
     missingInformation?: string[];
     citedChunkNumbers?: number[];
@@ -216,7 +224,8 @@ Answering requirement:
       rawAnswer: input.rawAnswer,
       modelName: input.modelName,
       promptId: input.promptId,
-      usedFallback: input.usedFallback
+      usedFallback: input.usedFallback,
+      usage: input.usage ?? null
     });
     const normalizedResult = this.normalizeFallbackStreamResult({
       question: input.question,
@@ -355,6 +364,7 @@ Answering requirement:
       modelName: string;
       promptId: string;
       usedFallback?: boolean;
+      usage?: LlmUsage | null;
       answerStatus?: 'grounded' | 'insufficient_context';
       missingInformation?: string[];
       citedChunkNumbers?: number[];
@@ -447,6 +457,7 @@ Answering requirement:
           }),
           answerStatusSource: answerStatusResolution.source,
           answerStatus,
+          llmUsage: input.result.usage ?? null,
           coverageSummary,
           summaryMainItems: input.summaryMainItems ?? []
         },
@@ -548,6 +559,7 @@ Answering requirement:
         }),
         answerStatusSource: answerStatusResolution.source,
         answerStatus,
+        llmUsage: input.result.usage ?? null,
         coverageSummary,
         ...(input.summaryMainItems && input.summaryMainItems.length > 0
           ? { summaryMainItems: input.summaryMainItems }

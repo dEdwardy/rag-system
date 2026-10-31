@@ -1,45 +1,54 @@
-import type { Citation } from "../../types/api";
+import type { AgentStep, Citation } from '../../types/api';
 
 export type ChatStreamAssistantMessage = {
   id: string;
-  role: "assistant";
+  role: 'assistant';
   content: string;
   createdAt: string;
-  status: "streaming" | "done" | "error" | "stopped";
+  status: 'streaming' | 'done' | 'error' | 'stopped';
   traceId: string | null;
   citations: Citation[];
+  steps: AgentStep[];
+  agentSteps?: AgentStep[];
   assistantMessageId?: string;
   errorMessage?: string;
 };
 
 export type ChatStreamUserMessage = {
   id: string;
-  role: "user";
+  role: 'user';
   content: string;
   createdAt: string;
 };
 
 export type ChatStreamEvent =
   | {
-      type: "status";
-      phase: "started" | "retrieving" | "generating";
+      type: 'status';
+      phase: 'started' | 'retrieving' | 'generating';
     }
   | {
-      type: "answer_delta";
+      type: 'step';
+      step: AgentStep;
+    }
+  | {
+      type: 'answer_delta';
       delta: string;
     }
   | {
-      type: "final";
+      type: 'final';
       data: {
         conversationId: string;
         assistantMessageId: string;
         traceId: string;
         answer: string;
         citations: Citation[];
+        agent?: {
+          steps?: AgentStep[];
+        };
       };
     }
   | {
-      type: "error";
+      type: 'error';
       message: string;
     };
 
@@ -50,18 +59,19 @@ export function createPendingChatTurn(input: { question: string }) {
   return {
     userMessage: {
       id: `local-user-${timestamp}`,
-      role: "user" as const,
+      role: 'user' as const,
       content: input.question,
       createdAt
     },
     assistantMessage: {
       id: `local-assistant-${timestamp}`,
-      role: "assistant" as const,
-      content: "",
+      role: 'assistant' as const,
+      content: '',
       createdAt,
-      status: "streaming" as const,
+      status: 'streaming' as const,
       traceId: null,
-      citations: []
+      citations: [],
+      steps: []
     }
   };
 }
@@ -70,31 +80,50 @@ export function applyChatStreamEvent(
   message: ChatStreamAssistantMessage,
   event: ChatStreamEvent
 ): ChatStreamAssistantMessage {
-  if (event.type === "answer_delta") {
+  if (event.type === 'step') {
+    return {
+      ...message,
+      steps: upsertAgentStep(message.steps, event.step)
+    };
+  }
+
+  if (event.type === 'answer_delta') {
     return {
       ...message,
       content: `${message.content}${event.delta}`
     };
   }
 
-  if (event.type === "final") {
+  if (event.type === 'final') {
     return {
       ...message,
-      status: "done",
+      status: 'done',
       content: event.data.answer,
       traceId: event.data.traceId,
       citations: event.data.citations,
+      steps: event.data.agent?.steps ?? message.steps,
       assistantMessageId: event.data.assistantMessageId
     };
   }
 
-  if (event.type === "error") {
+  if (event.type === 'error') {
     return {
       ...message,
-      status: "error",
+      status: 'error',
       errorMessage: event.message
     };
   }
 
   return message;
+}
+
+export function upsertAgentStep(steps: AgentStep[], next: AgentStep) {
+  const index = steps.findIndex((step) => step.name === next.name);
+  if (index < 0) {
+    return [...steps, next];
+  }
+
+  const updated = steps.slice();
+  updated[index] = next;
+  return updated;
 }

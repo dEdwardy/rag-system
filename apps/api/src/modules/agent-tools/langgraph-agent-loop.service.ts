@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import type { RequestAuthContext } from '../auth/auth-identity.contract';
 import { AskAssistantService } from '../assistants/ask-assistant.service';
+import { buildRetrievalEvidenceFromResults } from '../assistants/retrieval-evidence';
 import { LlmService } from '../../infra/llm/llm.service';
 import { LlmToolCallingUnavailableError } from '../../infra/llm/tool-calling';
 import type {
@@ -56,6 +57,10 @@ const AgentLoopState = Annotation.Root({
   retrievedChunkCount: Annotation<number>({
     reducer: (left, right) => left + right,
     default: () => 0
+  }),
+  evidenceSearchResults: Annotation<AssistantSearchResult[]>({
+    reducer: (left, right) => left.concat(right),
+    default: () => []
   }),
   planUnavailableReason: Annotation<string | null>({
     reducer: (_left, right) => right,
@@ -125,6 +130,7 @@ export class LangGraphAgentLoopService {
       iterations: 0,
       searchedQueries: [],
       retrievedChunkCount: 0,
+      evidenceSearchResults: [],
       planUnavailableReason: null,
       answerResult: null,
       steps: []
@@ -144,7 +150,9 @@ export class LangGraphAgentLoopService {
     return new StateGraph(AgentLoopState)
       .addNode('plan', async (state) => {
         const messages =
-          state.iterations === 0 ? this.buildInitialMessages(state.question) : state.messages;
+          state.iterations === 0
+            ? this.buildInitialMessages(state.question)
+            : state.messages;
 
         const abortController = new AbortController();
 
@@ -204,7 +212,8 @@ export class LangGraphAgentLoopService {
                 name: 'plan',
                 toolName: null,
                 status: 'skipped' as const,
-                summary: 'planner unavailable; finalizing through the default answer path',
+                summary:
+                  'planner unavailable; finalizing through the default answer path',
                 diagnostics: { reason }
               }
             ]
@@ -215,6 +224,7 @@ export class LangGraphAgentLoopService {
         const messages: LlmChatMessage[] = [];
         const steps: AgentLoopStep[] = [];
         const executedQueries: string[] = [];
+        const evidenceSearchResults: AssistantSearchResult[] = [];
         let chunkDelta = 0;
 
         for (const toolCall of state.toolCalls) {
@@ -252,6 +262,7 @@ export class LangGraphAgentLoopService {
           const chunkCount = searchResult.chunks.length;
           chunkDelta += chunkCount;
           executedQueries.push(query);
+          evidenceSearchResults.push(searchResult);
 
           messages.push({
             role: 'tool',
@@ -282,15 +293,20 @@ export class LangGraphAgentLoopService {
           toolCalls: [],
           searchedQueries: executedQueries,
           retrievedChunkCount: chunkDelta,
+          evidenceSearchResults,
           steps
         };
       })
       .addNode('finalize', async (state) => {
+        const retrievalEvidence = buildRetrievalEvidenceFromResults(
+          state.evidenceSearchResults
+        );
         const answerResult = await this.askAssistantService.askAssistant({
           assistantId: state.assistantId,
           question: state.question,
           conversationId: state.conversationId ?? undefined,
-          authContext: state.authContext
+          authContext: state.authContext,
+          ...(retrievalEvidence == null ? {} : { retrievalEvidence })
         });
 
         return {

@@ -1,3 +1,5 @@
+process.env.ASK_CONVERSATION_REUSE = 'true';
+
 const assert = require('node:assert/strict');
 
 const {

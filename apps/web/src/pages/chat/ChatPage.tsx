@@ -13,7 +13,9 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { IconActionButton, IconActionLink } from '../../components/IconAction';
 import { StatePanel } from '../../components/StatePanel';
+import { AgentStepTimeline } from './AgentStepTimeline';
 import { CitationAnswerText } from './CitationAnswerText';
+import { MessageFeedbackButtons } from './MessageFeedbackButtons';
 import {
   useAskAssistantStream,
   useAssistants,
@@ -29,6 +31,7 @@ import {
   getPrimaryKnowledgeBase
 } from '../../features/api/workspace-selection';
 import { useI18n } from '../../i18n/I18nProvider';
+import { readStorageItem, writeStorageItem } from '../../lib/browser-storage';
 import type {
   AskStreamEvent,
   AskStreamFinalData,
@@ -61,6 +64,8 @@ const ChatWorkspacePanels = lazy(async () => {
 const NEW_CHAT_CONVERSATION_ID = '__new_chat__';
 const CHAT_HISTORY_PANEL_LIMIT = 12;
 const CHAT_HISTORY_API_LIMIT_MAX = 100;
+const AGENT_MODE_STORAGE_KEY = 'rag-chat-agent-mode';
+const TRANSCRIPT_PAGE_SIZE = 80;
 
 type ActiveStreamTurn = {
   conversationId: string | null;
@@ -218,7 +223,8 @@ function syncFinalTurnToMessageCache(input: {
     content: finalData.answer,
     traceId: finalData.traceId,
     createdAt: streamTurn.assistantMessage.createdAt,
-    citations: finalData.citations
+    citations: finalData.citations,
+    agentSteps: finalData.agent?.steps ?? streamTurn.assistantMessage.steps
   };
 
   queryClient.setQueryData<Message[]>(
@@ -368,18 +374,41 @@ export function ChatPage() {
   const [activeStreamTurn, setActiveStreamTurn] =
     useState<ActiveStreamTurn | null>(null);
   const [composerValue, setComposerValue] = useState('');
+  const [agentModeEnabled, setAgentModeEnabled] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return (
+      readStorageItem(window.localStorage, AGENT_MODE_STORAGE_KEY) === 'true'
+    );
+  });
   const [didAutoSelectConversation, setDidAutoSelectConversation] =
     useState(false);
   const [chatHistoryVisibleCount, setChatHistoryVisibleCount] = useState(
     CHAT_HISTORY_PANEL_LIMIT
   );
   const [isTranscriptNearBottom, setIsTranscriptNearBottom] = useState(true);
+  const [transcriptVisibleCount, setTranscriptVisibleCount] =
+    useState(TRANSCRIPT_PAGE_SIZE);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [traceSummaryHintsByMessageId, setTraceSummaryHintsByMessageId] =
     useState<Record<string, string>>({});
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const streamAbortControllerRef = useRef<AbortController | null>(null);
   const autoSubmittedStarterSearchRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    writeStorageItem(
+      window.localStorage,
+      AGENT_MODE_STORAGE_KEY,
+      agentModeEnabled ? 'true' : 'false'
+    );
+  }, [agentModeEnabled]);
 
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
@@ -392,6 +421,11 @@ export function ChatPage() {
   const resolvedConversationId = isNewChat
     ? null
     : (activeConversationId ?? fallbackConversationId);
+
+  useEffect(() => {
+    setTranscriptVisibleCount(TRANSCRIPT_PAGE_SIZE);
+  }, [resolvedConversationId]);
+
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const knowledgeBaseSummaryQuery = useKnowledgeBaseDocumentSummary(
     activeKnowledgeBase?.id ?? '',
@@ -453,6 +487,11 @@ export function ChatPage() {
       preparingAnswer: t('chat.copy.preparingAnswer'),
       retrievingContext: t('chat.copy.retrievingContext'),
       generatingAnswer: t('chat.copy.generatingAnswer'),
+      agentMode: t('chat.copy.agentMode'),
+      agentModeOn: t('chat.copy.agentModeOn'),
+      agentModeOff: t('chat.copy.agentModeOff'),
+      agentModeHint: t('chat.copy.agentModeHint'),
+      agentSteps: t('chat.copy.agentSteps'),
       answerSettingsNeeded: t('chat.copy.answerSettingsNeeded'),
       starterPromptHeading:
         locale === 'zh'
@@ -550,6 +589,12 @@ export function ChatPage() {
       ),
     [activeStreamTurn, messagesQuery.data, shouldRenderStreamTurn]
   );
+
+  const visibleMessages = useMemo(
+    () => displayedMessages.slice(-transcriptVisibleCount),
+    [displayedMessages, transcriptVisibleCount]
+  );
+  const hiddenMessageCount = displayedMessages.length - visibleMessages.length;
 
   useEffect(() => {
     const target = transcriptRef.current;
@@ -784,6 +829,7 @@ export function ChatPage() {
       await askStreamMutation.mutateAsync({
         question,
         conversationId: targetConversationId ?? undefined,
+        mode: agentModeEnabled ? 'agent' : 'default',
         signal: abortController.signal,
         onEvent: (event) => {
           handleAskStreamEvent(event as AskStreamEvent);
@@ -975,6 +1021,8 @@ export function ChatPage() {
         </div>
 
         <div
+          aria-live="polite"
+          aria-relevant="additions text"
           className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8"
           onScroll={(event) => {
             const target = event.currentTarget;
@@ -983,6 +1031,7 @@ export function ChatPage() {
             );
           }}
           ref={transcriptRef}
+          role="log"
         >
           <div className="flex flex-col gap-6">
             {chatReadinessState.kind === 'no_active_knowledge_base' ? (
@@ -1132,234 +1181,276 @@ export function ChatPage() {
                 tone="error"
               />
             ) : displayedMessages.length ? (
-              displayedMessages.map((message, messageIndex) => {
-                const isAssistant = message.role === 'assistant';
-                const isStreamingAssistant =
-                  'status' in message &&
-                  message.role === 'assistant' &&
-                  message.status === 'streaming';
-                const isErroredAssistant =
-                  'status' in message &&
-                  message.role === 'assistant' &&
-                  message.status === 'error';
-                const isStoppedAssistant =
-                  'status' in message &&
-                  message.role === 'assistant' &&
-                  message.status === 'stopped';
-                const traceId = 'traceId' in message ? message.traceId : null;
-                const messageTime =
-                  'createdAt' in message
-                    ? formatMessageTime(message.createdAt, locale)
-                    : null;
-                const canCopyAssistantAnswer =
-                  isAssistant &&
-                  !isStreamingAssistant &&
-                  message.content.trim().length > 0;
-                const regenerateQuestion =
-                  isAssistant && !isStreamingAssistant
-                    ? findRegenerateQuestion(messageIndex)
-                    : null;
-                const canRegenerateAnswer =
-                  Boolean(regenerateQuestion) && !isStreamingTurnActive;
-                const isCopied = copiedMessageId === message.id;
-                const traceSummaryHint =
-                  isAssistant && !isStreamingAssistant
-                    ? (traceSummaryHintsByMessageId[message.id] ?? null)
-                    : null;
-
-                return (
-                  <div
-                    className={[
-                      'flex gap-3 md:gap-4',
-                      isAssistant
-                        ? 'max-w-[92%] md:max-w-[85%]'
-                        : 'ml-auto max-w-[92%] md:max-w-[85%] flex-row-reverse'
-                    ].join(' ')}
-                    key={message.id}
+              <>
+                {hiddenMessageCount > 0 ? (
+                  <button
+                    className="mx-auto mb-2 inline-flex items-center rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-xs font-medium text-[var(--app-text-secondary)] transition hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
+                    onClick={() =>
+                      setTranscriptVisibleCount(
+                        (current) => current + TRANSCRIPT_PAGE_SIZE
+                      )
+                    }
+                    type="button"
                   >
+                    {locale === 'zh'
+                      ? `加载更早的 ${hiddenMessageCount} 条消息`
+                      : `Load ${hiddenMessageCount} earlier messages`}
+                  </button>
+                ) : null}
+                {visibleMessages.map((message, visibleIndex) => {
+                  const messageIndex = hiddenMessageCount + visibleIndex;
+                  const isAssistant = message.role === 'assistant';
+                  const isStreamingAssistant =
+                    'status' in message &&
+                    message.role === 'assistant' &&
+                    message.status === 'streaming';
+                  const isErroredAssistant =
+                    'status' in message &&
+                    message.role === 'assistant' &&
+                    message.status === 'error';
+                  const isStoppedAssistant =
+                    'status' in message &&
+                    message.role === 'assistant' &&
+                    message.status === 'stopped';
+                  const traceId = 'traceId' in message ? message.traceId : null;
+                  const messageTime =
+                    'createdAt' in message
+                      ? formatMessageTime(message.createdAt, locale)
+                      : null;
+                  const canCopyAssistantAnswer =
+                    isAssistant &&
+                    !isStreamingAssistant &&
+                    message.content.trim().length > 0;
+                  const regenerateQuestion =
+                    isAssistant && !isStreamingAssistant
+                      ? findRegenerateQuestion(messageIndex)
+                      : null;
+                  const canRegenerateAnswer =
+                    Boolean(regenerateQuestion) && !isStreamingTurnActive;
+                  const isCopied = copiedMessageId === message.id;
+                  const traceSummaryHint =
+                    isAssistant && !isStreamingAssistant
+                      ? (traceSummaryHintsByMessageId[message.id] ?? null)
+                      : null;
+
+                  return (
                     <div
                       className={[
-                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] text-[12px] font-semibold md:h-9 md:w-9 md:rounded-[14px] md:text-[13px]',
+                        'flex gap-3 md:gap-4',
                         isAssistant
-                          ? 'border border-[var(--app-border)] bg-[var(--app-surface-muted)] text-[#a5b4fc]'
-                          : 'bg-[#059669] text-white'
+                          ? 'max-w-[92%] md:max-w-[85%]'
+                          : 'ml-auto max-w-[92%] md:max-w-[85%] flex-row-reverse'
                       ].join(' ')}
+                      key={message.id}
                     >
-                      {isAssistant ? '答' : '我'}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
                       <div
                         className={[
-                          'rounded-[18px] px-4 py-3.5 text-sm leading-7 shadow-[0_6px_18px_rgba(0,0,0,0.18)] md:rounded-[20px] md:px-5 md:py-4',
+                          'flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] text-[12px] font-semibold md:h-9 md:w-9 md:rounded-[14px] md:text-[13px]',
                           isAssistant
-                            ? 'rounded-tl-[6px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text)]'
-                            : 'rounded-tr-[6px] bg-[var(--app-accent)] text-white'
+                            ? 'border border-[var(--app-border)] bg-[var(--app-surface-muted)] text-[#a5b4fc]'
+                            : 'bg-[#059669] text-white'
                         ].join(' ')}
                       >
-                        {message.content ? (
-                          <CitationAnswerText
-                            citations={
-                              'citations' in message && message.citations
-                                ? message.citations
-                                : []
-                            }
-                            locale={locale}
-                            streaming={isStreamingAssistant}
-                            text={message.content}
-                          />
-                        ) : isStreamingAssistant ? (
-                          <TypingIndicator />
-                        ) : null}
-                        {isErroredAssistant && 'errorMessage' in message ? (
-                          <p className="mt-3 text-sm text-red-300">
-                            {message.errorMessage}
-                          </p>
-                        ) : null}
-                        {isStoppedAssistant ? (
-                          <p className="mt-3 text-sm text-amber-200">
-                            {chatCopy.answerStopped}
-                          </p>
-                        ) : null}
+                        {isAssistant ? '答' : '我'}
                       </div>
 
-                      <div className="mt-2.5 flex min-h-9 items-center gap-3 px-1">
-                        <span className="min-w-0 shrink-0 text-[11px] text-[var(--app-text-muted)]">
-                          {messageTime ??
-                            (isStreamingAssistant ? streamStatusLabel : '')}
-                        </span>
-                        {traceSummaryHint ? (
-                          <span
-                            className="min-w-0 truncate text-[11px] text-[var(--app-text-muted)]"
-                            title={traceSummaryHint}
-                          >
-                            {traceSummaryHint}
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={[
+                            'rounded-[18px] px-4 py-3.5 text-sm leading-7 shadow-[0_6px_18px_rgba(0,0,0,0.18)] md:rounded-[20px] md:px-5 md:py-4',
+                            isAssistant
+                              ? 'rounded-tl-[6px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text)]'
+                              : 'rounded-tr-[6px] bg-[var(--app-accent)] text-white'
+                          ].join(' ')}
+                        >
+                          {isAssistant &&
+                          (('steps' in message &&
+                            Array.isArray(message.steps) &&
+                            message.steps.length > 0) ||
+                            ('agentSteps' in message &&
+                              Array.isArray(message.agentSteps) &&
+                              message.agentSteps.length > 0)) ? (
+                            <AgentStepTimeline
+                              steps={
+                                'steps' in message &&
+                                Array.isArray(message.steps) &&
+                                message.steps.length > 0
+                                  ? message.steps
+                                  : (message.agentSteps ?? [])
+                              }
+                              streaming={isStreamingAssistant}
+                              title={chatCopy.agentSteps}
+                            />
+                          ) : null}
+                          {message.content ? (
+                            <CitationAnswerText
+                              citations={
+                                'citations' in message && message.citations
+                                  ? message.citations
+                                  : []
+                              }
+                              locale={locale}
+                              streaming={isStreamingAssistant}
+                              text={message.content}
+                            />
+                          ) : isStreamingAssistant ? (
+                            <TypingIndicator />
+                          ) : null}
+                          {isErroredAssistant && 'errorMessage' in message ? (
+                            <p className="mt-3 text-sm text-red-300">
+                              {message.errorMessage}
+                            </p>
+                          ) : null}
+                          {isStoppedAssistant ? (
+                            <p className="mt-3 text-sm text-amber-200">
+                              {chatCopy.answerStopped}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-2.5 flex min-h-9 items-center gap-3 px-1">
+                          <span className="min-w-0 shrink-0 text-[11px] text-[var(--app-text-muted)]">
+                            {messageTime ??
+                              (isStreamingAssistant ? streamStatusLabel : '')}
                           </span>
-                        ) : null}
-                        {isAssistant ? (
-                          !isStreamingAssistant && traceId ? (
-                            <IconActionLink
-                              label={chatCopy.viewTrace}
-                              to={buildChatTraceDetailLink({
-                                traceId,
-                                conversationId:
-                                  'conversationId' in message
-                                    ? message.conversationId
-                                    : resolvedConversationId
-                              })}
+                          {traceSummaryHint ? (
+                            <span
+                              className="min-w-0 truncate text-[11px] text-[var(--app-text-muted)]"
+                              title={traceSummaryHint}
                             >
-                              <svg
-                                aria-hidden="true"
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
+                              {traceSummaryHint}
+                            </span>
+                          ) : null}
+                          {isAssistant ? (
+                            !isStreamingAssistant && traceId ? (
+                              <IconActionLink
+                                label={chatCopy.viewTrace}
+                                to={buildChatTraceDetailLink({
+                                  traceId,
+                                  conversationId:
+                                    'conversationId' in message
+                                      ? message.conversationId
+                                      : resolvedConversationId
+                                })}
                               >
-                                <path
-                                  d="M4 12h4l2.5-5 3 10 2-5H20"
-                                  stroke="currentColor"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth="2"
-                                />
-                              </svg>
-                            </IconActionLink>
-                          ) : (
-                            <ActionSlotPlaceholder />
-                          )
-                        ) : null}
-                        {isAssistant ? (
-                          !isStreamingAssistant ? (
-                            <IconActionButton
-                              disabledHint={chatCopy.regenerateAnswer}
-                              label={chatCopy.regenerateAnswer}
-                              onClick={
-                                canRegenerateAnswer
-                                  ? () => {
-                                      void submitQuestion({
-                                        conversationId:
-                                          'conversationId' in message
-                                            ? message.conversationId
-                                            : activeConversationId,
-                                        question:
-                                          regenerateQuestion ?? undefined
-                                      });
-                                    }
-                                  : undefined
-                              }
-                            >
-                              <svg
-                                aria-hidden="true"
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
+                                <svg
+                                  aria-hidden="true"
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    d="M4 12h4l2.5-5 3 10 2-5H20"
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth="2"
+                                  />
+                                </svg>
+                              </IconActionLink>
+                            ) : (
+                              <ActionSlotPlaceholder />
+                            )
+                          ) : null}
+                          {isAssistant ? (
+                            !isStreamingAssistant ? (
+                              <IconActionButton
+                                disabledHint={chatCopy.regenerateAnswer}
+                                label={chatCopy.regenerateAnswer}
+                                onClick={
+                                  canRegenerateAnswer
+                                    ? () => {
+                                        void submitQuestion({
+                                          conversationId:
+                                            'conversationId' in message
+                                              ? message.conversationId
+                                              : activeConversationId,
+                                          question:
+                                            regenerateQuestion ?? undefined
+                                        });
+                                      }
+                                    : undefined
+                                }
                               >
-                                <path
-                                  d="M20 11a8 8 0 1 0 2.3 5.7"
-                                  stroke="currentColor"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth="2"
-                                />
-                                <path
-                                  d="M20 4v7h-7"
-                                  stroke="currentColor"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth="2"
-                                />
-                              </svg>
-                            </IconActionButton>
-                          ) : (
-                            <ActionSlotPlaceholder />
-                          )
-                        ) : null}
-                        {isAssistant ? (
-                          canCopyAssistantAnswer ? (
-                            <IconActionButton
-                              label={
-                                isCopied
-                                  ? chatCopy.copiedAnswer
-                                  : chatCopy.copyAnswer
-                              }
-                              onClick={() => {
-                                void handleCopyAnswer(
-                                  message.id,
-                                  message.content
-                                );
-                              }}
-                            >
-                              <svg
-                                aria-hidden="true"
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
+                                <svg
+                                  aria-hidden="true"
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    d="M20 11a8 8 0 1 0 2.3 5.7"
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth="2"
+                                  />
+                                  <path
+                                    d="M20 4v7h-7"
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth="2"
+                                  />
+                                </svg>
+                              </IconActionButton>
+                            ) : (
+                              <ActionSlotPlaceholder />
+                            )
+                          ) : null}
+                          {isAssistant ? (
+                            canCopyAssistantAnswer ? (
+                              <IconActionButton
+                                label={
+                                  isCopied
+                                    ? chatCopy.copiedAnswer
+                                    : chatCopy.copyAnswer
+                                }
+                                onClick={() => {
+                                  void handleCopyAnswer(
+                                    message.id,
+                                    message.content
+                                  );
+                                }}
                               >
-                                <rect
-                                  height="13"
-                                  rx="2"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  width="13"
-                                  x="8"
-                                  y="8"
-                                />
-                                <path
-                                  d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                                  stroke="currentColor"
-                                  strokeLinecap="round"
-                                  strokeWidth="2"
-                                />
-                              </svg>
-                            </IconActionButton>
-                          ) : (
-                            <ActionSlotPlaceholder />
-                          )
-                        ) : null}
+                                <svg
+                                  aria-hidden="true"
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <rect
+                                    height="13"
+                                    rx="2"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    width="13"
+                                    x="8"
+                                    y="8"
+                                  />
+                                  <path
+                                    d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeWidth="2"
+                                  />
+                                </svg>
+                              </IconActionButton>
+                            ) : (
+                              <ActionSlotPlaceholder />
+                            )
+                          ) : null}
+                          {isAssistant &&
+                          !isStreamingAssistant &&
+                          !message.id.startsWith('local-') ? (
+                            <MessageFeedbackButtons messageId={message.id} />
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </>
             ) : (
               <StatePanel
                 action={
@@ -1409,6 +1500,39 @@ export function ChatPage() {
                   {composerHelpText}
                 </div>
               </div>
+              <button
+                aria-pressed={agentModeEnabled}
+                className={[
+                  'flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition',
+                  agentModeEnabled
+                    ? 'border-[var(--app-accent)] bg-[var(--app-accent-soft)] text-[#a5b4fc]'
+                    : 'border-[var(--app-border)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]'
+                ].join(' ')}
+                disabled={isStreamingTurnActive}
+                onClick={() => setAgentModeEnabled((current) => !current)}
+                title={chatCopy.agentModeHint}
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                  className={[
+                    'h-1.5 w-1.5 rounded-full',
+                    agentModeEnabled
+                      ? 'bg-[#a5b4fc]'
+                      : 'bg-[var(--app-text-muted)]'
+                  ].join(' ')}
+                />
+                <span>{chatCopy.agentMode}</span>
+                <span className="text-[10px] uppercase tracking-[0.06em] opacity-80">
+                  {agentModeEnabled
+                    ? locale === 'zh'
+                      ? '开'
+                      : 'ON'
+                    : locale === 'zh'
+                      ? '关'
+                      : 'OFF'}
+                </span>
+              </button>
             </div>
 
             <div className="rounded-[22px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-3 transition duration-300 focus-within:border-[var(--app-accent)] focus-within:shadow-[0_0_0_3px_var(--app-accent-glow)] md:rounded-[24px]">

@@ -2,10 +2,15 @@
 
 > 文档角色：`current-context`
 > 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、执行边界、最小验证和高频入口，详细历史按需回看其他文档。
-> 更新时间：2026-04-29
+> 更新时间：2026-10-31
 
 ## Current Mainline
 
+- 最近一轮面试收益增量已经落地：Agent mode chat、多跳证据融合、多轮上下文、SSRF / prompt-injection 防护、markdown 回答渲染。
+- 本轮继续收口 Agent 闭环：聊天内 Agent mode 会基于证据充分性和会话历史生成 second-pass query，judge 不再只看 rewritten query；证据合并为 second pass 预留配额；Agent 检索也带 conversation history。
+- 同时补上最小反馈闭环、eval `executionMode=agent`、DB ingestion queue stale lease 回收，以及 chat 的 markdown streaming / a11y 基础能力。
+- 本轮继续补齐可观测与生产化边界：LLM provider usage 采集、`/traces/usage-summary` 的 first-token P50/P95 与 cost 估算、SSE `Last-Event-ID` replay + 客户端重连、Redis queue processing visibility recovery、Trace Detail 的 `agentExecution.steps` 面板、长会话窗口化、prompt delimiter 转义。
+- `AgentStep` 和 `MessageFeedbackInput` 已回流到 `packages/shared`；前端和后端不再各自维护这两类契约。
 - 当前默认工作方式仍然是：单线推进、小步增量、每轮收口，不并行展开多个大方向。
 - 代码现实已经明显前于旧计划口径：
   - `P0` read-model / metadata convergence：已完成
@@ -61,6 +66,16 @@
 4. 保持默认路径的状态反馈、next action 文案和当前 repair/upload-first 行为一致。
 5. 后续若再补 agent 能力，优先沿现有 UI 入口继续小步增加，而不是扩成 planner 或 multi-agent。
 6. 持续保持 docs、阶段判断和活动队列现实对齐。
+
+## Remaining Follow-ups
+
+- `god service extraction`: `ask-assistant.service.ts`, `retrieval.service.ts`, `ReportCenterPage.tsx` remain the main maintainability debt; pure evidence/history helpers have been extracted, but the orchestrator is still large.
+- `SSRF IP pinning`: DNS is validated before fetch and `SOURCE_FETCH_ALLOWED_HOSTS` now provides an egress allowlist, but resolved IPs are still not pinned against rebinding.
+- `shared ask response contract`: `AgentStep` / `MessageFeedbackInput` now live in `packages/shared`, but the full `AskResponse` / `AskStreamEvent` payloads are still frontend-owned.
+- `feedback-to-eval loop`: thumbs feedback is persisted, but there is no one-click "add this trace to eval" workflow yet.
+- `provider-specific cost table`: `/traces/usage-summary` supports generic per-million token prices, not a per-model pricing table.
+- `browser smoke in CI`: the stable web guard lane is in CI; the seeded-account browser smoke remains a local legacy lane.
+- `OpenAI stream usage`: non-stream OpenAI/Ollama and Ollama stream usage are captured; OpenAI-compatible streaming usage still depends on the provider returning a usage chunk.
 
 ## Do Not Do
 
@@ -130,10 +145,11 @@ If we want this repo to be interview-ready for agent development, the next incre
 
 1. `rag_search` / `rag_answer` tool APIs: completed for the current bounded contract
 2. server-side tool gateway secret plus internal `userId / tenantId` mapping: completed for agent tool requests and headers
-3. bounded multi-step flow: completed as a bounded real backend second retrieval pass with merged diagnostics while default asks remain single-pass
+3. bounded multi-step flow: completed as a bounded real backend second retrieval pass with merged diagnostics while default asks remain single-pass; chat Agent mode can now suggest its own second-pass query from evidence signals and scoped history
 4. stable response contract with `citations`, `confidence`, and `missingInformation`: completed for `rag_answer`
 5. `trace_lookup` / `document_lookup` helpers for inspection and demos: completed with stable found/not-found payloads
-6. `/agent` UI with chat plus `steps / chunks / trace`: not expanded into a new platform page; current trace/report/chat inspection surface remains the supported demo surface and now has focused coverage
+6. chat-internal Agent mode with live `steps` plus the existing trace/report inspection surface: landed; no separate `/agent` platform page
+7. eval / feedback loop: eval runs can now select `executionMode=agent`, and assistant messages expose a minimal thumbs up/down feedback endpoint
 
 Scope guardrails for this increment:
 
@@ -146,13 +162,14 @@ Scope guardrails for this increment:
 
 LangChain / LangGraph is now introduced only as a thin Agentic RAG side path:
 
-- isolated entry is landed at `POST /agent-tools/langgraph_answer`
+- isolated entries are landed at `POST /agent-tools/langgraph_answer` and `POST /assistants/:id/ask/agent/stream`
 - current graph stays bounded to route decision, primary retrieval, optional second retrieval pass, and final answer assembly
+- final answers now use merged primary + second-pass evidence instead of re-running default retrieval
 - the side path reuses existing `rag_search`, `rag_answer`, `trace_lookup`, `document_lookup`, and external-source capabilities
-- the default ask path remains unchanged; LangGraph is still a bounded side path until coverage and trace readability are strong enough for any broader decision
-- current graph steps are visible to the existing trace / report / chat inspection surface rather than a new agent platform page
+- the default ask path remains unchanged; chat Agent mode is an explicit toggle, not the default
+- current graph steps are visible live in chat and persisted into trace metadata, while the trace / report inspection surface remains the deeper diagnostic view
 - the implementation does not replace current ingestion, chunking, retrieval, vector store, answering, trace, or eval infrastructure with LangChain abstractions
-- long-term memory is still out of scope for this first LangGraph increment; current conversation history / trace / report data remain context and diagnostics, not agent memory
+- scoped conversation history is now used for follow-up rewrite and answer context; long-term / cross-conversation memory is still out of scope
 - LangSmith stays optional and disabled by default; self-owned trace / report / eval remain the source of truth
 
 Current target: keep complex questions visibly multi-step on the side path while simple questions continue to use the stable default RAG path.

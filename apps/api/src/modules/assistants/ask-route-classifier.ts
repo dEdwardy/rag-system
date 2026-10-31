@@ -40,9 +40,7 @@ export const ASK_ROUTE_CLASSIFIER_TIMEOUT_MS = 2500;
  * source URL, and the URL extraction is deterministic. A model guess without a
  * URL would produce a route the executor cannot satisfy.
  */
-const LLM_CLASSIFIABLE_ROUTE_TYPES = ['knowledge_base', 'policy_reply'] as const;
-
-type LlmClassifiableRouteType = (typeof LLM_CLASSIFIABLE_ROUTE_TYPES)[number];
+type LlmClassifiableRouteType = 'knowledge_base' | 'policy_reply';
 
 const CLASSIFIER_SYSTEM_PROMPT = `You classify a user question for a retrieval-augmented answering system.
 Reply with a single JSON object and nothing else:
@@ -162,7 +160,11 @@ export function parseClassifierOutput(raw: string): {
   }
 
   const normalized = routeType.trim().toLowerCase();
-  if (normalized !== 'knowledge_base' && normalized !== 'policy_reply' && normalized !== 'external_source') {
+  if (
+    normalized !== 'knowledge_base' &&
+    normalized !== 'policy_reply' &&
+    normalized !== 'external_source'
+  ) {
     return null;
   }
 
@@ -177,7 +179,9 @@ export function parseClassifierOutput(raw: string): {
   };
 }
 
-function toRouteDecision(routeType: LlmClassifiableRouteType): AskRouteDecision {
+function toRouteDecision(
+  routeType: LlmClassifiableRouteType
+): AskRouteDecision {
   const routeReason: TraceRouteReason =
     routeType === 'policy_reply' ? 'policy_question' : 'default_kb_ask';
 

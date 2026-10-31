@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { EventEmitter } from 'node:events';
 
 export type SseWritableResponse = {
@@ -28,7 +29,62 @@ export type SseStreamWriterOptions = {
   maxPendingBytes?: number;
   writeTimeoutMs?: number;
   now?: () => number;
+  streamId?: string;
+  resumeFromEventId?: number;
+  follow?: boolean;
 };
+
+type SseReplayFrame = {
+  id: number;
+  frame: string;
+};
+
+type SseReplayStream = {
+  id: string;
+  nextEventId: number;
+  frames: SseReplayFrame[];
+  finished: boolean;
+  createdAt: number;
+};
+
+const SSE_REPLAY_TTL_MS = 60_000;
+const SSE_REPLAY_MAX_FRAMES = 2_000;
+const SSE_FOLLOW_INTERVAL_MS = 50;
+const sseReplayStreams = new Map<string, SseReplayStream>();
+
+export function getSseReplayStream(streamId: string) {
+  pruneSseReplayStreams();
+  return sseReplayStreams.get(streamId) ?? null;
+}
+
+function ensureSseReplayStream(streamId: string) {
+  pruneSseReplayStreams();
+  const existing = sseReplayStreams.get(streamId);
+  if (existing != null) {
+    return existing;
+  }
+
+  const created: SseReplayStream = {
+    id: streamId,
+    nextEventId: 1,
+    frames: [],
+    finished: false,
+    createdAt: Date.now()
+  };
+  sseReplayStreams.set(streamId, created);
+  return created;
+}
+
+function pruneSseReplayStreams() {
+  const cutoff = Date.now() - SSE_REPLAY_TTL_MS;
+  for (const [streamId, stream] of sseReplayStreams) {
+    if (stream.finished || stream.createdAt < cutoff) {
+      if (stream.createdAt < cutoff) {
+        sseReplayStreams.delete(streamId);
+      }
+    }
+  }
+}
 
 export type SseStreamStats = {
   startedAt: number;
@@ -72,8 +128,15 @@ export class SseStreamWriter {
 
   private started = false;
   private finished = false;
+  private detached = false;
+  private readonly follow: boolean;
+  private readonly streamId: string;
+  private readonly replayStream: SseReplayStream;
+  private lastReplayedEventId = 0;
+  private followTimer: NodeJS.Timeout | null = null;
+  private followResolve: (() => void) | null = null;
+  private replayFlushPromise: Promise<void> | null = null;
   private closePromise: Promise<void> | null = null;
-  private nextEventId = 1;
   private pendingDeltas: string[] = [];
   private pendingBytes = 0;
   private hasWrittenAnswerDelta = false;
@@ -93,6 +156,10 @@ export class SseStreamWriter {
     this.maxPendingBytes = options.maxPendingBytes ?? DEFAULT_MAX_PENDING_BYTES;
     this.writeTimeoutMs = options.writeTimeoutMs ?? DEFAULT_WRITE_TIMEOUT_MS;
     this.now = options.now ?? Date.now;
+    this.follow = options.follow === true;
+    this.streamId = options.streamId ?? randomUUID();
+    this.replayStream = ensureSseReplayStream(this.streamId);
+    this.lastReplayedEventId = options.resumeFromEventId ?? 0;
     this.stats = {
       startedAt: this.now(),
       firstEventAt: null,
@@ -106,6 +173,14 @@ export class SseStreamWriter {
       maxPendingBytes: 0,
       closeReason: null
     };
+
+    if (this.follow) {
+      this.startFollowing();
+    }
+  }
+
+  get id() {
+    return this.streamId;
   }
 
   get isStarted() {
@@ -120,11 +195,44 @@ export class SseStreamWriter {
     return this.stats;
   }
 
+  detach() {
+    if (this.detached) {
+      return;
+    }
+
+    this.detached = true;
+    this.stopHeartbeat();
+  }
+
+  hasActiveResponse() {
+    return !this.detached && this.finished !== true;
+  }
+
+  waitForReplayToFinish(timeoutMs = 60_000) {
+    if (this.finished || this.replayStream.finished) {
+      return this.flushReplayFrames().then(() => undefined);
+    }
+
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        this.followResolve = null;
+        resolve();
+      }, timeoutMs);
+      timer.unref?.();
+
+      this.followResolve = () => {
+        clearTimeout(timer);
+        this.followResolve = null;
+        resolve();
+      };
+    });
+  }
+
   async writeEvent(
     event: Record<string, unknown>,
     options: { flush?: boolean } = {}
   ) {
-    if (this.finished) {
+    if (this.finished || this.follow) {
       return;
     }
 
@@ -168,8 +276,63 @@ export class SseStreamWriter {
       return this.closePromise;
     }
 
+    if (!this.follow) {
+      this.replayStream.finished = true;
+    }
     this.closePromise = this.finalizeClose(reason);
     return this.closePromise;
+  }
+
+  private startFollowing() {
+    this.ensureStarted();
+    this.followTimer = setInterval(() => {
+      void this.flushReplayFrames().catch(() => this.detach());
+    }, SSE_FOLLOW_INTERVAL_MS);
+    this.followTimer.unref?.();
+    void this.flushReplayFrames().catch(() => this.detach());
+  }
+
+  private stopFollowing() {
+    if (this.followTimer == null) {
+      return;
+    }
+
+    clearInterval(this.followTimer);
+    this.followTimer = null;
+  }
+
+  private flushReplayFrames() {
+    if (this.finished) {
+      return Promise.resolve();
+    }
+
+    if (this.replayFlushPromise != null) {
+      return this.replayFlushPromise;
+    }
+
+    this.replayFlushPromise = this.performFlushReplayFrames().finally(() => {
+      this.replayFlushPromise = null;
+    });
+    return this.replayFlushPromise;
+  }
+
+  private async performFlushReplayFrames() {
+    const frames = this.replayStream.frames.filter(
+      (frame) => frame.id > this.lastReplayedEventId
+    );
+    for (const frame of frames) {
+      await this.writeRaw(frame.frame);
+      this.lastReplayedEventId = frame.id;
+      this.stats.framesWritten += 1;
+      this.stats.firstEventAt ??= this.now();
+      this.stats.lastEventAt = this.now();
+    }
+
+    if (this.replayStream.finished) {
+      this.stopFollowing();
+      this.followResolve?.();
+      await this.finalizeClose('completed');
+    }
   }
 
   private async finalizeClose(reason: SseStreamCloseReason) {
@@ -289,6 +452,7 @@ export class SseStreamWriter {
     this.response.setHeader('Cache-Control', 'no-cache, no-transform');
     this.response.setHeader('Connection', 'keep-alive');
     this.response.setHeader('X-Accel-Buffering', 'no');
+    this.response.setHeader('X-Sse-Stream-Id', this.streamId);
     this.startHeartbeat();
   }
 
@@ -319,15 +483,30 @@ export class SseStreamWriter {
 
     this.ensureStarted();
 
-    const eventId = this.nextEventId;
-    this.nextEventId += 1;
+    const eventId = this.replayStream.nextEventId;
+    this.replayStream.nextEventId += 1;
     const eventType =
       typeof event.type === 'string' && event.type.length > 0
         ? event.type
         : 'message';
 
     const frame = `id: ${eventId}\nevent: ${eventType}\ndata: ${JSON.stringify(event)}\n\n`;
-    await this.writeRaw(frame);
+    this.replayStream.frames.push({ id: eventId, frame });
+    if (this.replayStream.frames.length > SSE_REPLAY_MAX_FRAMES) {
+      this.replayStream.frames.splice(
+        0,
+        this.replayStream.frames.length - SSE_REPLAY_MAX_FRAMES
+      );
+    }
+
+    try {
+      await this.writeRaw(frame);
+    } catch (error) {
+      if (!(error instanceof SseStreamClosedError)) {
+        throw error;
+      }
+      this.detach();
+    }
 
     this.stats.framesWritten += 1;
     this.stats.firstEventAt ??= this.now();
@@ -341,12 +520,17 @@ export class SseStreamWriter {
   }
 
   private async writeRaw(chunk: string) {
+    if (this.detached) {
+      return;
+    }
+
     if (
       this.finished ||
       this.response.writableEnded === true ||
       this.response.destroyed === true
     ) {
-      throw new SseStreamClosedError();
+      this.detach();
+      return;
     }
 
     const accepted = this.response.write(chunk);

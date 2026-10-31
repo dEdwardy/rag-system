@@ -29,6 +29,7 @@ import {
 import { AuthenticatedRoute } from '../auth/auth-route-policy';
 import { buildHttpExceptionResponse } from '../../common/http-exception.filter';
 import {
+  getSseReplayStream,
   SseStreamWriter,
   type SseStreamCloseReason,
   type SseWritableResponse
@@ -115,20 +116,61 @@ export class AssistantsController {
   ) {
     let streamFinished = false;
     const abortController = new AbortController();
-    const writer = new SseStreamWriter(response);
     const requestWithEvents = request as ApiRequestWithAuthContext & {
+      headers?: Record<string, string | string[] | undefined>;
       on?: (event: string, listener: () => void) => void;
     };
+    const resumeStreamId = readHeader(
+      requestWithEvents?.headers,
+      'x-sse-stream-id'
+    );
+    const resumeFromEventId = readLastEventId(
+      requestWithEvents?.headers,
+      'last-event-id'
+    );
+    const canResume =
+      resumeStreamId != null &&
+      resumeFromEventId != null &&
+      getSseReplayStream(resumeStreamId) != null;
+    const writer = new SseStreamWriter(
+      response,
+      canResume
+        ? {
+            streamId: resumeStreamId,
+            resumeFromEventId,
+            follow: true
+          }
+        : {}
+    );
+
+    if (canResume) {
+      try {
+        await writer.waitForReplayToFinish();
+      } finally {
+        streamFinished = true;
+        await writer.close('completed');
+      }
+      return;
+    }
 
     const abortStream = () => {
       if (!streamFinished && !abortController.signal.aborted) {
         abortController.abort();
       }
     };
+    const resumeGraceTimer = setTimeout(() => {
+      if (!writer.hasActiveResponse()) {
+        abortStream();
+      }
+    }, 60_000);
+    resumeGraceTimer.unref?.();
 
-    requestWithEvents?.on?.('aborted', abortStream);
-    requestWithEvents?.on?.('close', abortStream);
-    response?.on?.('close', abortStream);
+    const detachStream = () => {
+      writer.detach();
+    };
+
+    requestWithEvents?.on?.('close', detachStream);
+    response?.on?.('close', detachStream);
 
     let closeReason: SseStreamCloseReason = 'completed';
 
@@ -173,6 +215,7 @@ export class AssistantsController {
       closeReason = 'error';
     } finally {
       streamFinished = true;
+      clearTimeout(resumeGraceTimer);
       await writer.close(closeReason);
       this.logger.log(
         JSON.stringify({
@@ -215,4 +258,25 @@ export class AssistantsController {
       details: null
     };
   }
+}
+
+function readHeader(
+  headers: Record<string, string | string[] | undefined> | undefined,
+  name: string
+) {
+  const value = headers?.[name] ?? headers?.[name.toLowerCase()];
+  const raw = Array.isArray(value) ? value[0] : value;
+  return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : null;
+}
+
+function readLastEventId(
+  headers: Record<string, string | string[] | undefined> | undefined,
+  name: string
+) {
+  const raw = readHeader(headers, name);
+  if (raw == null) {
+    return null;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }

@@ -128,6 +128,7 @@ test('AnsweringService preserves structured answer metadata and enforces max cit
     missingInformationSource: 'none',
     answerTextSource: 'model',
     insufficientContextReason: null,
+    llmUsage: null,
     answerStatusSource: 'model',
     answerStatus: 'grounded',
     coverageSummary: {
@@ -737,6 +738,7 @@ test('AnsweringService prefers merged contextGroups content when calling the mod
     missingInformationSource: 'none',
     answerTextSource: 'model',
     insufficientContextReason: null,
+    llmUsage: null,
     answerStatusSource: 'inferred_from_retrieval',
     answerStatus: 'grounded',
     coverageSummary: {

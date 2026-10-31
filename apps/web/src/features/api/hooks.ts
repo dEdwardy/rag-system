@@ -26,12 +26,14 @@ import {
   EvalQuestionSetRunQualityGateMode,
   HealthResponse,
   Message,
+  MessageFeedbackInput,
   PagedConversations,
   PagedDocumentRecords,
   RetrievalProfileFilters,
   RetrievalStrategy,
   RetrievalProfile,
   TraceRecord,
+  TraceUsageSummary,
   KnowledgeBaseDocumentSummary
 } from '../../types/api';
 
@@ -699,6 +701,17 @@ export function useTrace(traceId: string | null) {
   });
 }
 
+export function useTraceUsageSummary(sinceHours = 24) {
+  return useQuery({
+    queryKey: ['trace-usage-summary', sinceHours],
+    queryFn: () =>
+      apiRequest<TraceUsageSummary>(
+        `/traces/usage-summary?sinceHours=${sinceHours}`
+      ),
+    retry: false
+  });
+}
+
 export function useTraces(input: { query?: string; limit?: number } = {}) {
   return useQuery({
     queryKey: ['traces', input],
@@ -739,6 +752,19 @@ export function useAskAssistant(assistantId: string) {
   });
 }
 
+export function useSubmitMessageFeedback() {
+  return useMutation({
+    mutationFn: (input: {
+      messageId: string;
+      feedback: MessageFeedbackInput;
+    }) =>
+      apiRequest<unknown>(`/messages/${input.messageId}/feedback`, {
+        method: 'POST',
+        body: input.feedback
+      })
+  });
+}
+
 export function useAskAssistantStream(assistantId: string) {
   const queryClient = useQueryClient();
 
@@ -746,11 +772,14 @@ export function useAskAssistantStream(assistantId: string) {
     mutationFn: async (payload: {
       question: string;
       conversationId?: string;
+      mode?: 'default' | 'agent';
       onEvent: (event: AskStreamEvent) => void;
       signal?: AbortSignal;
     }) => {
       await apiStreamRequest<AskStreamEvent>(
-        `/assistants/${assistantId}/ask/stream`,
+        `/assistants/${assistantId}/ask/${
+          payload.mode === 'agent' ? 'agent/' : ''
+        }stream`,
         {
           method: 'POST',
           body: {

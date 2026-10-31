@@ -223,6 +223,175 @@ export class TracesService {
       );
   }
 
+  async getUsageSummary(
+    input: { sinceHours: number; limit: number },
+    scope?: { tenantId: string; userId: string } | null
+  ) {
+    const since = new Date(Date.now() - input.sinceHours * 60 * 60 * 1000);
+    const traces = await this.prisma.answerTrace.findMany({
+      where: {
+        createdAt: {
+          gte: since
+        },
+        ...(scope != null
+          ? {
+              conversation: {
+                tenantId: scope.tenantId,
+                userId: scope.userId
+              }
+            }
+          : {})
+      },
+      take: input.limit,
+      orderBy: {
+        createdAt: 'desc'
+      },
+      select: {
+        id: true,
+        modelName: true,
+        latencyMs: true,
+        status: true,
+        retrievalMetadataJson: true,
+        answeringMetadataJson: true,
+        createdAt: true
+      }
+    });
+
+    const firstTokenSamples: number[] = [];
+    const totalLatencySamples: number[] = [];
+    let promptTokens = 0;
+    let completionTokens = 0;
+    let totalTokens = 0;
+    let successCount = 0;
+    const byModel = new Map<
+      string,
+      {
+        modelName: string;
+        traceCount: number;
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+        firstTokenSamples: number[];
+      }
+    >();
+
+    for (const trace of traces) {
+      const retrievalMetadata = this.readObject(trace.retrievalMetadataJson);
+      const answeringMetadata = this.readObject(trace.answeringMetadataJson);
+      const timing = this.readObject(retrievalMetadata?.timing);
+      const usage = this.readObject(answeringMetadata?.llmUsage);
+      const firstTokenMs = this.readNumber(timing?.firstTokenMs);
+      const totalMs =
+        trace.latencyMs ?? this.readNumber(timing?.totalMs) ?? null;
+      const tracePromptTokens =
+        this.readNumber(usage?.promptTokens) ??
+        this.readNumber(retrievalMetadata?.promptContextApproxTokens) ??
+        0;
+      const traceCompletionTokens =
+        this.readNumber(usage?.completionTokens) ?? 0;
+      const traceTotalTokens =
+        this.readNumber(usage?.totalTokens) ??
+        (tracePromptTokens + traceCompletionTokens > 0
+          ? tracePromptTokens + traceCompletionTokens
+          : 0);
+
+      if (trace.status === TraceStatus.success) {
+        successCount += 1;
+      }
+      if (firstTokenMs != null) {
+        firstTokenSamples.push(firstTokenMs);
+      }
+      if (totalMs != null) {
+        totalLatencySamples.push(totalMs);
+      }
+
+      promptTokens += tracePromptTokens;
+      completionTokens += traceCompletionTokens;
+      totalTokens += traceTotalTokens;
+
+      const modelName = trace.modelName ?? 'unknown';
+      const modelEntry = byModel.get(modelName) ?? {
+        modelName,
+        traceCount: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        firstTokenSamples: []
+      };
+      modelEntry.traceCount += 1;
+      modelEntry.promptTokens += tracePromptTokens;
+      modelEntry.completionTokens += traceCompletionTokens;
+      modelEntry.totalTokens += traceTotalTokens;
+      if (firstTokenMs != null) {
+        modelEntry.firstTokenSamples.push(firstTokenMs);
+      }
+      byModel.set(modelName, modelEntry);
+    }
+
+    const inputCostPerMillion = readPositiveNumberEnv(
+      'LLM_INPUT_COST_PER_1M_TOKENS'
+    );
+    const outputCostPerMillion = readPositiveNumberEnv(
+      'LLM_OUTPUT_COST_PER_1M_TOKENS'
+    );
+    const estimatedCostUsd =
+      (promptTokens / 1_000_000) * inputCostPerMillion +
+      (completionTokens / 1_000_000) * outputCostPerMillion;
+
+    return {
+      windowHours: input.sinceHours,
+      sampledTraceCount: traces.length,
+      successCount,
+      failedCount: traces.length - successCount,
+      latency: {
+        firstTokenP50Ms: this.percentile(firstTokenSamples, 0.5),
+        firstTokenP95Ms: this.percentile(firstTokenSamples, 0.95),
+        totalP50Ms: this.percentile(totalLatencySamples, 0.5),
+        totalP95Ms: this.percentile(totalLatencySamples, 0.95)
+      },
+      tokens: {
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        promptTokensEstimated:
+          traces.length > 0 &&
+          traces.some((trace) => {
+            const metadata = this.readObject(trace.answeringMetadataJson);
+            return this.readObject(metadata?.llmUsage) == null;
+          })
+      },
+      cost: {
+        estimatedUsd: Number(estimatedCostUsd.toFixed(6)),
+        inputCostPerMillion,
+        outputCostPerMillion
+      },
+      byModel: [...byModel.values()]
+        .map((entry) => ({
+          modelName: entry.modelName,
+          traceCount: entry.traceCount,
+          promptTokens: entry.promptTokens,
+          completionTokens: entry.completionTokens,
+          totalTokens: entry.totalTokens,
+          firstTokenP50Ms: this.percentile(entry.firstTokenSamples, 0.5),
+          firstTokenP95Ms: this.percentile(entry.firstTokenSamples, 0.95)
+        }))
+        .sort((left, right) => right.traceCount - left.traceCount)
+    };
+  }
+
+  private percentile(values: number[], percentile: number) {
+    if (values.length === 0) {
+      return null;
+    }
+
+    const sorted = [...values].sort((left, right) => left - right);
+    const index = Math.min(
+      sorted.length - 1,
+      Math.max(0, Math.ceil(percentile * sorted.length) - 1)
+    );
+    return sorted[index];
+  }
+
   listLatestConversationTraces(
     conversationIds: string[],
     scope?: { tenantId: string; userId: string } | null
@@ -1366,4 +1535,14 @@ export class TracesService {
 
     return `${input.failedStageReadabilityLabel}; message: ${trimmedFailureMessage}.${noRankedCandidatesHint}`.trim();
   }
+}
+
+function readPositiveNumberEnv(name: string) {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return 0;
+  }
+
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }

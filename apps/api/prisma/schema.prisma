@@ -403,6 +403,25 @@ model Message {
   @@index([traceId])
 }
 
+model MessageFeedback {
+  id             String   @id @default(cuid())
+  tenantId       String
+  ownerId        String
+  messageId      String
+  conversationId String
+  traceId        String?
+  rating         String
+  reason         String?
+  comment        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([messageId, ownerId])
+  @@index([messageId])
+  @@index([tenantId, ownerId, createdAt(sort: Desc)])
+  @@index([traceId])
+}
+
 model AnswerTrace {
   id                 String      @id @default(cuid())
   conversationId     String

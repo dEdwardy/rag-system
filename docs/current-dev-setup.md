@@ -328,6 +328,7 @@ SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
   - same-domain minimum interval pacing (`SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS`)
   - bounded rolling crawl budget pacing (`SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS` + `SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS`)
   - retry exponential backoff + jitter (`SOURCE_FETCH_RETRY_BACKOFF_BASE_MS` / `SOURCE_FETCH_RETRY_BACKOFF_MAX_MS` / `SOURCE_FETCH_RETRY_JITTER_MS`)
+- source fetch supports an optional egress allowlist via `SOURCE_FETCH_ALLOWED_HOSTS` (comma-separated exact hosts or parent domains); when set, user-supplied URLs outside the allowlist are rejected before DNS resolution.
 - source fetch now also applies a narrow breaker pause on domain pressure signals to avoid hammering target sites:
   - immediate pause on `429`
   - pause after repeated `5xx` responses on the same domain (`threshold=2` by default)
@@ -513,12 +514,13 @@ Current default pull-request CI in `.github/workflows/ci.yml` is intentionally n
 - build API
 - build web
 - run `pnpm test:api:focus:ask`
+- run `pnpm --filter @rag-system/web test:guard`
 
 Interpretation:
 
 - not every repository test is a default PR gate today
 - `api:focus:ask` is the current core backend guardrail in CI
-- web guard and web smoke remain local or selective validation paths unless the workflow is expanded later
+- the stable web guard lane is now part of PR CI; browser smoke remains a local or selective validation path
 
 Current frontend guard split:
 

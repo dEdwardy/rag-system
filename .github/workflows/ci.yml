@@ -52,3 +52,6 @@ jobs:
 
       - name: Run core API focused tests
         run: pnpm test:api:focus:ask
+
+      - name: Run web guard tests
+        run: pnpm --filter @rag-system/web test:guard

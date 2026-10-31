@@ -18,7 +18,8 @@ import {
   useKnowledgeBaseDocumentRuns,
   useKnowledgeBaseDocumentRunComparison,
   useKnowledgeBaseDocumentRunSummary,
-  useKnowledgeBases
+  useKnowledgeBases,
+  useTraceUsageSummary
 } from '../../features/api/hooks';
 import { getPrimaryKnowledgeBase } from '../../features/api/workspace-selection';
 import { useI18n } from '../../i18n/I18nProvider';
@@ -68,6 +69,7 @@ export function UsagePage() {
     sinceHours: 24,
     limit: 100
   });
+  const traceUsageSummaryQuery = useTraceUsageSummary(deferredTimeRange);
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const hasActiveKnowledgeBase = activeKnowledgeBase != null;
   const documentsSummaryQuery = useKnowledgeBaseDocumentSummary(
@@ -779,6 +781,83 @@ ${locale === 'zh' ? '请检查网络连接或稍后再试。' : 'Please check yo
             ))}
           </div>
 
+          {traceUsageSummaryQuery.data ? (
+            <Paper className="workspace-panel-strong mt-1" p="lg" radius="xl">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="workspace-section-heading">
+                    {locale === 'zh'
+                      ? 'LLM 用量与首 token'
+                      : 'LLM usage and first token'}
+                  </div>
+                  <div className="mt-1 text-xs text-[var(--app-text-muted)]">
+                    {locale === 'zh'
+                      ? `近 ${traceUsageSummaryQuery.data.windowHours} 小时，采样 ${traceUsageSummaryQuery.data.sampledTraceCount} 条 trace`
+                      : `Last ${traceUsageSummaryQuery.data.windowHours}h, ${traceUsageSummaryQuery.data.sampledTraceCount} traces sampled`}
+                  </div>
+                </div>
+                {traceUsageSummaryQuery.data.tokens.promptTokensEstimated ? (
+                  <Badge color="yellow" radius="sm" variant="light">
+                    {locale === 'zh' ? 'tokens 为估算值' : 'tokens estimated'}
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  {
+                    label: locale === 'zh' ? '首 token P95' : 'First token P95',
+                    value: formatUsageMs(
+                      traceUsageSummaryQuery.data.latency.firstTokenP95Ms
+                    )
+                  },
+                  {
+                    label: locale === 'zh' ? '总耗时 P95' : 'Total latency P95',
+                    value: formatUsageMs(
+                      traceUsageSummaryQuery.data.latency.totalP95Ms
+                    )
+                  },
+                  {
+                    label: locale === 'zh' ? '总 tokens' : 'Total tokens',
+                    value:
+                      traceUsageSummaryQuery.data.tokens.totalTokens.toLocaleString()
+                  },
+                  {
+                    label: locale === 'zh' ? '估算成本' : 'Estimated cost',
+                    value: `$${traceUsageSummaryQuery.data.cost.estimatedUsd.toFixed(4)}`
+                  }
+                ].map((item) => (
+                  <div
+                    className="rounded-xl border border-[var(--app-border)] bg-[var(--app-bg-subtle)] p-3"
+                    key={item.label}
+                  >
+                    <div className="text-[11px] text-[var(--app-text-muted)]">
+                      {item.label}
+                    </div>
+                    <div className="mt-1 text-lg font-semibold text-[var(--app-text)]">
+                      {item.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {traceUsageSummaryQuery.data.byModel.length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {traceUsageSummaryQuery.data.byModel
+                    .slice(0, 4)
+                    .map((item) => (
+                      <div
+                        className="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-secondary)]"
+                        key={item.modelName}
+                      >
+                        {item.modelName} · {item.traceCount} ·{' '}
+                        {formatUsageMs(item.firstTokenP95Ms)} P95 ·{' '}
+                        {item.totalTokens.toLocaleString()} tokens
+                      </div>
+                    ))}
+                </div>
+              ) : null}
+            </Paper>
+          ) : null}
+
           {!hasActiveKnowledgeBase ? (
             <StatePanel
               action={
@@ -1036,4 +1115,8 @@ function UsageHealthBoardFallback({ locale }: { locale: 'zh' | 'en' }) {
       </div>
     </Paper>
   );
+}
+
+function formatUsageMs(value: number | null) {
+  return value == null ? 'n/a' : `${Math.round(value)} ms`;
 }

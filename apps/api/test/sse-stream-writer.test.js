@@ -174,3 +174,31 @@ test('SseStreamWriter close is idempotent and ignores writes afterwards', async 
   assert.equal(response.chunks.length, 1);
   assert.equal(writer.isFinished, true);
 });
+
+test('SseStreamWriter replays buffered frames after Last-Event-ID', async () => {
+  const response = new MockResponse();
+  const writer = new SseStreamWriter(response, {
+    heartbeatIntervalMs: 0,
+    streamId: 'stream-replay-1'
+  });
+
+  await writer.writeEvent({ type: 'status', phase: 'started' });
+  await writer.writeEvent({ type: 'answer_delta', delta: 'hello' });
+  await writer.writeEvent({ type: 'final', data: { ok: true } });
+  await writer.close();
+
+  const resumedResponse = new MockResponse();
+  const resumedWriter = new SseStreamWriter(resumedResponse, {
+    heartbeatIntervalMs: 0,
+    streamId: 'stream-replay-1',
+    resumeFromEventId: 1,
+    follow: true
+  });
+
+  await resumedWriter.waitForReplayToFinish();
+
+  assert.equal(resumedResponse.chunks.length, 2);
+  assert.match(resumedResponse.chunks[0], /"delta":"hello"/);
+  assert.match(resumedResponse.chunks[1], /event: final/);
+  assert.equal(resumedResponse.ended, true);
+});

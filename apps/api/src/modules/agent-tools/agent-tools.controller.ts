@@ -15,6 +15,11 @@ import {
 } from '../auth/auth-identity.contract';
 import { AuthenticatedRoute } from '../auth/auth-route-policy';
 import { AskAssistantService } from '../assistants/ask-assistant.service';
+import {
+  buildRetrievalEvidence,
+  mergeEvidenceChunks,
+  mergeEvidenceContextGroups
+} from '../assistants/retrieval-evidence';
 import { DocumentsService } from '../documents/documents.service';
 import { TracesService } from '../traces/traces.service';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
@@ -27,6 +32,7 @@ import {
   traceLookupSchema
 } from './agent-tools.schemas';
 import { LangGraphAnswerService } from './langgraph-answer.service';
+import { timingSafeEqual } from 'node:crypto';
 import { isLangGraphAgentEnabled } from './agent-feature-flags';
 import { LangGraphAgentLoopService } from './langgraph-agent-loop.service';
 
@@ -106,7 +112,7 @@ export class AgentToolsController {
     },
     @Req() request?: ToolRequest
   ) {
-    this.assertToolSecret(input.secret);
+    this.assertToolSecret(input.secret, request);
     const authContext = this.resolveToolAuthContext(input, request);
     const result = await this.askAssistantService.searchAssistant({
       assistantId: input.assistantId,
@@ -188,15 +194,8 @@ export class AgentToolsController {
     },
     @Req() request?: ToolRequest
   ) {
-    this.assertToolSecret(input.secret);
+    this.assertToolSecret(input.secret, request);
     const authContext = this.resolveToolAuthContext(input, request);
-    const result = await this.askAssistantService.askAssistant({
-      assistantId: input.assistantId,
-      question: input.question,
-      conversationId: input.conversationId,
-      authContext
-    });
-
     const boundedRequest = this.hasBoundedMultiStepRequest(
       input.boundedMultiStep
     );
@@ -217,6 +216,20 @@ export class AgentToolsController {
             authContext,
             firstPassResult
           });
+    const retrievalEvidence =
+      firstPassResult == null
+        ? null
+        : buildRetrievalEvidence({
+            primary: firstPassResult,
+            secondary: secondPassResult
+          });
+    const result = await this.askAssistantService.askAssistant({
+      assistantId: input.assistantId,
+      question: input.question,
+      conversationId: input.conversationId,
+      authContext,
+      ...(retrievalEvidence == null ? {} : { retrievalEvidence })
+    });
     const boundedMultiStep =
       firstPassResult == null
         ? this.buildDisabledBoundedMultiStepDiagnostics()
@@ -225,11 +238,11 @@ export class AgentToolsController {
             originalQuestion: input.question,
             firstPassResult,
             secondPassResult,
-            mergedChunks: this.mergeChunks(
+            mergedChunks: mergeEvidenceChunks(
               firstPassResult.chunks,
               secondPassResult?.chunks ?? []
             ),
-            mergedContextGroups: this.mergeContextGroups(
+            mergedContextGroups: mergeEvidenceContextGroups(
               firstPassResult.contextGroups,
               secondPassResult?.contextGroups ?? []
             )
@@ -246,7 +259,7 @@ export class AgentToolsController {
     },
     @Req() request?: ToolRequest
   ) {
-    this.assertToolSecret(input.secret);
+    this.assertToolSecret(input.secret, request);
     if (!isLangGraphAgentEnabled()) {
       throw new ServiceUnavailableException(
         'LangGraph agent side path is disabled. Set LANGGRAPH_AGENT_ENABLED=true to enable it.'
@@ -305,7 +318,7 @@ export class AgentToolsController {
     },
     @Req() request?: ToolRequest
   ) {
-    this.assertToolSecret(input.secret);
+    this.assertToolSecret(input.secret, request);
     if (!isLangGraphAgentEnabled()) {
       throw new ServiceUnavailableException(
         'LangGraph agent side path is disabled. Set LANGGRAPH_AGENT_ENABLED=true to enable it.'
@@ -323,8 +336,10 @@ export class AgentToolsController {
       authContext
     });
 
+    const answerResult = result.answerResult ?? {};
+
     return {
-      ...(result.answerResult ?? {}),
+      ...answerResult,
       agentLoop: {
         steps: result.steps,
         stepCount: result.steps.length,
@@ -344,7 +359,7 @@ export class AgentToolsController {
     },
     @Req() request?: ToolRequest
   ) {
-    this.assertToolSecret(input.secret);
+    this.assertToolSecret(input.secret, request);
     const traceId = input.traceId;
 
     try {
@@ -370,7 +385,7 @@ export class AgentToolsController {
     },
     @Req() request?: ToolRequest
   ) {
-    this.assertToolSecret(input.secret);
+    this.assertToolSecret(input.secret, request);
     const documentId = input.documentId;
     const scope = this.resolveScope(input, request);
 
@@ -418,11 +433,33 @@ export class AgentToolsController {
     return { tenantId: identity.tenantId, userId: identity.userId };
   }
 
-  private assertToolSecret(secret: string) {
+  private assertToolSecret(secret: string, request?: ToolRequest) {
     const expected = (process.env.AGENT_TOOL_GATEWAY_SECRET ?? '').trim();
-    if (!expected || secret !== expected) {
+    const headerSecret = this.readHeader(request, 'x-agent-tool-secret');
+    const provided = headerSecret ?? secret;
+    if (!expected || !this.isSameSecret(provided, expected)) {
       throw new UnauthorizedException('Unauthorized agent tool request.');
     }
+  }
+
+  private readHeader(request: ToolRequest | undefined, name: string) {
+    const value =
+      request?.headers?.[name] ?? request?.headers?.[name.toLowerCase()];
+    const raw = Array.isArray(value) ? value[0] : value;
+    return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : null;
+  }
+
+  private isSameSecret(provided: string | null, expected: string) {
+    if (provided == null) {
+      return false;
+    }
+
+    const providedBuffer = Buffer.from(provided, 'utf8');
+    const expectedBuffer = Buffer.from(expected, 'utf8');
+    return (
+      providedBuffer.length === expectedBuffer.length &&
+      timingSafeEqual(providedBuffer, expectedBuffer)
+    );
   }
 
   private normalizeRagAnswerResult(

@@ -1,4 +1,5 @@
 import type {
+  AgentStep,
   TraceAnswerStatus,
   TraceAnswerStatusSource,
   TraceAnswerAttributionSummary,
@@ -19,6 +20,8 @@ import type {
   TraceRetrievalQuerySource,
   TraceSummary
 } from '@rag-system/shared';
+
+export type { AgentStep, MessageFeedbackInput } from '@rag-system/shared';
 
 export type AuthIdentity = {
   userId: string;
@@ -884,7 +887,14 @@ export type AskStreamFinalData = Pick<
   | 'citations'
   | 'modelName'
 > &
-  Partial<AskResponse>;
+  Partial<AskResponse> & {
+    agent?: AgentExecution;
+  };
+
+export type AgentExecution = {
+  routeDecision: JsonValue | null;
+  steps: AgentStep[];
+};
 
 export type AskStreamEvent =
   | {
@@ -892,12 +902,16 @@ export type AskStreamEvent =
       phase: 'started' | 'retrieving' | 'generating';
     }
   | {
+      type: 'step';
+      step: AgentStep;
+    }
+  | {
       type: 'answer_delta';
       delta: string;
     }
   | {
       type: 'final';
-      data: AskStreamFinalData;
+      data: AskStreamFinalData & { agent?: AgentExecution };
     }
   | {
       type: 'error';
@@ -932,6 +946,41 @@ export type Message = {
   createdAt: string;
   /** Present on assistant messages; needed to resolve the `[n]` markers. */
   citations?: Citation[];
+  /** Present when the assistant message was produced by Agent mode. */
+  agentSteps?: AgentStep[];
+};
+
+export type TraceUsageSummary = {
+  windowHours: number;
+  sampledTraceCount: number;
+  successCount: number;
+  failedCount: number;
+  latency: {
+    firstTokenP50Ms: number | null;
+    firstTokenP95Ms: number | null;
+    totalP50Ms: number | null;
+    totalP95Ms: number | null;
+  };
+  tokens: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    promptTokensEstimated: boolean;
+  };
+  cost: {
+    estimatedUsd: number;
+    inputCostPerMillion: number;
+    outputCostPerMillion: number;
+  };
+  byModel: Array<{
+    modelName: string;
+    traceCount: number;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    firstTokenP50Ms: number | null;
+    firstTokenP95Ms: number | null;
+  }>;
 };
 
 export type TraceRecord = {

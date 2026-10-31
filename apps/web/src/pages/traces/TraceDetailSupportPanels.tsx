@@ -319,6 +319,51 @@ function buildExecutionStatusLabel(status: string, locale: SupportedLocale) {
   return status;
 }
 
+function readAgentExecutionSteps(value: unknown) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return [];
+  }
+
+  const agentExecution = (value as Record<string, unknown>).agentExecution;
+  if (
+    typeof agentExecution !== 'object' ||
+    agentExecution === null ||
+    Array.isArray(agentExecution)
+  ) {
+    return [];
+  }
+
+  const steps = (agentExecution as Record<string, unknown>).steps;
+  if (!Array.isArray(steps)) {
+    return [];
+  }
+
+  return steps
+    .map((step) => {
+      if (typeof step !== 'object' || step === null || Array.isArray(step)) {
+        return null;
+      }
+      const record = step as Record<string, unknown>;
+      if (
+        typeof record.name !== 'string' ||
+        typeof record.status !== 'string' ||
+        typeof record.summary !== 'string'
+      ) {
+        return null;
+      }
+      return {
+        name: record.name,
+        toolName:
+          typeof record.toolName === 'string' && record.toolName.length > 0
+            ? record.toolName
+            : null,
+        status: record.status,
+        summary: record.summary
+      };
+    })
+    .filter((step): step is NonNullable<typeof step> => step != null);
+}
+
 function buildExecutionStepIndexLabel(index: number, locale: SupportedLocale) {
   return locale === 'zh' ? `步骤 ${index}` : `Step ${index}`;
 }
@@ -342,6 +387,9 @@ export function TraceDetailSidebarPanels({
   const executionMode = trace.traceSummary?.executionMode ?? null;
   const executionToolNames = trace.traceSummary?.executionToolNames ?? [];
   const executionSteps = trace.traceSummary?.executionPlan?.steps ?? null;
+  const agentExecutionSteps = readAgentExecutionSteps(
+    trace.answeringMetadataJson
+  );
   const executionModeLabel =
     trace.traceSummary?.executionModeReadabilityLabel ||
     buildTraceExecutionModeReadabilityLabel(executionMode);
@@ -522,6 +570,72 @@ export function TraceDetailSidebarPanels({
                               {step.durationMs != null
                                 ? ` · ${step.durationMs} ms`
                                 : ''}
+                            </Text>
+                          </Stack>
+                        </Group>
+                      ))}
+                    </Stack>
+                  </Stack>
+                </div>
+              ) : null}
+              {agentExecutionSteps.length > 0 ? (
+                <div className="workspace-content-block">
+                  <Stack gap={8}>
+                    <Group gap="xs">
+                      <Text
+                        className="workspace-section-copy"
+                        fw={600}
+                        size="sm"
+                      >
+                        {locale === 'zh'
+                          ? 'Agent 执行步骤'
+                          : 'Agent execution steps'}
+                      </Text>
+                      <Badge color="violet" radius="sm" variant="light">
+                        {buildExecutionStepCountLabel(
+                          agentExecutionSteps.length,
+                          locale
+                        )}
+                      </Badge>
+                    </Group>
+                    <Stack gap={6}>
+                      {agentExecutionSteps.map((step, index) => (
+                        <Group
+                          key={`agent-${step.name}-${index}`}
+                          align="flex-start"
+                          gap="xs"
+                          wrap="nowrap"
+                        >
+                          <Badge
+                            color={buildExecutionStepTone(step.status)}
+                            radius="sm"
+                            variant="light"
+                          >
+                            {buildExecutionStatusLabel(step.status, locale)}
+                          </Badge>
+                          <Stack gap={2}>
+                            <Group gap={6} wrap="wrap">
+                              <Text
+                                c="var(--app-text-muted)"
+                                size="xs"
+                                fw={700}
+                              >
+                                {buildExecutionStepIndexLabel(
+                                  index + 1,
+                                  locale
+                                )}
+                              </Text>
+                              <Text c="var(--app-text)" size="sm" fw={600}>
+                                {step.name}
+                              </Text>
+                              {step.toolName ? (
+                                <Badge color="cyan" radius="sm" variant="light">
+                                  {step.toolName}
+                                </Badge>
+                              ) : null}
+                            </Group>
+                            <Text c="var(--app-text-muted)" size="xs">
+                              {step.summary}
                             </Text>
                           </Stack>
                         </Group>

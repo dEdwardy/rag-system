@@ -194,7 +194,8 @@ Priority A:
 Priority B:
 
 - `trace_lookup` / `document_lookup` helpers for inspection and demos: completed with stable not-found handling
-- `/agent` UI with chat plus `steps / chunks / trace`: do not open a separate platform page yet; keep using the existing trace/report/chat inspection surface unless a concrete demo gap appears
+- chat-internal Agent mode with live `steps / answer / trace link`: landed as a bounded toggle on the existing chat composer; no separate platform page
+- `/agent` platform page: still intentionally not opened
 
 Priority C:
 
@@ -217,11 +218,12 @@ Explicit non-goals:
 - 复杂问题可以进入一个可追踪的多步流程：先判断问题类型，再按需检索、补查、合并证据和生成答案。
 - trace / report / chat inspection surface 能看到 graph steps，而不是只看到最终答案。
 
-当前第一版入口：
+当前入口：
 
-- `POST /agent-tools/langgraph_answer`
-- 该入口当前保持为旁路实验能力，不替换现有 `/ask` 或 `rag_answer`。
-- 该入口复用现有 `rag_search`、`rag_answer`、`trace_lookup`、`document_lookup` 和 external-source 能力。
+- `POST /agent-tools/langgraph_answer`：agent-facing 非流式入口。
+- `POST /assistants/:id/ask/agent/stream`：聊天内 Agent mode 的流式入口，使用正常 session auth，不要求浏览器持有 tool gateway secret。
+- 两个入口都不替换现有 `/ask` 或 `rag_answer`；默认聊天仍走普通 `/ask/stream`。
+- 入口复用现有 `rag_search`、`rag_answer`、`trace_lookup`、`document_lookup` 和 external-source 能力。
 
 当前第一版 graph 范围：
 
@@ -232,14 +234,17 @@ Explicit non-goals:
    - 调用现有 retrieval / `rag_search` 能力。
    - 保持默认 retrieval profile 不被放大。
 3. `judge_missing_information`
-   - 基于现有 `missingInformation`、chunk 命中、confidence 和 diagnostics 判断是否需要补查。
+   - 先评估 first-pass 证据充分性（chunk 数、source 数、top score），再结合显式 request、rewritten query 和 graph 内部建议 query 判断是否需要补查。
+   - 聊天内 Agent mode 不要求调用方传 `boundedMultiStep`；graph 会基于证据信号和 scoped conversation history 生成 suggested query。
    - 只允许 bounded second pass，不开放无限循环。
 4. `run_second_pass`
    - 仅在复杂问题、证据不足或明确需要跨文档对比时触发。
    - 最多执行一次额外检索，沿用当前 bounded multi-step 约束。
 5. `finalize_answer`
-   - 调用现有 answering / `rag_answer` 能力生成最终响应。
+   - 合并 primary + second-pass evidence，去重并限制 chunk 数后直接进入现有 answering 能力。
+   - 不再让 finalize 重新走默认检索。
    - 输出 `answer`、`citations`、`confidence`、`missingInformation`、`steps`、`traceId`。
+   - 流式模式额外输出 `agent.steps`，并把步骤写入 trace `answeringMetadataJson.agentExecution`。
 
 LangChain 使用边界：
 
@@ -264,22 +269,35 @@ LangSmith 使用边界：
 建议环境开关：
 
 ```env
-LANGGRAPH_AGENT_ENABLED=false
+LANGGRAPH_AGENT_ENABLED=true
 LANGSMITH_TRACING=false
 LANGSMITH_PROJECT=rag-system-langgraph-dev
 ```
+
+`LANGGRAPH_AGENT_ENABLED` 当前默认开启；显式设为 `false` 可关闭 Agent mode 和 agent-tools side path。
 
 当前已完成的最小标准：
 
 - 有一个隔离的 LangGraph answer 入口。
 - 默认 ask 主路径不变。
 - 已覆盖 knowledge-base 复杂问题的一次 primary retrieval + optional second pass，以及 policy / external-source 路由的旁路行为。
-- response 或 trace metadata 中能看到 graph step 列表。
-- 已有 focused API test 锁定入口、步骤输出和默认路径不被替换。
+- primary + second-pass evidence 会进入最终回答，而不是只写入 diagnostics；证据合并会为 second pass 预留配额。
+- response 或 trace metadata 中能看到 graph step 列表；聊天内 Agent mode 会实时展示 steps。
+- 聊天内 Agent mode 会在证据不足或追问场景下生成 suggested second-pass query，不再要求调用方显式传 `boundedMultiStep`。
+- 已有 focused API test 锁定入口、步骤输出、证据融合、建议二次查询和默认路径不被替换。
+- 多轮上下文已支持 recent history prompt + 短追问强制改写；Agent 检索也会读取 scoped history。
+- source URL 抓取已加入私网 / metadata / redirect 安全校验；answer prompt 已把 sources 和 history 标记为 untrusted data。
+- eval runner 支持 `executionMode=agent`，P5 demo replay 默认走 Agent 路径；assistant message 支持最小 thumbs feedback。
+- DB ingestion queue 会在 claim 前回收超时 processing lease，避免进程崩溃后 job 永久卡住。
 
 当前相关 focused validation 基线：
 
 - `pnpm test:api:file -- test/agent-langgraph.controller.test.js`
+- `pnpm test:api:file -- test/agent-langgraph-stream.test.js`
+- `pnpm test:api:file -- test/retrieval-evidence.test.js`
+- `pnpm test:api:file -- test/conversation-history.test.js`
+- `pnpm test:api:file -- test/ask-history.test.js`
+- `pnpm test:api:file -- test/source-url-safety.test.js`
 - `pnpm test:api:file -- test/auth-surface-route-policy.test.js`
 - `pnpm test:api:file -- test/storage-root-resolution.test.js`
 - `pnpm test:api:file -- test/vector-store-runtime-config.test.js`

@@ -2,7 +2,54 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-> 更新时间：2026-04-29
+> 更新时间：2026-10-31
+
+## Latest Increment: Agent Chat And Evidence Closeout
+
+- `chat agent mode` is now available at `POST /assistants/:id/ask/agent/stream` and is gated by the existing `LANGGRAPH_AGENT_ENABLED` flag.
+  - the same bounded LangGraph flow now supports SSE step events and forwards the final answer through `askAssistantStream` instead of re-running retrieval
+  - chat surfaces a compact Agent mode toggle plus a live step timeline; steps are persisted into `answeringMetadataJson.agentExecution` and reattached when messages are reloaded
+  - step names / statuses / tools / summaries are localized in zh/en, and the timeline reveals steps progressively instead of dumping the whole list at once
+- `evidence fusion` is now real rather than diagnostics-only
+  - primary + bounded second-pass evidence is merged, deduped, capped, and passed into the final answer path through `retrievalEvidence`
+  - `rag_answer` bounded requests now search first, merge evidence, then answer from that evidence; default requests remain single-pass
+  - `LangGraphAnswerService` and the agent loop finalize from merged evidence instead of re-running the default ask path
+- `multi-turn context` now supports short follow-up questions
+  - recent messages are loaded into the answer prompt with a character budget
+  - short / pronoun-based KB follow-ups force one history-aware rewrite even when the retrieval profile has rewrite disabled
+  - trace metadata records conversation-history message / character counts
+- `security guards`
+  - user-supplied source URLs now pass DNS/IP safety checks; private, loopback, link-local, metadata, and reserved hostnames are blocked, including every redirect hop
+  - answer / summary / rerank prompts now mark retrieved sources and conversation history as untrusted data and explicitly forbid following embedded instructions
+- `AI frontend polish`
+  - answers render through markdown with GFM support during streaming and after finalization, avoiding the plain-text to markdown layout jump
+  - citation markers remain clickable in markdown, and code spans/blocks are excluded from citation rewriting
+  - chat transcript is exposed as a polite live log for assistive technology
+  - persisted assistant messages now expose thumbs up/down feedback
+- `agent loop closeout`
+  - chat Agent mode now suggests its own second-pass query from evidence sufficiency and scoped history instead of requiring `boundedMultiStep` from the caller
+  - judge diagnostics now include evidence sufficiency reasons, and evidence merging reserves slots for second-pass chunks
+  - Agent retrieval now receives conversation history for follow-up rewrite
+- `eval and queue closeout`
+  - eval runs accept `executionMode=agent`, and the P5 demo replay uses the Agent path when the service is available
+  - DB ingestion queue reclaims stale `processing` leases before claiming new work
+- `observability and reliability closeout`
+  - LLM provider usage is normalized into `answeringMetadata.llmUsage` for Ollama and OpenAI-compatible responses
+  - `GET /traces/usage-summary` exposes first-token P50/P95, total latency P50/P95, token totals, optional cost estimates, and by-model breakdown
+  - Usage page renders the live usage summary and flags estimated prompt tokens when provider usage is missing
+  - SSE writers keep a bounded in-memory replay buffer and expose `X-Sse-Stream-Id`; clients resume with `Last-Event-ID` after a stream read failure
+  - Redis queue now uses `RPOPLPUSH` into a processing list, a processing index, and stale visibility recovery
+  - Trace Detail renders `answeringMetadataJson.agentExecution.steps` as a dedicated Agent steps panel
+  - chat transcript renders the latest 80 messages first with a "load earlier" control
+  - untrusted source/history/rerank blocks neutralize closing delimiters before prompt assembly
+  - `AgentStep` and `MessageFeedbackInput` are shared contracts in `packages/shared`
+- focused validation:
+  - `pnpm test:api:focus:ask`
+  - `pnpm test:api:file -- test/agent-tools.controller.test.js test/agent-langgraph.controller.test.js test/agent-loop.test.js test/agent-langgraph-stream.test.js`
+  - `pnpm test:api:file -- test/retrieval-evidence.test.js test/conversation-history.test.js test/ask-history.test.js test/ask-evidence.test.js test/source-url-safety.test.js`
+  - `pnpm --filter @rag-system/web test:guard`
+  - `pnpm --filter @rag-system/api typecheck`
+  - `pnpm --filter @rag-system/web typecheck`
 
 ## Current Snapshot
 

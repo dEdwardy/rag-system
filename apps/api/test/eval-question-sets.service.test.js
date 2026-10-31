@@ -1,12 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import {
-  EvalQuestionSetsController
-} from '../src/modules/eval-question-sets/eval-question-sets.controller.ts';
-import {
-  EvalQuestionSetsService
-} from '../src/modules/eval-question-sets/eval-question-sets.service.ts';
+import { EvalQuestionSetsController } from '../src/modules/eval-question-sets/eval-question-sets.controller.ts';
+import { EvalQuestionSetsService } from '../src/modules/eval-question-sets/eval-question-sets.service.ts';
 
 function buildRequest() {
   return {
@@ -1567,4 +1563,44 @@ test('EvalQuestionSetsService runP5V1DemoReplay uses fixed scenario and returns 
     ),
     'expected eval-question-set run summary to be persisted'
   );
+});
+
+test('EvalQuestionSetsService can execute eval questions through the agent path', async () => {
+  let agentInput = null;
+  const service = new EvalQuestionSetsService(
+    {},
+    {
+      askAssistant: async () => {
+        throw new Error('default ask path should not be used');
+      }
+    },
+    {
+      answer: async (input) => {
+        agentInput = input;
+        return {
+          answerResult: {
+            answer: 'agent answer',
+            traceId: 'trace-agent'
+          }
+        };
+      }
+    }
+  );
+
+  const result =
+    await EvalQuestionSetsService.prototype.executeEvalQuestion.call(service, {
+      assistantId: 'assistant-1',
+      question: 'compare the two documents',
+      identity: {
+        userId: 'user-1',
+        tenantId: 'tenant-1',
+        role: 'owner',
+        sessionId: null,
+        authSource: 'local'
+      },
+      executionMode: 'agent'
+    });
+
+  assert.equal(result.answer, 'agent answer');
+  assert.equal(agentInput.question, 'compare the two documents');
 });

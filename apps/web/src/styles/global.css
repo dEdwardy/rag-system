@@ -1006,6 +1006,132 @@ html[data-theme-layout='workspace-app'] {
   }
 }
 
+.agent-step-enter {
+  animation: agent-step-enter 240ms ease-out both;
+}
+
+@keyframes agent-step-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-markdown {
+  overflow-wrap: anywhere;
+}
+
+.chat-markdown > :first-child {
+  margin-top: 0;
+}
+
+.chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-markdown p,
+.chat-markdown ul,
+.chat-markdown ol,
+.chat-markdown blockquote,
+.chat-markdown pre,
+.chat-markdown table {
+  margin: 0.65rem 0;
+}
+
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4 {
+  margin: 1rem 0 0.45rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.chat-markdown h1 {
+  font-size: 1.25rem;
+}
+
+.chat-markdown h2 {
+  font-size: 1.12rem;
+}
+
+.chat-markdown h3,
+.chat-markdown h4 {
+  font-size: 1rem;
+}
+
+.chat-markdown ul,
+.chat-markdown ol {
+  padding-left: 1.35rem;
+}
+
+.chat-markdown ul {
+  list-style: disc;
+}
+
+.chat-markdown ol {
+  list-style: decimal;
+}
+
+.chat-markdown li + li {
+  margin-top: 0.25rem;
+}
+
+.chat-markdown blockquote {
+  border-left: 2px solid var(--app-border);
+  padding-left: 0.85rem;
+  color: var(--app-text-secondary);
+}
+
+.chat-markdown code {
+  border-radius: 0.35rem;
+  background: var(--app-bg-subtle);
+  padding: 0.1rem 0.3rem;
+  font-size: 0.88em;
+}
+
+.chat-markdown pre {
+  overflow-x: auto;
+  border: 1px solid var(--app-border);
+  border-radius: 0.65rem;
+  background: var(--app-bg-subtle);
+  padding: 0.8rem;
+}
+
+.chat-markdown pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.chat-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+
+.chat-markdown th,
+.chat-markdown td {
+  border: 1px solid var(--app-border);
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+}
+
+.chat-markdown th {
+  background: var(--app-surface-muted);
+  font-weight: 600;
+}
+
+.chat-markdown a {
+  color: var(--app-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 @keyframes workspace-auth-enter {
   from {
     opacity: 0;

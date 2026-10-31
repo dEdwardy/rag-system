@@ -1,5 +1,7 @@
-const assert = require("node:assert/strict");
-const http = require("node:http");
+process.env.SOURCE_FETCH_ALLOW_PRIVATE_NETWORK = 'true';
+
+const assert = require('node:assert/strict');
+const http = require('node:http');
 const {
   DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS,
   DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS,
@@ -16,9 +18,9 @@ const {
   isRetryableFetchException,
   normalizeSourceFetchFailureMessage,
   resolveSourceFetchRuntimeConfig
-} = require("../src/infra/http/fetch-with-retry.ts");
+} = require('../src/infra/http/fetch-with-retry.ts');
 
-test("resolveSourceFetchRuntimeConfig preserves current defaults", () => {
+test('resolveSourceFetchRuntimeConfig preserves current defaults', () => {
   const config = resolveSourceFetchRuntimeConfig({});
 
   assert.deepEqual(config, {
@@ -31,24 +33,25 @@ test("resolveSourceFetchRuntimeConfig preserves current defaults", () => {
     retryBackoffMaxMs: DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS,
     retryJitterMs: DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS,
     breakerPauseMs: DEFAULT_SOURCE_FETCH_BREAKER_PAUSE_MS,
-    breakerRepeated5xxThreshold: DEFAULT_SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD,
+    breakerRepeated5xxThreshold:
+      DEFAULT_SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD,
     breakerChallengePauseMs: DEFAULT_SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS
   });
 });
 
-test("resolveSourceFetchRuntimeConfig accepts explicit env overrides", () => {
+test('resolveSourceFetchRuntimeConfig accepts explicit env overrides', () => {
   const config = resolveSourceFetchRuntimeConfig({
-    SOURCE_FETCH_TIMEOUT_MS: "2500",
-    SOURCE_FETCH_RETRY_ATTEMPTS: "4",
-    SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "5",
-    SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "2000",
-    SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "6",
-    SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "11",
-    SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "77",
-    SOURCE_FETCH_RETRY_JITTER_MS: "13",
-    SOURCE_FETCH_BREAKER_PAUSE_MS: "1500",
-    SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "3",
-    SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "2200"
+    SOURCE_FETCH_TIMEOUT_MS: '2500',
+    SOURCE_FETCH_RETRY_ATTEMPTS: '4',
+    SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: '5',
+    SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: '2000',
+    SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: '6',
+    SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: '11',
+    SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: '77',
+    SOURCE_FETCH_RETRY_JITTER_MS: '13',
+    SOURCE_FETCH_BREAKER_PAUSE_MS: '1500',
+    SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: '3',
+    SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: '2200'
   });
 
   assert.deepEqual(config, {
@@ -66,19 +69,19 @@ test("resolveSourceFetchRuntimeConfig accepts explicit env overrides", () => {
   });
 });
 
-test("resolveSourceFetchRuntimeConfig ignores invalid env overrides", () => {
+test('resolveSourceFetchRuntimeConfig ignores invalid env overrides', () => {
   const config = resolveSourceFetchRuntimeConfig({
-    SOURCE_FETCH_TIMEOUT_MS: "0",
-    SOURCE_FETCH_RETRY_ATTEMPTS: "not-a-number",
-    SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "-5",
-    SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "0",
-    SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "0",
-    SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "nope",
-    SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "-10",
-    SOURCE_FETCH_RETRY_JITTER_MS: "bad",
-    SOURCE_FETCH_BREAKER_PAUSE_MS: "-1",
-    SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "0",
-    SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "-5"
+    SOURCE_FETCH_TIMEOUT_MS: '0',
+    SOURCE_FETCH_RETRY_ATTEMPTS: 'not-a-number',
+    SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: '-5',
+    SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: '0',
+    SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: '0',
+    SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: 'nope',
+    SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: '-10',
+    SOURCE_FETCH_RETRY_JITTER_MS: 'bad',
+    SOURCE_FETCH_BREAKER_PAUSE_MS: '-1',
+    SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: '0',
+    SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: '-5'
   });
 
   assert.deepEqual(config, {
@@ -91,12 +94,13 @@ test("resolveSourceFetchRuntimeConfig ignores invalid env overrides", () => {
     retryBackoffMaxMs: DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS,
     retryJitterMs: DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS,
     breakerPauseMs: DEFAULT_SOURCE_FETCH_BREAKER_PAUSE_MS,
-    breakerRepeated5xxThreshold: DEFAULT_SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD,
+    breakerRepeated5xxThreshold:
+      DEFAULT_SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD,
     breakerChallengePauseMs: DEFAULT_SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS
   });
 });
 
-test("fetchWithRetry pauses follow-up same-domain request after 429 pressure", async () => {
+test('fetchWithRetry pauses follow-up same-domain request after 429 pressure', async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;
   const requestTimestamps = [];
@@ -106,39 +110,39 @@ test("fetchWithRetry pauses follow-up same-domain request after 429 pressure", a
       requestCount += 1;
       requestTimestamps.push(Date.now());
       if (requestCount === 1) {
-        return new Response("rate limited", {
+        return new Response('rate limited', {
           status: 429,
           headers: {
-            "Content-Type": "text/plain; charset=utf-8"
+            'Content-Type': 'text/plain; charset=utf-8'
           }
         });
       }
 
-      return new Response("ok", {
+      return new Response('ok', {
         status: 200,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8"
+          'Content-Type': 'text/plain; charset=utf-8'
         }
       });
     };
 
     await withTemporarySourceFetchEnv(
       {
-        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
-        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
-        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "10",
-        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
-        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
-        SOURCE_FETCH_RETRY_JITTER_MS: "0",
-        SOURCE_FETCH_BREAKER_PAUSE_MS: "40",
-        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "2",
-        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "0"
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: '0',
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: '60000',
+        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: '10',
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: '0',
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: '0',
+        SOURCE_FETCH_RETRY_JITTER_MS: '0',
+        SOURCE_FETCH_BREAKER_PAUSE_MS: '40',
+        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: '2',
+        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: '0'
       },
       async () => {
         const first = await fetchWithRetry({
-          url: "https://pressure-429.example/source.xml",
+          url: 'https://pressure-429.example/source.xml',
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -146,9 +150,9 @@ test("fetchWithRetry pauses follow-up same-domain request after 429 pressure", a
         assert.equal(first.status, 429);
 
         const second = await fetchWithRetry({
-          url: "https://pressure-429.example/source.xml",
+          url: 'https://pressure-429.example/source.xml',
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -166,7 +170,7 @@ test("fetchWithRetry pauses follow-up same-domain request after 429 pressure", a
   }
 });
 
-test("fetchWithRetry honors Retry-After delay for follow-up same-domain request", async () => {
+test('fetchWithRetry honors Retry-After delay for follow-up same-domain request', async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;
   const requestTimestamps = [];
@@ -176,40 +180,40 @@ test("fetchWithRetry honors Retry-After delay for follow-up same-domain request"
       requestCount += 1;
       requestTimestamps.push(Date.now());
       if (requestCount === 1) {
-        return new Response("rate limited", {
+        return new Response('rate limited', {
           status: 429,
           headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-            "Retry-After": "1"
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Retry-After': '1'
           }
         });
       }
 
-      return new Response("ok", {
+      return new Response('ok', {
         status: 200,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8"
+          'Content-Type': 'text/plain; charset=utf-8'
         }
       });
     };
 
     await withTemporarySourceFetchEnv(
       {
-        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
-        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
-        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "10",
-        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
-        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
-        SOURCE_FETCH_RETRY_JITTER_MS: "0",
-        SOURCE_FETCH_BREAKER_PAUSE_MS: "20",
-        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "2",
-        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "0"
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: '0',
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: '60000',
+        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: '10',
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: '0',
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: '0',
+        SOURCE_FETCH_RETRY_JITTER_MS: '0',
+        SOURCE_FETCH_BREAKER_PAUSE_MS: '20',
+        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: '2',
+        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: '0'
       },
       async () => {
         const first = await fetchWithRetry({
-          url: "https://pressure-retry-after.example/source.xml",
+          url: 'https://pressure-retry-after.example/source.xml',
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -217,9 +221,9 @@ test("fetchWithRetry honors Retry-After delay for follow-up same-domain request"
         assert.equal(first.status, 429);
 
         const second = await fetchWithRetry({
-          url: "https://pressure-retry-after.example/source.xml",
+          url: 'https://pressure-retry-after.example/source.xml',
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -237,7 +241,7 @@ test("fetchWithRetry honors Retry-After delay for follow-up same-domain request"
   }
 });
 
-test("fetchWithRetry pauses follow-up request after anti-bot challenge response", async () => {
+test('fetchWithRetry pauses follow-up request after anti-bot challenge response', async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;
   const requestTimestamps = [];
@@ -247,39 +251,42 @@ test("fetchWithRetry pauses follow-up request after anti-bot challenge response"
       requestCount += 1;
       requestTimestamps.push(Date.now());
       if (requestCount === 1) {
-        return new Response("<html><title>Attention Required</title><body>captcha challenge</body></html>", {
-          status: 403,
-          headers: {
-            "Content-Type": "text/html; charset=utf-8"
+        return new Response(
+          '<html><title>Attention Required</title><body>captcha challenge</body></html>',
+          {
+            status: 403,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8'
+            }
           }
-        });
+        );
       }
 
-      return new Response("ok", {
+      return new Response('ok', {
         status: 200,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8"
+          'Content-Type': 'text/plain; charset=utf-8'
         }
       });
     };
 
     await withTemporarySourceFetchEnv(
       {
-        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
-        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
-        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "10",
-        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
-        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
-        SOURCE_FETCH_RETRY_JITTER_MS: "0",
-        SOURCE_FETCH_BREAKER_PAUSE_MS: "0",
-        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "2",
-        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "45"
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: '0',
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: '60000',
+        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: '10',
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: '0',
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: '0',
+        SOURCE_FETCH_RETRY_JITTER_MS: '0',
+        SOURCE_FETCH_BREAKER_PAUSE_MS: '0',
+        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: '2',
+        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: '45'
       },
       async () => {
         const first = await fetchWithRetry({
-          url: "https://challenge-breaker.example/source.html",
+          url: 'https://challenge-breaker.example/source.html',
           headers: {
-            Accept: "text/html"
+            Accept: 'text/html'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -287,9 +294,9 @@ test("fetchWithRetry pauses follow-up request after anti-bot challenge response"
         assert.equal(first.status, 403);
 
         const second = await fetchWithRetry({
-          url: "https://challenge-breaker.example/source.html",
+          url: 'https://challenge-breaker.example/source.html',
           headers: {
-            Accept: "text/html"
+            Accept: 'text/html'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -307,7 +314,7 @@ test("fetchWithRetry pauses follow-up request after anti-bot challenge response"
   }
 });
 
-test("fetchWithRetry pauses same-domain follow-up request after repeated 5xx responses", async () => {
+test('fetchWithRetry pauses same-domain follow-up request after repeated 5xx responses', async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;
   const requestTimestamps = [];
@@ -317,39 +324,39 @@ test("fetchWithRetry pauses same-domain follow-up request after repeated 5xx res
       requestCount += 1;
       requestTimestamps.push(Date.now());
       if (requestCount <= 2) {
-        return new Response("upstream unavailable", {
+        return new Response('upstream unavailable', {
           status: 503,
           headers: {
-            "Content-Type": "text/plain; charset=utf-8"
+            'Content-Type': 'text/plain; charset=utf-8'
           }
         });
       }
 
-      return new Response("ok", {
+      return new Response('ok', {
         status: 200,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8"
+          'Content-Type': 'text/plain; charset=utf-8'
         }
       });
     };
 
     await withTemporarySourceFetchEnv(
       {
-        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
-        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
-        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "10",
-        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
-        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
-        SOURCE_FETCH_RETRY_JITTER_MS: "0",
-        SOURCE_FETCH_BREAKER_PAUSE_MS: "40",
-        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "2",
-        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "0"
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: '0',
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: '60000',
+        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: '10',
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: '0',
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: '0',
+        SOURCE_FETCH_RETRY_JITTER_MS: '0',
+        SOURCE_FETCH_BREAKER_PAUSE_MS: '40',
+        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: '2',
+        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: '0'
       },
       async () => {
         const first = await fetchWithRetry({
-          url: "https://pressure-5xx.example/source.xml",
+          url: 'https://pressure-5xx.example/source.xml',
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -357,9 +364,9 @@ test("fetchWithRetry pauses same-domain follow-up request after repeated 5xx res
         assert.equal(first.status, 503);
 
         const second = await fetchWithRetry({
-          url: "https://pressure-5xx.example/source.xml",
+          url: 'https://pressure-5xx.example/source.xml',
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -367,9 +374,9 @@ test("fetchWithRetry pauses same-domain follow-up request after repeated 5xx res
         assert.equal(second.status, 503);
 
         const third = await fetchWithRetry({
-          url: "https://pressure-5xx.example/source.xml",
+          url: 'https://pressure-5xx.example/source.xml',
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -387,7 +394,7 @@ test("fetchWithRetry pauses same-domain follow-up request after repeated 5xx res
   }
 });
 
-test("fetchWithRetry applies bounded retry backoff before the next attempt", async () => {
+test('fetchWithRetry applies bounded retry backoff before the next attempt', async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;
   const requestTimestamps = [];
@@ -397,36 +404,36 @@ test("fetchWithRetry applies bounded retry backoff before the next attempt", asy
       requestCount += 1;
       requestTimestamps.push(Date.now());
       if (requestCount === 1) {
-        throw new TypeError("fetch failed");
+        throw new TypeError('fetch failed');
       }
 
-      return new Response("ok", {
+      return new Response('ok', {
         status: 200,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8"
+          'Content-Type': 'text/plain; charset=utf-8'
         }
       });
     };
 
     await withTemporarySourceFetchEnv(
       {
-        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
-        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "30",
-        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "30",
-        SOURCE_FETCH_RETRY_JITTER_MS: "0"
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: '0',
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: '30',
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: '30',
+        SOURCE_FETCH_RETRY_JITTER_MS: '0'
       },
       async () => {
         const response = await fetchWithRetry({
-          url: "https://backoff-check.example/source.xml",
+          url: 'https://backoff-check.example/source.xml',
           headers: {
-            Accept: "application/xml"
+            Accept: 'application/xml'
           },
           timeoutMs: 10000,
           attempts: 2
         });
 
         assert.equal(response.status, 200);
-        assert.equal(await response.text(), "ok");
+        assert.equal(await response.text(), 'ok');
         assert.equal(requestCount, 2);
         assert.ok(
           requestTimestamps[1] - requestTimestamps[0] >= 25,
@@ -439,7 +446,7 @@ test("fetchWithRetry applies bounded retry backoff before the next attempt", asy
   }
 });
 
-test("fetchWithRetry keeps per-domain crawl budget bounded via courtesy pacing", async () => {
+test('fetchWithRetry keeps per-domain crawl budget bounded via courtesy pacing', async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;
   const requestTimestamps = [];
@@ -448,28 +455,28 @@ test("fetchWithRetry keeps per-domain crawl budget bounded via courtesy pacing",
     global.fetch = async () => {
       requestCount += 1;
       requestTimestamps.push(Date.now());
-      return new Response("ok", {
+      return new Response('ok', {
         status: 200,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8"
+          'Content-Type': 'text/plain; charset=utf-8'
         }
       });
     };
 
     await withTemporarySourceFetchEnv(
       {
-        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
-        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "40",
-        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "1",
-        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
-        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
-        SOURCE_FETCH_RETRY_JITTER_MS: "0"
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: '0',
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: '40',
+        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: '1',
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: '0',
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: '0',
+        SOURCE_FETCH_RETRY_JITTER_MS: '0'
       },
       async () => {
         const first = await fetchWithRetry({
-          url: "https://crawl-budget-check.example/first",
+          url: 'https://crawl-budget-check.example/first',
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -477,9 +484,9 @@ test("fetchWithRetry keeps per-domain crawl budget bounded via courtesy pacing",
         assert.equal(first.status, 200);
 
         const second = await fetchWithRetry({
-          url: "https://crawl-budget-check.example/second",
+          url: 'https://crawl-budget-check.example/second',
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
@@ -498,27 +505,27 @@ test("fetchWithRetry keeps per-domain crawl budget bounded via courtesy pacing",
   }
 });
 
-test("fetchWithRetry retries once after a transient 5xx response", async () => {
+test('fetchWithRetry retries once after a transient 5xx response', async () => {
   let requestCount = 0;
   const server = http.createServer((request, response) => {
     requestCount += 1;
 
-    if (request.url === "/transient" && requestCount === 1) {
+    if (request.url === '/transient' && requestCount === 1) {
       response.writeHead(502, {
-        "Content-Type": "text/plain; charset=utf-8"
+        'Content-Type': 'text/plain; charset=utf-8'
       });
-      response.end("temporary upstream failure");
+      response.end('temporary upstream failure');
       return;
     }
 
     response.writeHead(200, {
-      "Content-Type": "text/plain; charset=utf-8"
+      'Content-Type': 'text/plain; charset=utf-8'
     });
-    response.end("ok");
+    response.end('ok');
   });
 
-  await new Promise(resolvePromise => {
-    server.listen(0, "127.0.0.1", resolvePromise);
+  await new Promise((resolvePromise) => {
+    server.listen(0, '127.0.0.1', resolvePromise);
   });
 
   try {
@@ -526,17 +533,17 @@ test("fetchWithRetry retries once after a transient 5xx response", async () => {
     const response = await fetchWithRetry({
       url: `http://127.0.0.1:${address.port}/transient`,
       headers: {
-        Accept: "text/plain"
+        Accept: 'text/plain'
       },
       timeoutMs: 10000
     });
 
     assert.equal(response.status, 200);
-    assert.equal(await response.text(), "ok");
+    assert.equal(await response.text(), 'ok');
     assert.equal(requestCount, 2);
   } finally {
     await new Promise((resolvePromise, rejectPromise) => {
-      server.close(error => {
+      server.close((error) => {
         if (error) {
           rejectPromise(error);
           return;
@@ -548,27 +555,27 @@ test("fetchWithRetry retries once after a transient 5xx response", async () => {
   }
 });
 
-test("fetchWithRetry retries once after an upstream 408 response", async () => {
+test('fetchWithRetry retries once after an upstream 408 response', async () => {
   let requestCount = 0;
   const server = http.createServer((request, response) => {
     requestCount += 1;
 
-    if (request.url === "/transient-timeout" && requestCount === 1) {
+    if (request.url === '/transient-timeout' && requestCount === 1) {
       response.writeHead(408, {
-        "Content-Type": "text/plain; charset=utf-8"
+        'Content-Type': 'text/plain; charset=utf-8'
       });
-      response.end("request timeout");
+      response.end('request timeout');
       return;
     }
 
     response.writeHead(200, {
-      "Content-Type": "text/plain; charset=utf-8"
+      'Content-Type': 'text/plain; charset=utf-8'
     });
-    response.end("ok");
+    response.end('ok');
   });
 
-  await new Promise(resolvePromise => {
-    server.listen(0, "127.0.0.1", resolvePromise);
+  await new Promise((resolvePromise) => {
+    server.listen(0, '127.0.0.1', resolvePromise);
   });
 
   try {
@@ -576,17 +583,17 @@ test("fetchWithRetry retries once after an upstream 408 response", async () => {
     const response = await fetchWithRetry({
       url: `http://127.0.0.1:${address.port}/transient-timeout`,
       headers: {
-        Accept: "text/plain"
+        Accept: 'text/plain'
       },
       timeoutMs: 10000
     });
 
     assert.equal(response.status, 200);
-    assert.equal(await response.text(), "ok");
+    assert.equal(await response.text(), 'ok');
     assert.equal(requestCount, 2);
   } finally {
     await new Promise((resolvePromise, rejectPromise) => {
-      server.close(error => {
+      server.close((error) => {
         if (error) {
           rejectPromise(error);
           return;
@@ -598,32 +605,32 @@ test("fetchWithRetry retries once after an upstream 408 response", async () => {
   }
 });
 
-test("fetchWithRetry follows one HTTP redirect and returns final response", async () => {
+test('fetchWithRetry follows one HTTP redirect and returns final response', async () => {
   const server = http.createServer((request, response) => {
-    if (request.url === "/redirect") {
+    if (request.url === '/redirect') {
       response.writeHead(302, {
-        Location: "/final"
+        Location: '/final'
       });
       response.end();
       return;
     }
 
-    if (request.url === "/final") {
+    if (request.url === '/final') {
       response.writeHead(200, {
-        "Content-Type": "text/plain; charset=utf-8"
+        'Content-Type': 'text/plain; charset=utf-8'
       });
-      response.end("redirect-ok");
+      response.end('redirect-ok');
       return;
     }
 
     response.writeHead(404, {
-      "Content-Type": "text/plain; charset=utf-8"
+      'Content-Type': 'text/plain; charset=utf-8'
     });
-    response.end("not found");
+    response.end('not found');
   });
 
-  await new Promise(resolvePromise => {
-    server.listen(0, "127.0.0.1", resolvePromise);
+  await new Promise((resolvePromise) => {
+    server.listen(0, '127.0.0.1', resolvePromise);
   });
 
   try {
@@ -631,17 +638,17 @@ test("fetchWithRetry follows one HTTP redirect and returns final response", asyn
     const response = await fetchWithRetry({
       url: `http://127.0.0.1:${address.port}/redirect`,
       headers: {
-        Accept: "text/plain"
+        Accept: 'text/plain'
       },
       timeoutMs: 10000,
       attempts: 1
     });
 
     assert.equal(response.status, 200);
-    assert.equal(await response.text(), "redirect-ok");
+    assert.equal(await response.text(), 'redirect-ok');
   } finally {
     await new Promise((resolvePromise, rejectPromise) => {
-      server.close(error => {
+      server.close((error) => {
         if (error) {
           rejectPromise(error);
           return;
@@ -653,24 +660,24 @@ test("fetchWithRetry follows one HTTP redirect and returns final response", asyn
   }
 });
 
-test("fetchWithRetry reports clear error when redirect target is non-http scheme", async () => {
+test('fetchWithRetry reports clear error when redirect target is non-http scheme', async () => {
   const server = http.createServer((request, response) => {
-    if (request.url === "/redirect-invalid-scheme") {
+    if (request.url === '/redirect-invalid-scheme') {
       response.writeHead(302, {
-        Location: "mailto:test@example.com"
+        Location: 'mailto:test@example.com'
       });
       response.end();
       return;
     }
 
     response.writeHead(200, {
-      "Content-Type": "text/plain; charset=utf-8"
+      'Content-Type': 'text/plain; charset=utf-8'
     });
-    response.end("ok");
+    response.end('ok');
   });
 
-  await new Promise(resolvePromise => {
-    server.listen(0, "127.0.0.1", resolvePromise);
+  await new Promise((resolvePromise) => {
+    server.listen(0, '127.0.0.1', resolvePromise);
   });
 
   try {
@@ -680,12 +687,12 @@ test("fetchWithRetry reports clear error when redirect target is non-http scheme
         fetchWithRetry({
           url: `http://127.0.0.1:${address.port}/redirect-invalid-scheme`,
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
         }),
-      error => {
+      (error) => {
         assert.match(error.message, /Failed to follow redirect/i);
         assert.match(error.message, /http\/https/i);
         return true;
@@ -693,7 +700,7 @@ test("fetchWithRetry reports clear error when redirect target is non-http scheme
     );
   } finally {
     await new Promise((resolvePromise, rejectPromise) => {
-      server.close(error => {
+      server.close((error) => {
         if (error) {
           rejectPromise(error);
           return;
@@ -705,11 +712,11 @@ test("fetchWithRetry reports clear error when redirect target is non-http scheme
   }
 });
 
-test("fetchWithRetry keeps bounded raw redirect target in non-http redirect error", async () => {
-  const rawRedirectTarget = `mailto:${"debug-target-".repeat(20)}@example.com`;
+test('fetchWithRetry keeps bounded raw redirect target in non-http redirect error', async () => {
+  const rawRedirectTarget = `mailto:${'debug-target-'.repeat(20)}@example.com`;
   const expectedTarget = `${rawRedirectTarget.slice(0, 160)}...<truncated>`;
   const server = http.createServer((request, response) => {
-    if (request.url === "/redirect-long-invalid-scheme") {
+    if (request.url === '/redirect-long-invalid-scheme') {
       response.writeHead(302, {
         Location: rawRedirectTarget
       });
@@ -718,13 +725,13 @@ test("fetchWithRetry keeps bounded raw redirect target in non-http redirect erro
     }
 
     response.writeHead(200, {
-      "Content-Type": "text/plain; charset=utf-8"
+      'Content-Type': 'text/plain; charset=utf-8'
     });
-    response.end("ok");
+    response.end('ok');
   });
 
-  await new Promise(resolvePromise => {
-    server.listen(0, "127.0.0.1", resolvePromise);
+  await new Promise((resolvePromise) => {
+    server.listen(0, '127.0.0.1', resolvePromise);
   });
 
   try {
@@ -734,12 +741,12 @@ test("fetchWithRetry keeps bounded raw redirect target in non-http redirect erro
         fetchWithRetry({
           url: `http://127.0.0.1:${address.port}/redirect-long-invalid-scheme`,
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
         }),
-      error => {
+      (error) => {
         assert.equal(
           error.message,
           `Failed to follow redirect for http://127.0.0.1:${address.port}/redirect-long-invalid-scheme: redirect target must use http/https (${expectedTarget}). (after 1 attempt).`
@@ -750,7 +757,7 @@ test("fetchWithRetry keeps bounded raw redirect target in non-http redirect erro
     );
   } finally {
     await new Promise((resolvePromise, rejectPromise) => {
-      server.close(error => {
+      server.close((error) => {
         if (error) {
           rejectPromise(error);
           return;
@@ -762,22 +769,22 @@ test("fetchWithRetry keeps bounded raw redirect target in non-http redirect erro
   }
 });
 
-test("fetchWithRetry reports clear error when redirect response misses location header", async () => {
+test('fetchWithRetry reports clear error when redirect response misses location header', async () => {
   const server = http.createServer((request, response) => {
-    if (request.url === "/redirect-missing-location") {
+    if (request.url === '/redirect-missing-location') {
       response.writeHead(302);
       response.end();
       return;
     }
 
     response.writeHead(200, {
-      "Content-Type": "text/plain; charset=utf-8"
+      'Content-Type': 'text/plain; charset=utf-8'
     });
-    response.end("ok");
+    response.end('ok');
   });
 
-  await new Promise(resolvePromise => {
-    server.listen(0, "127.0.0.1", resolvePromise);
+  await new Promise((resolvePromise) => {
+    server.listen(0, '127.0.0.1', resolvePromise);
   });
 
   try {
@@ -787,12 +794,12 @@ test("fetchWithRetry reports clear error when redirect response misses location 
         fetchWithRetry({
           url: `http://127.0.0.1:${address.port}/redirect-missing-location`,
           headers: {
-            Accept: "text/plain"
+            Accept: 'text/plain'
           },
           timeoutMs: 10000,
           attempts: 1
         }),
-      error => {
+      (error) => {
         assert.equal(
           error.message,
           `Failed to follow redirect for http://127.0.0.1:${address.port}/redirect-missing-location: missing redirect location header. (after 1 attempt).`
@@ -802,7 +809,7 @@ test("fetchWithRetry reports clear error when redirect response misses location 
     );
   } finally {
     await new Promise((resolvePromise, rejectPromise) => {
-      server.close(error => {
+      server.close((error) => {
         if (error) {
           rejectPromise(error);
           return;
@@ -814,56 +821,27 @@ test("fetchWithRetry reports clear error when redirect response misses location 
   }
 });
 
-test("fetchWithRetry includes source URL in network failure error", async () => {
+test('fetchWithRetry includes source URL in network failure error', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => {
-    throw new TypeError("fetch failed");
+    throw new TypeError('fetch failed');
   };
 
   try {
     await assert.rejects(
       () =>
         fetchWithRetry({
-          url: "https://example.com/source.xml",
+          url: 'https://example.com/source.xml',
           headers: {
-            Accept: "application/xml"
+            Accept: 'application/xml'
           },
           timeoutMs: 10000,
           attempts: 1
         }),
-      error => {
-        assert.equal(error.message, "Failed to fetch https://example.com/source.xml: fetch failed (after 1 attempt).");
-        return true;
-      }
-    );
-  } finally {
-    global.fetch = originalFetch;
-  }
-});
-
-test("fetchWithRetry includes source URL and timeout boundary for timeout failures", async () => {
-  const originalFetch = global.fetch;
-  global.fetch = async () => {
-    const timeoutError = new Error("The operation was aborted.");
-    timeoutError.name = "AbortError";
-    throw timeoutError;
-  };
-
-  try {
-    await assert.rejects(
-      () =>
-        fetchWithRetry({
-          url: "https://example.com/timeout.xml",
-          headers: {
-            Accept: "application/xml"
-          },
-          timeoutMs: 2500,
-          attempts: 1
-        }),
-      error => {
+      (error) => {
         assert.equal(
           error.message,
-          "Failed to fetch https://example.com/timeout.xml: request timed out after 2500ms: The operation was aborted. (after 1 attempt)."
+          'Failed to fetch https://example.com/source.xml: fetch failed (after 1 attempt).'
         );
         return true;
       }
@@ -873,11 +851,11 @@ test("fetchWithRetry includes source URL and timeout boundary for timeout failur
   }
 });
 
-test("fetchWithRetry treats TimeoutError the same as AbortError for timeout failures", async () => {
+test('fetchWithRetry includes source URL and timeout boundary for timeout failures', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => {
-    const timeoutError = new Error("The operation timed out.");
-    timeoutError.name = "TimeoutError";
+    const timeoutError = new Error('The operation was aborted.');
+    timeoutError.name = 'AbortError';
     throw timeoutError;
   };
 
@@ -885,19 +863,18 @@ test("fetchWithRetry treats TimeoutError the same as AbortError for timeout fail
     await assert.rejects(
       () =>
         fetchWithRetry({
-          url: "https://example.com/timeout-error.xml",
+          url: 'https://example.com/timeout.xml',
           headers: {
-            Accept: "application/xml"
+            Accept: 'application/xml'
           },
           timeoutMs: 2500,
           attempts: 1
         }),
-      error => {
+      (error) => {
         assert.equal(
           error.message,
-          "Failed to fetch https://example.com/timeout-error.xml: request timed out after 2500ms: The operation timed out. (after 1 attempt)."
+          'Failed to fetch https://example.com/timeout.xml: request timed out after 2500ms: The operation was aborted. (after 1 attempt).'
         );
-        assert.equal(isRetryableFetchException(error), true);
         return true;
       }
     );
@@ -906,11 +883,11 @@ test("fetchWithRetry treats TimeoutError the same as AbortError for timeout fail
   }
 });
 
-test("fetchWithRetry timeout exhaustion remains retryable for source diagnostics", async () => {
+test('fetchWithRetry treats TimeoutError the same as AbortError for timeout failures', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => {
-    const timeoutError = new Error("The operation was aborted.");
-    timeoutError.name = "AbortError";
+    const timeoutError = new Error('The operation timed out.');
+    timeoutError.name = 'TimeoutError';
     throw timeoutError;
   };
 
@@ -918,17 +895,17 @@ test("fetchWithRetry timeout exhaustion remains retryable for source diagnostics
     await assert.rejects(
       () =>
         fetchWithRetry({
-          url: "https://example.com/timeout-retryable.xml",
+          url: 'https://example.com/timeout-error.xml',
           headers: {
-            Accept: "application/xml"
+            Accept: 'application/xml'
           },
           timeoutMs: 2500,
           attempts: 1
         }),
-      error => {
+      (error) => {
         assert.equal(
           error.message,
-          "Failed to fetch https://example.com/timeout-retryable.xml: request timed out after 2500ms: The operation was aborted. (after 1 attempt)."
+          'Failed to fetch https://example.com/timeout-error.xml: request timed out after 2500ms: The operation timed out. (after 1 attempt).'
         );
         assert.equal(isRetryableFetchException(error), true);
         return true;
@@ -939,21 +916,54 @@ test("fetchWithRetry timeout exhaustion remains retryable for source diagnostics
   }
 });
 
-test("normalizeSourceFetchFailureMessage keeps timeout and retry wording aligned across source prefixes", () => {
+test('fetchWithRetry timeout exhaustion remains retryable for source diagnostics', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    const timeoutError = new Error('The operation was aborted.');
+    timeoutError.name = 'AbortError';
+    throw timeoutError;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: 'https://example.com/timeout-retryable.xml',
+          headers: {
+            Accept: 'application/xml'
+          },
+          timeoutMs: 2500,
+          attempts: 1
+        }),
+      (error) => {
+        assert.equal(
+          error.message,
+          'Failed to fetch https://example.com/timeout-retryable.xml: request timed out after 2500ms: The operation was aborted. (after 1 attempt).'
+        );
+        assert.equal(isRetryableFetchException(error), true);
+        return true;
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('normalizeSourceFetchFailureMessage keeps timeout and retry wording aligned across source prefixes', () => {
   const timeoutWithRetryContext =
-    "Failed to fetch web page: request timed out after 2500ms: The operation was aborted. (after 1 attempt).";
+    'Failed to fetch web page: request timed out after 2500ms: The operation was aborted. (after 1 attempt).';
 
   assert.equal(
     normalizeSourceFetchFailureMessage(timeoutWithRetryContext),
-    "request timed out after 2500ms: The operation was aborted. (after 1 attempt)."
+    'request timed out after 2500ms: The operation was aborted. (after 1 attempt).'
   );
 });
 
-test("fetchWithRetry includes readable error code labels for retryable fetch failures", async () => {
+test('fetchWithRetry includes readable error code labels for retryable fetch failures', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => {
-    const error = new TypeError("fetch failed");
-    error.cause = { code: "ENOTFOUND" };
+    const error = new TypeError('fetch failed');
+    error.cause = { code: 'ENOTFOUND' };
     throw error;
   };
 
@@ -961,17 +971,17 @@ test("fetchWithRetry includes readable error code labels for retryable fetch fai
     await assert.rejects(
       () =>
         fetchWithRetry({
-          url: "https://example.com/labeled-network-failure.xml",
+          url: 'https://example.com/labeled-network-failure.xml',
           headers: {
-            Accept: "application/xml"
+            Accept: 'application/xml'
           },
           timeoutMs: 10000,
           attempts: 1
         }),
-      error => {
+      (error) => {
         assert.equal(
           error.message,
-          "Failed to fetch https://example.com/labeled-network-failure.xml: fetch failed [error code ENOTFOUND: host not found] (after 1 attempt)."
+          'Failed to fetch https://example.com/labeled-network-failure.xml: fetch failed [error code ENOTFOUND: host not found] (after 1 attempt).'
         );
         return true;
       }
@@ -981,12 +991,12 @@ test("fetchWithRetry includes readable error code labels for retryable fetch fai
   }
 });
 
-test("fetchWithRetry includes readable error code labels for timeout failures", async () => {
+test('fetchWithRetry includes readable error code labels for timeout failures', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => {
-    const timeoutError = new Error("The operation was aborted.");
-    timeoutError.name = "AbortError";
-    timeoutError.cause = { code: "ETIMEDOUT" };
+    const timeoutError = new Error('The operation was aborted.');
+    timeoutError.name = 'AbortError';
+    timeoutError.cause = { code: 'ETIMEDOUT' };
     throw timeoutError;
   };
 
@@ -994,17 +1004,17 @@ test("fetchWithRetry includes readable error code labels for timeout failures", 
     await assert.rejects(
       () =>
         fetchWithRetry({
-          url: "https://example.com/labeled-timeout.xml",
+          url: 'https://example.com/labeled-timeout.xml',
           headers: {
-            Accept: "application/xml"
+            Accept: 'application/xml'
           },
           timeoutMs: 2500,
           attempts: 1
         }),
-      error => {
+      (error) => {
         assert.equal(
           error.message,
-          "Failed to fetch https://example.com/labeled-timeout.xml: request timed out after 2500ms: The operation was aborted. [error code ETIMEDOUT: timed out] (after 1 attempt)."
+          'Failed to fetch https://example.com/labeled-timeout.xml: request timed out after 2500ms: The operation was aborted. [error code ETIMEDOUT: timed out] (after 1 attempt).'
         );
         return true;
       }
@@ -1014,11 +1024,11 @@ test("fetchWithRetry includes readable error code labels for timeout failures", 
   }
 });
 
-test("fetchWithRetry treats undici timeout codes as timeout failures with readable labels", async () => {
+test('fetchWithRetry treats undici timeout codes as timeout failures with readable labels', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => {
-    const timeoutError = new TypeError("fetch failed");
-    timeoutError.cause = { code: "UND_ERR_CONNECT_TIMEOUT" };
+    const timeoutError = new TypeError('fetch failed');
+    timeoutError.cause = { code: 'UND_ERR_CONNECT_TIMEOUT' };
     throw timeoutError;
   };
 
@@ -1026,17 +1036,17 @@ test("fetchWithRetry treats undici timeout codes as timeout failures with readab
     await assert.rejects(
       () =>
         fetchWithRetry({
-          url: "https://example.com/undici-timeout.xml",
+          url: 'https://example.com/undici-timeout.xml',
           headers: {
-            Accept: "application/xml"
+            Accept: 'application/xml'
           },
           timeoutMs: 2500,
           attempts: 1
         }),
-      error => {
+      (error) => {
         assert.equal(
           error.message,
-          "Failed to fetch https://example.com/undici-timeout.xml: request timed out after 2500ms: fetch failed. [error code UND_ERR_CONNECT_TIMEOUT: connection timed out] (after 1 attempt)."
+          'Failed to fetch https://example.com/undici-timeout.xml: request timed out after 2500ms: fetch failed. [error code UND_ERR_CONNECT_TIMEOUT: connection timed out] (after 1 attempt).'
         );
         assert.equal(isRetryableFetchException(error), true);
         return true;
@@ -1047,66 +1057,66 @@ test("fetchWithRetry treats undici timeout codes as timeout failures with readab
   }
 });
 
-test("fetchWithRetry retries once after a transient fetch exception", async () => {
+test('fetchWithRetry retries once after a transient fetch exception', async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;
 
   global.fetch = async () => {
     requestCount += 1;
     if (requestCount === 1) {
-      throw new TypeError("fetch failed");
+      throw new TypeError('fetch failed');
     }
 
-    return new Response("ok", {
+    return new Response('ok', {
       status: 200,
       headers: {
-        "Content-Type": "text/plain; charset=utf-8"
+        'Content-Type': 'text/plain; charset=utf-8'
       }
     });
   };
 
   try {
     const response = await fetchWithRetry({
-      url: "https://example.com/source.xml",
+      url: 'https://example.com/source.xml',
       headers: {
-        Accept: "application/xml"
+        Accept: 'application/xml'
       },
       timeoutMs: 10000,
       attempts: 2
     });
 
     assert.equal(response.status, 200);
-    assert.equal(await response.text(), "ok");
+    assert.equal(await response.text(), 'ok');
     assert.equal(requestCount, 2);
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test("fetchWithRetry includes retry-attempt context when transient failures exhaust retries", async () => {
+test('fetchWithRetry includes retry-attempt context when transient failures exhaust retries', async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;
 
   global.fetch = async () => {
     requestCount += 1;
-    throw new TypeError("fetch failed");
+    throw new TypeError('fetch failed');
   };
 
   try {
     await assert.rejects(
       () =>
         fetchWithRetry({
-          url: "https://example.com/source.xml",
+          url: 'https://example.com/source.xml',
           headers: {
-            Accept: "application/xml"
+            Accept: 'application/xml'
           },
           timeoutMs: 10000,
           attempts: 2
         }),
-      error => {
+      (error) => {
         assert.equal(
           error.message,
-          "Failed to fetch https://example.com/source.xml: fetch failed (after 2 attempts)."
+          'Failed to fetch https://example.com/source.xml: fetch failed (after 2 attempts).'
         );
         return true;
       }
@@ -1130,7 +1140,7 @@ async function withTemporarySourceFetchEnv(overrides, run) {
   } finally {
     for (const key of Object.keys(overrides)) {
       const previousValue = previousValues[key];
-      if (typeof previousValue === "undefined") {
+      if (typeof previousValue === 'undefined') {
         delete process.env[key];
         continue;
       }

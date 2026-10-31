@@ -193,6 +193,10 @@ export const messages = {
       regenerateAnswer: 'Regenerate',
       copyAnswer: 'Copy',
       copiedAnswer: 'Copied',
+      feedbackHelpful: 'Helpful',
+      feedbackNotHelpful: 'Not helpful',
+      feedbackThanks: 'Thanks for the feedback',
+      feedbackError: 'Failed to submit feedback.',
       stopGenerating: 'Stop generation',
       diagnosticsReady: 'Diagnostics ready',
       answerFailed: 'Answer failed',
@@ -200,6 +204,12 @@ export const messages = {
       preparingAnswer: 'Preparing answer',
       retrievingContext: 'Retrieving context',
       generatingAnswer: 'Generating answer',
+      agentMode: 'Agent mode',
+      agentModeOn: 'Agent on',
+      agentModeOff: 'Agent off',
+      agentModeHint:
+        'Agent mode adds a bounded retrieval plan and shows each step as it runs.',
+      agentSteps: 'Agent steps',
       starterPromptHint:
         'Click one to send it now, then refine the follow-up in chat.',
       noDocuments: 'Library still empty',
@@ -211,6 +221,47 @@ export const messages = {
       noModel: 'No model',
       answerPipelineCompleted: 'Answer pipeline completed',
       needsInspection: 'Needs inspection'
+    },
+    agentStatus: {
+      running: 'Running',
+      completed: 'Done',
+      skipped: 'Skipped',
+      failed: 'Failed'
+    },
+    agentRoutes: {
+      knowledge_base: 'knowledge base',
+      policy_reply: 'policy reply',
+      external_source: 'external source'
+    },
+    agentTools: {
+      ragSearch: 'knowledge search',
+      ragAnswer: 'knowledge answer',
+      traceLookup: 'trace lookup',
+      documentLookup: 'document lookup'
+    },
+    agentSteps: {
+      routeQuestion: 'Route selection',
+      primaryRetrieval: 'Primary retrieval',
+      judgeMissingInformation: 'Evidence check',
+      secondPass: 'Second retrieval',
+      finalizeAnswer: 'Final answer',
+      plan: 'Plan',
+      act: 'Tool call',
+      finalize: 'Finalize',
+      routeQuestionRunning: 'Classifying the question',
+      primaryRetrievalRunning: 'Retrieving knowledge base evidence',
+      judgeMissingInformationRunning: 'Checking evidence coverage',
+      secondPassRunning: 'Retrieving additional evidence',
+      finalizeAnswerRunning: 'Generating the answer',
+      planRunning: 'Planning retrieval',
+      actRunning: 'Running the retrieval tool',
+      finalizeRunning: 'Finalizing the answer',
+      routeSelected: 'Selected {route}',
+      retrievedChunks: 'Retrieved {count} chunks',
+      noSecondPassNeeded: 'No additional retrieval needed',
+      secondPassNeeded: 'Additional retrieval selected',
+      secondPassSkipped: 'Skipped: no additional retrieval needed',
+      finalizeAnswerCompleted: 'Answer generated'
     },
     states: {
       loadingConversationsTitle: 'Loading conversations',

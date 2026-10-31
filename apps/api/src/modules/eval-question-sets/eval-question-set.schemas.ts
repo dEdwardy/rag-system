@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 const questionPromptSchema = z.string().trim().min(1).max(2000);
 
@@ -44,11 +44,18 @@ export const runEvalQuestionSetSchema = z
   .object({
     assistantId: z.string().trim().min(1).max(191),
     baselineSnapshotId: z.string().trim().min(1).max(191).optional(),
-    qualityGateMode: z.enum(["warn", "fail"]).optional()
+    qualityGateMode: z.enum(['warn', 'fail']).optional(),
+    executionMode: z.enum(['default', 'agent']).optional()
   })
   .strict();
 
-export type CreateEvalQuestionSetInput = z.infer<typeof createEvalQuestionSetSchema>;
-export type UpdateEvalQuestionSetInput = z.infer<typeof updateEvalQuestionSetSchema>;
-export type ChooseEvalQuestionSetBaselineInput = z.infer<typeof chooseEvalQuestionSetBaselineSchema>;
+export type CreateEvalQuestionSetInput = z.infer<
+  typeof createEvalQuestionSetSchema
+>;
+export type UpdateEvalQuestionSetInput = z.infer<
+  typeof updateEvalQuestionSetSchema
+>;
+export type ChooseEvalQuestionSetBaselineInput = z.infer<
+  typeof chooseEvalQuestionSetBaselineSchema
+>;
 export type RunEvalQuestionSetInput = z.infer<typeof runEvalQuestionSetSchema>;

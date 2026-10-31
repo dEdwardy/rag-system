@@ -28,6 +28,8 @@ To reduce ambiguity, use the docs in the following order.
    - current environment notes
 5. [Local Dev Infra](local-dev-infra.md)
    - local PostgreSQL / Redis infrastructure notes
+6. [User Guide](user-guide.md)
+   - product usage manual: workspace setup, documents, chat, Agent mode, diagnostics, usage, and quality reports
 
 ## Background Docs
 
@@ -76,6 +78,8 @@ Top-level docs currently use these role labels:
   - current implementation/progress tracking
 - `current-setup`
   - current local setup and validation usage
+- `user-guide`
+  - product usage manual for workspace setup, documents, chat, diagnostics, usage, and reports
 - `workflow`
   - execution/process guidance
 - `background`

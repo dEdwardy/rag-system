@@ -209,3 +209,79 @@ test('apiStreamRequest parses split, CRLF, multi-line, comment and deduplicated 
     }
   ]);
 });
+
+test('apiStreamRequest resumes from Last-Event-ID after a stream read failure', async () => {
+  const { apiStreamRequest } = await loadApiModule();
+  const originalFetch = global.fetch;
+  const seenEvents = [];
+  const resumeHeaders = [];
+  let fetchCalls = 0;
+
+  global.fetch = async (_url, init) => {
+    fetchCalls += 1;
+    if (fetchCalls === 1) {
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            const encoder = new TextEncoder();
+            controller.enqueue(
+              encoder.encode(
+                'id: 1\nevent: status\ndata: {"type":"status","phase":"started"}\n\n'
+              )
+            );
+            setTimeout(() => controller.error(new Error('synthetic drop')), 0);
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'x-sse-stream-id': 'stream-1'
+          }
+        }
+      );
+    }
+
+    resumeHeaders.push(init.headers ?? {});
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          controller.enqueue(
+            encoder.encode(
+              'id: 2\nevent: final\ndata: {"type":"final","data":{"conversationId":"conversation-1","assistantMessageId":"message-1","traceId":"trace-1","answer":"resumed","citations":[]}}\n\n'
+            )
+          );
+          controller.close();
+        }
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'x-sse-stream-id': 'stream-1'
+        }
+      }
+    );
+  };
+
+  try {
+    await apiStreamRequest('/assistants/default-assistant/ask/stream', {
+      method: 'POST',
+      body: { question: 'resume?' },
+      onEvent: (event) => {
+        seenEvents.push(event);
+      }
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+
+  assert.equal(fetchCalls, 2);
+  assert.equal(resumeHeaders[0]['x-sse-stream-id'], 'stream-1');
+  assert.equal(resumeHeaders[0]['last-event-id'], '1');
+  assert.deepEqual(
+    seenEvents.map((event) => event.type),
+    ['status', 'final']
+  );
+});

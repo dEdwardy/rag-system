@@ -9,6 +9,17 @@ import { WebPageService } from '../../infra/web-page/web-page.service';
 import { isConversationReuseEnabled } from './conversation-reuse-flag';
 import { resolveReusableAnswerContent } from './reused-answer-content';
 import {
+  buildRetrievalResultFromEvidence,
+  type RetrievalEvidence
+} from './retrieval-evidence';
+import {
+  buildConversationHistory,
+  shouldForceFollowUpRewrite,
+  withConversationHistoryMetadata
+} from './conversation-history';
+import { resolveAgentSecondPassQuery } from './agent-second-pass';
+import type { ConversationHistoryMessage } from '../../infra/llm/llm.types';
+import {
   ConcurrencyLimiter,
   ResultCache
 } from '../../common/concurrency-utils';
@@ -74,6 +85,10 @@ import type {
   TraceKnowledgeBaseMultiStepSummary,
   TraceSummary
 } from '@rag-system/shared';
+import {
+  buildExternalSourceRouteMetadata,
+  buildPolicyRouteMetadata
+} from './ask-route-metadata';
 
 type AskResultChunk = {
   chunkId: string;
@@ -180,6 +195,11 @@ type AskPersistedMessage = {
   id: string;
 };
 
+export type AskAgentExecution = {
+  routeDecision: AskRouteDecision | null;
+  steps: Array<Record<string, unknown>>;
+};
+
 type AskReusableConversationMessage = {
   id: string;
   role: MessageRole;
@@ -264,10 +284,21 @@ export class AskAssistantService {
     conversationId?: string;
     authContext?: RequestAuthContext | null;
     documentVersions?: Record<string, number>;
+    retrievalEvidence?: RetrievalEvidence | null;
+    routeDecision?: AskRouteDecision | null;
   }) {
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
+    const requestStartedAt = Date.now();
+    const conversationHistoryPromise =
+      input.conversationId == null
+        ? Promise.resolve<ConversationHistoryMessage[]>([])
+        : this.loadConversationHistory({
+            conversationId: input.conversationId,
+            authContext: authContext.identity,
+            createdBefore: new Date(requestStartedAt)
+          });
 
     const assistant = await this.assistantCache.getOrSet(
       input.assistantId,
@@ -306,17 +337,34 @@ export class AskAssistantService {
         | undefined
     });
 
-    const rewriteDecision = this.resolveRewriteDecision(
-      input.question,
-      retrievalStrategy
-    );
+    const conversationHistory = await conversationHistoryPromise;
+    const routeDecision =
+      input.routeDecision ?? this.resolveRouteDecision(input.question);
+    const rewriteDecision = input.retrievalEvidence
+      ? {
+          shouldRewrite: false,
+          skippedReason: 'disabled_by_default' as const
+        }
+      : this.resolveRewriteDecision(input.question, retrievalStrategy, {
+          history: conversationHistory,
+          routeType: routeDecision.routeType
+        });
     let rewritten: AskRewriteResult;
 
-    if (rewriteDecision.shouldRewrite) {
+    if (input.retrievalEvidence) {
+      rewritten = {
+        rewrittenQuery: input.retrievalEvidence.query.rewritten,
+        modelName: null,
+        usedFallback: null,
+        promptId: null,
+        skippedReason: null
+      };
+    } else if (rewriteDecision.shouldRewrite) {
       try {
         const rewriteResult = await this.llmLimiter.execute(() =>
           this.llmService.rewriteQuery({
-            question: input.question
+            question: input.question,
+            history: conversationHistory
           })
         );
         rewritten = {
@@ -342,7 +390,10 @@ export class AskAssistantService {
       };
     }
 
-    const retrievalQuery = rewritten.rewrittenQuery || input.question;
+    const retrievalQuery =
+      input.retrievalEvidence?.query.retrieval ||
+      rewritten.rewrittenQuery ||
+      input.question;
     const retrievalFilters = retrievalProfileFiltersSchema
       .optional()
       .parse(assistant.retrievalProfile.filtersJson ?? undefined);
@@ -352,7 +403,6 @@ export class AskAssistantService {
         .optional()
         .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
-    const routeDecision = this.resolveRouteDecision(input.question);
     const reusableConversationAnswer =
       input.conversationId != null &&
       routeDecision.routeType === 'knowledge_base' &&
@@ -408,7 +458,9 @@ export class AskAssistantService {
           rewritten,
           normalizedAnswerPolicy,
           routeDecision,
-          documentVersions: input.documentVersions
+          documentVersions: input.documentVersions,
+          retrievalEvidence: input.retrievalEvidence ?? null,
+          conversationHistory
         })
     });
   }
@@ -416,11 +468,20 @@ export class AskAssistantService {
   async searchAssistant(input: {
     assistantId: string;
     question: string;
+    conversationId?: string;
     authContext?: RequestAuthContext | null;
   }) {
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
+    const conversationHistory =
+      input.conversationId == null
+        ? []
+        : await this.loadConversationHistory({
+            conversationId: input.conversationId,
+            authContext: authContext.identity,
+            createdBefore: new Date()
+          });
 
     const assistant = await this.assistantCache.getOrSet(
       input.assistantId,
@@ -445,10 +506,14 @@ export class AskAssistantService {
     });
     const rewriteDecision = this.resolveRewriteDecision(
       input.question,
-      retrievalStrategy
+      retrievalStrategy,
+      {
+        history: conversationHistory,
+        routeType: 'knowledge_base'
+      }
     );
     const rewritten: AskRewriteResult = rewriteDecision.shouldRewrite
-      ? await this.resolveSearchRewrite(input.question)
+      ? await this.resolveSearchRewrite(input.question, conversationHistory)
       : {
           rewrittenQuery: null,
           modelName: null,
@@ -531,12 +596,53 @@ export class AskAssistantService {
     };
   }
 
+  async suggestAgentSecondPassQuery(input: {
+    question: string;
+    conversationId?: string;
+    authContext?: RequestAuthContext | null;
+    primary?: {
+      chunks: Array<{ score: number }>;
+      contextGroups: unknown[];
+    } | null;
+  }): Promise<string | null> {
+    const authContext = resolveRequestAuthContext({
+      authContext: input.authContext
+    });
+    const history =
+      input.conversationId == null
+        ? []
+        : await this.loadConversationHistory({
+            conversationId: input.conversationId,
+            authContext: authContext.identity,
+            createdBefore: new Date()
+          });
+    try {
+      return await resolveAgentSecondPassQuery({
+        question: input.question,
+        history,
+        primary: input.primary,
+        rewrite: ({ question, history: rewriteHistory }) =>
+          this.llmLimiter.execute(() =>
+            this.llmService.rewriteQuery({
+              question,
+              history: rewriteHistory
+            })
+          )
+      });
+    } catch {
+      return null;
+    }
+  }
+
   async askAssistantStream(input: {
     assistantId: string;
     question: string;
     conversationId?: string;
     authContext?: RequestAuthContext | null;
     signal?: AbortSignal;
+    retrievalEvidence?: RetrievalEvidence | null;
+    routeDecision?: AskRouteDecision | null;
+    agentExecution?: AskAgentExecution | null;
     onEvent: (
       event:
         | { type: 'status'; phase: 'started' | 'retrieving' | 'generating' }
@@ -547,6 +653,34 @@ export class AskAssistantService {
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
+    const emitEvent = async (
+      event:
+        | { type: 'status'; phase: 'started' | 'retrieving' | 'generating' }
+        | { type: 'answer_delta'; delta: string }
+        | { type: 'final'; data: Record<string, unknown> }
+    ) => {
+      if (event.type === 'final' && input.agentExecution != null) {
+        await input.onEvent({
+          ...event,
+          data: {
+            ...event.data,
+            agent: input.agentExecution
+          }
+        });
+        return;
+      }
+
+      await input.onEvent(event);
+    };
+    const requestStartedAt = Date.now();
+    const conversationHistoryPromise =
+      input.conversationId == null
+        ? Promise.resolve<ConversationHistoryMessage[]>([])
+        : this.loadConversationHistory({
+            conversationId: input.conversationId,
+            authContext: authContext.identity,
+            createdBefore: new Date(requestStartedAt)
+          });
 
     const assistant = await this.assistantCache.getOrSet(
       input.assistantId,
@@ -590,19 +724,36 @@ export class AskAssistantService {
         | undefined
     });
 
-    const rewriteDecision = this.resolveRewriteDecision(
-      input.question,
-      retrievalStrategy
-    );
+    const conversationHistory = await conversationHistoryPromise;
+    const routeDecision =
+      input.routeDecision ?? this.resolveRouteDecision(input.question);
+    const rewriteDecision = input.retrievalEvidence
+      ? {
+          shouldRewrite: false,
+          skippedReason: 'disabled_by_default' as const
+        }
+      : this.resolveRewriteDecision(input.question, retrievalStrategy, {
+          history: conversationHistory,
+          routeType: routeDecision.routeType
+        });
     let rewritten: AskRewriteResult;
     let rewriteMs = 0;
     let llmQueueWaitMs = 0;
 
-    if (rewriteDecision.shouldRewrite) {
+    if (input.retrievalEvidence) {
+      rewritten = {
+        rewrittenQuery: input.retrievalEvidence.query.rewritten,
+        modelName: null,
+        usedFallback: null,
+        promptId: null,
+        skippedReason: null
+      };
+    } else if (rewriteDecision.shouldRewrite) {
       try {
         const rewriteResult = await this.llmLimiter.executeMeasured(() =>
           this.llmService.rewriteQuery({
             question: input.question,
+            history: conversationHistory,
             signal: input.signal
           })
         );
@@ -634,7 +785,10 @@ export class AskAssistantService {
       };
     }
 
-    const retrievalQuery = rewritten.rewrittenQuery || input.question;
+    const retrievalQuery =
+      input.retrievalEvidence?.query.retrieval ||
+      rewritten.rewrittenQuery ||
+      input.question;
     const retrievalFilters = retrievalProfileFiltersSchema
       .optional()
       .parse(assistant.retrievalProfile.filtersJson ?? undefined);
@@ -644,7 +798,6 @@ export class AskAssistantService {
         .optional()
         .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
-    const routeDecision = this.resolveRouteDecision(input.question);
     const reusableConversationAnswerPromise: Promise<Record<
       string,
       unknown
@@ -664,7 +817,7 @@ export class AskAssistantService {
     const reusableConversationAnswer = await reusableConversationAnswerPromise;
 
     if (reusableConversationAnswer != null) {
-      await input.onEvent({
+      await emitEvent({
         type: 'final',
         data: reusableConversationAnswer
       });
@@ -672,14 +825,14 @@ export class AskAssistantService {
     }
 
     const startedStatusEventPromise = Promise.resolve(
-      input.onEvent({
+      emitEvent({
         type: 'status',
         phase: 'started'
       })
     );
     const retrievingStatusEventOutcomePromise = startedStatusEventPromise
       .then(() =>
-        input.onEvent({
+        emitEvent({
           type: 'status',
           phase: 'retrieving'
         })
@@ -721,7 +874,7 @@ export class AskAssistantService {
         question: input.question,
         normalizedAnswerPolicy,
         routeDecision,
-        onEvent: input.onEvent
+        onEvent: emitEvent
       }),
       knowledgeBaseAsk: () =>
         this.handleKnowledgeBaseRouteAskStream({
@@ -742,19 +895,58 @@ export class AskAssistantService {
           llmQueueWaitMs,
           normalizedAnswerPolicy,
           routeDecision,
-          onEvent: input.onEvent,
+          retrievalEvidence: input.retrievalEvidence ?? null,
+          conversationHistory,
+          agentExecution: input.agentExecution ?? null,
+          onEvent: emitEvent,
           signal: input.signal
         })
     });
   }
 
+  private async loadConversationHistory(input: {
+    conversationId: string;
+    authContext: AuthIdentity;
+    createdBefore: Date;
+  }): Promise<ConversationHistoryMessage[]> {
+    const listRecent = this.messagesService.listRecentConversationMessages;
+    if (typeof listRecent !== 'function') {
+      return [];
+    }
+
+    try {
+      const messages = await listRecent.call(
+        this.messagesService,
+        input.conversationId,
+        {
+          limit: 6,
+          createdBefore: input.createdBefore
+        },
+        {
+          tenantId: input.authContext.tenantId,
+          userId: input.authContext.userId
+        }
+      );
+      return buildConversationHistory(messages);
+    } catch (error) {
+      this.logger.warn(
+        `Conversation history load failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`
+      );
+      return [];
+    }
+  }
+
   private async resolveSearchRewrite(
-    question: string
+    question: string,
+    history: ConversationHistoryMessage[] = []
   ): Promise<AskRewriteResult> {
     try {
       const rewriteResult = await this.llmLimiter.execute(() =>
         this.llmService.rewriteQuery({
-          question
+          question,
+          history
         })
       );
       return {
@@ -796,7 +988,7 @@ export class AskAssistantService {
     systemPrompt: string;
     answerPolicy: Partial<AnswerPolicy> | null | undefined;
     chunks: AskResultChunk[];
-    contextGroups: Array<{
+    contextGroups?: Array<{
       documentId: string;
       documentTitle: string;
       startChunkIndex: number;
@@ -807,6 +999,7 @@ export class AskAssistantService {
       pageNumbers: number[];
       sectionTitles: string[];
     }>;
+    history?: ConversationHistoryMessage[];
   }): PromptSnapshot {
     const normalizedChunks = input.chunks.map((chunk: AskResultChunk) => ({
       chunkId: chunk.chunkId,
@@ -819,19 +1012,34 @@ export class AskAssistantService {
     }));
     const llmChunks = this.answeringService.buildStreamAnswerContext({
       chunks: normalizedChunks,
-      contextGroups: input.contextGroups
+      contextGroups: input.contextGroups ?? []
     });
     const prompt = this.promptManager.buildAnswerPrompt({
       question: input.question,
       systemPrompt: input.systemPrompt,
       answerPolicy: this.normalizeAnswerPolicy(input.answerPolicy),
-      chunks: llmChunks
+      chunks: llmChunks,
+      history: input.history
     });
 
     return {
       systemPrompt: prompt.systemPrompt,
       userPrompt: prompt.userPrompt
     };
+  }
+
+  private withAgentExecutionMetadata<T>(
+    metadata: T,
+    agentExecution: AskAgentExecution | null | undefined
+  ): T {
+    if (agentExecution == null) {
+      return metadata;
+    }
+
+    return {
+      ...(typeof metadata === 'object' && metadata !== null ? metadata : {}),
+      agentExecution
+    } as T;
   }
 
   private withPromptContextMetrics(
@@ -1159,24 +1367,7 @@ export class AskAssistantService {
     question: string;
     routeDecision: AskRouteDecision;
   }): AskRetrievalMetadataJson {
-    const executionPlan = buildTraceExecutionPlan({
-      routeType: input.routeDecision.routeType,
-      routeReason: input.routeDecision.routeReason
-    });
-
-    return {
-      ...buildTraceMetadataCanonicalSurface({
-        routeDecision: input.routeDecision,
-        executionPlan
-      }),
-      ...this.buildRouteMetadataBase({
-        question: input.question,
-        retrievedChunkCount: 0,
-        primaryChunkCount: 0,
-        strategyMode: null,
-        retrievalMode: null
-      })
-    } as AskRetrievalMetadataJson;
+    return buildPolicyRouteMetadata(input) as AskRetrievalMetadataJson;
   }
 
   private buildExternalSourceRouteMetadata(input: {
@@ -1188,89 +1379,10 @@ export class AskAssistantService {
     routeDecision: AskRouteDecision;
     externalSources?: AskExternalSourceMetadataView[];
   }): AskRetrievalMetadataJson {
-    const executionPlan = buildTraceExecutionPlan({
-      routeType: input.routeDecision.routeType,
-      routeReason: input.routeDecision.routeReason,
-      sourceCount:
-        input.externalSources != null && input.externalSources.length > 0
-          ? input.externalSources.length
-          : 1
-    });
-
-    return {
-      ...buildTraceMetadataCanonicalSurface({
-        routeDecision: input.routeDecision,
-        executionPlan
-      }),
-      externalSource: {
-        url: input.sourceUrl,
-        kind: input.sourceKind,
-        kindLabel: this.buildExternalSourceKindLabel(input.sourceKind),
-        title: input.sourceTitle,
-        diagnostics: input.diagnostics ?? null
-      },
-      ...(input.externalSources != null
-        ? {
-            externalSources: input.externalSources
-          }
-        : {}),
-      ...this.buildRouteMetadataBase({
-        question: input.question,
-        retrievedChunkCount:
-          input.externalSources != null && input.externalSources.length > 0
-            ? input.externalSources.length
-            : 1,
-        primaryChunkCount: 1,
-        strategyMode: null,
-        retrievalMode: null
-      })
-    } as AskRetrievalMetadataJson;
-  }
-
-  private buildRouteMetadataBase(input: {
-    question: string;
-    retrievedChunkCount: number;
-    primaryChunkCount: number;
-    strategyMode: RetrievalStrategySummary['strategyMode'];
-    retrievalMode: RetrievalStrategySummary['retrievalMode'] | null;
-  }): Pick<
-    AskRetrievalMetadataJson,
-    'queryRewrite' | 'strategySummary' | 'execution'
-  > {
-    return {
-      queryRewrite: {
-        enabled: false,
-        applied: false,
-        finalQuerySource: 'original_disabled',
-        skippedReason: 'disabled_by_default',
-        usedFallback: null,
-        modelName: null,
-        promptId: null
-      },
-      strategySummary: {
-        retrievalMode: input.retrievalMode,
-        strategyMode: input.strategyMode,
-        retrievalQuerySource: 'original_disabled',
-        rewriteEnabled: false,
-        rewriteApplied: false,
-        rewriteSkippedReason: 'disabled_by_default',
-        rewriteUsedFallback: null,
-        rewritePromptId: null,
-        rewriteModelName: null,
-        fallbackReason: null,
-        usedFallback: null
-      },
-      execution: {
-        retrievalQuery: input.question,
-        topK: 1,
-        scoreThreshold: 0,
-        chunkWindow: 0,
-        retrievedChunkCount: input.retrievedChunkCount,
-        contextGroupCount: 0,
-        primaryChunkCount: input.primaryChunkCount,
-        neighborChunkCount: 0
-      }
-    };
+    return buildExternalSourceRouteMetadata({
+      ...input,
+      sourceKindLabel: this.buildExternalSourceKindLabel(input.sourceKind)
+    }) as AskRetrievalMetadataJson;
   }
 
   private buildExternalSourceChunk(input: {
@@ -1953,8 +2065,7 @@ export class AskAssistantService {
       question: input.question,
       systemPrompt: input.assistant.systemPrompt,
       answerPolicy: input.normalizedAnswerPolicy,
-      chunks: retrievedChunks,
-      contextGroups: []
+      chunks: retrievedChunks
     });
     const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
       retrievalMetadata,
@@ -2692,25 +2803,30 @@ export class AskAssistantService {
     normalizedAnswerPolicy: AnswerPolicy;
     routeDecision: AskRouteDecision;
     documentVersions?: Record<string, number>;
+    retrievalEvidence?: RetrievalEvidence | null;
+    conversationHistory: ConversationHistoryMessage[];
   }) {
-    const retrievalResult = await this.retrievalLimiter.execute(() =>
-      this.retrieveOrCreateFailedTrace({
-        assistantId: input.assistant.id,
-        assistantKbId: input.assistant.kbId,
-        conversationPromise: Promise.resolve({
-          value: input.conversation,
-          durationMs: 0
-        }),
-        getUserMessagePromise: () => input.userMessagePromise,
-        userQuery: input.question,
-        retrievalQuery: input.retrievalQuery,
-        retrievalProfile: input.retrievalProfile,
-        retrievalStrategy: input.retrievalStrategy,
-        retrievalFilters: input.retrievalFilters,
-        rewritten: input.rewritten,
-        documentVersions: input.documentVersions
-      })
-    );
+    const retrievalResult =
+      input.retrievalEvidence != null
+        ? buildRetrievalResultFromEvidence(input.retrievalEvidence)
+        : await this.retrievalLimiter.execute(() =>
+            this.retrieveOrCreateFailedTrace({
+              assistantId: input.assistant.id,
+              assistantKbId: input.assistant.kbId,
+              conversationPromise: Promise.resolve({
+                value: input.conversation,
+                durationMs: 0
+              }),
+              getUserMessagePromise: () => input.userMessagePromise,
+              userQuery: input.question,
+              retrievalQuery: input.retrievalQuery,
+              retrievalProfile: input.retrievalProfile,
+              retrievalStrategy: input.retrievalStrategy,
+              retrievalFilters: input.retrievalFilters,
+              rewritten: input.rewritten,
+              documentVersions: input.documentVersions
+            })
+          );
     const resolvedRetrievalResult = retrievalResult;
 
     const retrievedChunks = resolvedRetrievalResult.retrievedChunks;
@@ -2719,33 +2835,36 @@ export class AskAssistantService {
     const [retrievalScoresJson, retrievalMetadata] = await Promise.all([
       Promise.resolve(this.buildRetrievalScoresJson(retrievedChunks)),
       Promise.resolve(
-        this.buildRetrievalMetadata({
-          strategy: input.retrievalStrategy,
-          filters: input.retrievalFilters,
-          rewrittenQuery: input.rewritten.rewrittenQuery,
-          rewriteSkippedReason: input.rewritten.skippedReason,
-          rewriteModelName: input.retrievalStrategy.queryRewrite.enabled
-            ? input.rewritten.modelName
-            : null,
-          rewritePromptId: input.retrievalStrategy.queryRewrite.enabled
-            ? input.rewritten.promptId
-            : null,
-          rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled
-            ? input.rewritten.usedFallback
-            : null,
-          originalQuestion: input.question,
-          topK: input.retrievalProfile.topK,
-          scoreThreshold: input.retrievalProfile.scoreThreshold,
-          chunkWindow: input.retrievalProfile.chunkWindow,
-          retrievedChunks,
-          contextGroups,
-          embedding: resolvedRetrievalResult.embedding,
-          routeDecision: input.routeDecision,
-          execution: resolvedRetrievalResult.execution,
-          knowledgeBaseMultiStep: undefined,
-          promptContextChars: null,
-          promptContextApproxTokens: null
-        }) as AskRetrievalMetadataJson
+        withConversationHistoryMetadata(
+          this.buildRetrievalMetadata({
+            strategy: input.retrievalStrategy,
+            filters: input.retrievalFilters,
+            rewrittenQuery: input.rewritten.rewrittenQuery,
+            rewriteSkippedReason: input.rewritten.skippedReason,
+            rewriteModelName: input.retrievalStrategy.queryRewrite.enabled
+              ? input.rewritten.modelName
+              : null,
+            rewritePromptId: input.retrievalStrategy.queryRewrite.enabled
+              ? input.rewritten.promptId
+              : null,
+            rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled
+              ? input.rewritten.usedFallback
+              : null,
+            originalQuestion: input.question,
+            topK: input.retrievalProfile.topK,
+            scoreThreshold: input.retrievalProfile.scoreThreshold,
+            chunkWindow: input.retrievalProfile.chunkWindow,
+            retrievedChunks,
+            contextGroups,
+            embedding: resolvedRetrievalResult.embedding,
+            routeDecision: input.routeDecision,
+            execution: resolvedRetrievalResult.execution,
+            knowledgeBaseMultiStep: undefined,
+            promptContextChars: null,
+            promptContextApproxTokens: null
+          }) as AskRetrievalMetadataJson,
+          input.conversationHistory
+        )
       )
     ]);
 
@@ -2804,7 +2923,8 @@ export class AskAssistantService {
       systemPrompt: input.assistant.systemPrompt,
       answerPolicy: input.normalizedAnswerPolicy,
       chunks: retrievedChunks,
-      contextGroups
+      contextGroups,
+      history: input.conversationHistory
     });
     const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
       retrievalMetadata,
@@ -2832,7 +2952,8 @@ export class AskAssistantService {
             systemPrompt: input.assistant.systemPrompt,
             answerPolicy: input.normalizedAnswerPolicy,
             chunks: retrievedChunks,
-            contextGroups
+            contextGroups,
+            history: input.conversationHistory
           });
 
       const assistantMessage = await this.messagesService.createMessage({
@@ -3075,6 +3196,9 @@ export class AskAssistantService {
     llmQueueWaitMs: number;
     normalizedAnswerPolicy: AnswerPolicy;
     routeDecision: AskRouteDecision;
+    retrievalEvidence?: RetrievalEvidence | null;
+    conversationHistory: ConversationHistoryMessage[];
+    agentExecution?: AskAgentExecution | null;
     onEvent: (
       event:
         | { type: 'status'; phase: 'started' | 'retrieving' | 'generating' }
@@ -3085,21 +3209,27 @@ export class AskAssistantService {
   }) {
     let llmQueueWaitMs = input.llmQueueWaitMs;
 
-    const retrievalResultMeasured = await this.retrievalLimiter.executeMeasured(
-      () =>
-        this.retrieveOrCreateFailedTrace({
-          assistantId: input.assistant.id,
-          assistantKbId: input.assistant.kbId,
-          conversationPromise: input.conversationPromise,
-          getUserMessagePromise: input.getUserMessagePromise,
-          userQuery: input.question,
-          retrievalQuery: input.retrievalQuery,
-          retrievalProfile: input.retrievalProfile,
-          retrievalStrategy: input.retrievalStrategy,
-          retrievalFilters: input.retrievalFilters,
-          rewritten: input.rewritten
-        })
-    );
+    const retrievalResultMeasured =
+      input.retrievalEvidence != null
+        ? {
+            result: buildRetrievalResultFromEvidence(input.retrievalEvidence),
+            runMs: 0,
+            waitMs: 0
+          }
+        : await this.retrievalLimiter.executeMeasured(() =>
+            this.retrieveOrCreateFailedTrace({
+              assistantId: input.assistant.id,
+              assistantKbId: input.assistant.kbId,
+              conversationPromise: input.conversationPromise,
+              getUserMessagePromise: input.getUserMessagePromise,
+              userQuery: input.question,
+              retrievalQuery: input.retrievalQuery,
+              retrievalProfile: input.retrievalProfile,
+              retrievalStrategy: input.retrievalStrategy,
+              retrievalFilters: input.retrievalFilters,
+              rewritten: input.rewritten
+            })
+          );
     const retrievalResult = retrievalResultMeasured.result;
     const resolvedRetrievalResult = retrievalResult;
     const retrievalMs = retrievalResultMeasured.runMs;
@@ -3120,33 +3250,36 @@ export class AskAssistantService {
     const retrievalArtifactsPromise = conversationAndUserMessagePromise.then(
       () => ({
         retrievalScoresJson: this.buildRetrievalScoresJson(retrievedChunks),
-        retrievalMetadata: this.buildRetrievalMetadata({
-          strategy: input.retrievalStrategy,
-          filters: input.retrievalFilters,
-          rewrittenQuery: input.rewritten.rewrittenQuery,
-          rewriteSkippedReason: input.rewritten.skippedReason,
-          rewriteModelName: input.retrievalStrategy.queryRewrite.enabled
-            ? input.rewritten.modelName
-            : null,
-          rewritePromptId: input.retrievalStrategy.queryRewrite.enabled
-            ? input.rewritten.promptId
-            : null,
-          rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled
-            ? input.rewritten.usedFallback
-            : null,
-          originalQuestion: input.question,
-          topK: input.retrievalProfile.topK,
-          scoreThreshold: input.retrievalProfile.scoreThreshold,
-          chunkWindow: input.retrievalProfile.chunkWindow,
-          retrievedChunks,
-          contextGroups,
-          embedding: resolvedRetrievalResult.embedding,
-          routeDecision: input.routeDecision,
-          execution: resolvedRetrievalResult.execution,
-          knowledgeBaseMultiStep: undefined,
-          promptContextChars: null,
-          promptContextApproxTokens: null
-        }) as AskRetrievalMetadataJson
+        retrievalMetadata: withConversationHistoryMetadata(
+          this.buildRetrievalMetadata({
+            strategy: input.retrievalStrategy,
+            filters: input.retrievalFilters,
+            rewrittenQuery: input.rewritten.rewrittenQuery,
+            rewriteSkippedReason: input.rewritten.skippedReason,
+            rewriteModelName: input.retrievalStrategy.queryRewrite.enabled
+              ? input.rewritten.modelName
+              : null,
+            rewritePromptId: input.retrievalStrategy.queryRewrite.enabled
+              ? input.rewritten.promptId
+              : null,
+            rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled
+              ? input.rewritten.usedFallback
+              : null,
+            originalQuestion: input.question,
+            topK: input.retrievalProfile.topK,
+            scoreThreshold: input.retrievalProfile.scoreThreshold,
+            chunkWindow: input.retrievalProfile.chunkWindow,
+            retrievedChunks,
+            contextGroups,
+            embedding: resolvedRetrievalResult.embedding,
+            routeDecision: input.routeDecision,
+            execution: resolvedRetrievalResult.execution,
+            knowledgeBaseMultiStep: undefined,
+            promptContextChars: null,
+            promptContextApproxTokens: null
+          }) as AskRetrievalMetadataJson,
+          input.conversationHistory
+        )
       })
     );
 
@@ -3230,6 +3363,7 @@ export class AskAssistantService {
                     chunks: retrievedChunks,
                     contextGroups
                   }),
+                  history: input.conversationHistory,
                   signal: input.signal,
                   onDelta: async (delta) => {
                     await generatingStatusEventPromise;
@@ -3255,6 +3389,7 @@ export class AskAssistantService {
               modelName: streamResult.modelName,
               promptId: streamResult.promptId,
               usedFallback: streamResult.usedFallback,
+              usage: streamResult.usage,
               answerStatus: streamResult.answerStatus,
               missingInformation: streamResult.missingInformation,
               citedChunkNumbers: streamResult.citedChunkNumbers,
@@ -3366,9 +3501,12 @@ export class AskAssistantService {
           ...(retrievalMetadataWithPrompt as Record<string, unknown>),
           timing: persistedTimingSummary
         } as AskRetrievalMetadataJson,
-        answeringMetadataJson: this.withPromptSnapshot(
-          resolvedAnswerResult.answeringMetadata,
-          promptSnapshot
+        answeringMetadataJson: this.withAgentExecutionMetadata(
+          this.withPromptSnapshot(
+            resolvedAnswerResult.answeringMetadata,
+            promptSnapshot
+          ),
+          input.agentExecution
         ),
         qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
         latencyMs: Date.now() - input.startedAt,
@@ -3496,6 +3634,7 @@ export class AskAssistantService {
         retrievalMetadata: retrievalMetadataWithPrompt,
         timingSummary,
         timingReadabilitySentence,
+        agentExecution: input.agentExecution ?? null,
         answerAttributionSummary,
         answerAttributionReadabilitySentence,
         answerAttribution: this.resolveAnswerAttribution(
@@ -3528,6 +3667,10 @@ export class AskAssistantService {
         missingInformation: resolvedAnswerResult.missingInformation,
         qualityEvaluation: resolvedAnswerResult.qualityEvaluation
       };
+      finalResult.answeringMetadata = this.withAgentExecutionMetadata(
+        finalResult.answeringMetadata,
+        input.agentExecution
+      );
 
       await input.onEvent({
         type: 'final',
@@ -3756,8 +3899,22 @@ export class AskAssistantService {
 
   private resolveRewriteDecision(
     question: string,
-    retrievalStrategy: ReturnType<typeof resolveRetrievalStrategy>
+    retrievalStrategy: ReturnType<typeof resolveRetrievalStrategy>,
+    options?: {
+      history?: ConversationHistoryMessage[];
+      routeType?: AskRouteDecision['routeType'];
+    }
   ): AskRewriteDecision {
+    const shouldForceFollowUp =
+      (options?.routeType == null || options.routeType === 'knowledge_base') &&
+      shouldForceFollowUpRewrite(question, options?.history ?? []);
+    if (shouldForceFollowUp) {
+      return {
+        shouldRewrite: true,
+        skippedReason: null
+      };
+    }
+
     const mode = retrievalStrategy.queryRewrite.mode;
     if (!retrievalStrategy.queryRewrite.enabled || mode === 'off') {
       return {

@@ -56,8 +56,11 @@ export class MessagesService {
     T extends { role: MessageRole; traceId: string | null }
   >(messages: T[]) {
     const traceIds = messages
-      .filter(message => message.role === MessageRole.assistant && message.traceId != null)
-      .map(message => message.traceId as string);
+      .filter(
+        (message) =>
+          message.role === MessageRole.assistant && message.traceId != null
+      )
+      .map((message) => message.traceId as string);
 
     if (traceIds.length === 0) {
       return messages;
@@ -65,20 +68,87 @@ export class MessagesService {
 
     const traces = await this.prisma.answerTrace.findMany({
       where: { id: { in: [...new Set(traceIds)] } },
-      select: { id: true, citationsJson: true }
+      select: {
+        id: true,
+        citationsJson: true,
+        answeringMetadataJson: true
+      }
     });
     const citationsByTraceId = new Map<string, unknown[]>(
-      traces.map(trace => [
+      traces.map((trace) => [
         trace.id,
-        Array.isArray(trace.citationsJson) ? (trace.citationsJson as unknown[]) : []
+        Array.isArray(trace.citationsJson)
+          ? (trace.citationsJson as unknown[])
+          : []
+      ])
+    );
+    const agentStepsByTraceId = new Map<string, unknown[]>(
+      traces.map((trace) => [
+        trace.id,
+        this.readAgentSteps(trace.answeringMetadataJson)
       ])
     );
 
-    return messages.map(message =>
+    return messages.map((message) =>
       message.role === MessageRole.assistant && message.traceId != null
-        ? { ...message, citations: citationsByTraceId.get(message.traceId) ?? [] }
+        ? {
+            ...message,
+            citations: citationsByTraceId.get(message.traceId) ?? [],
+            agentSteps: agentStepsByTraceId.get(message.traceId) ?? []
+          }
         : message
     );
+  }
+
+  private readAgentSteps(answeringMetadataJson: unknown) {
+    if (
+      typeof answeringMetadataJson !== 'object' ||
+      answeringMetadataJson === null
+    ) {
+      return [];
+    }
+
+    const agentExecution = (answeringMetadataJson as Record<string, unknown>)
+      .agentExecution;
+    if (typeof agentExecution !== 'object' || agentExecution === null) {
+      return [];
+    }
+
+    const steps = (agentExecution as Record<string, unknown>).steps;
+    return Array.isArray(steps) ? steps : [];
+  }
+
+  async listRecentConversationMessages(
+    conversationId: string,
+    input: {
+      limit: number;
+      createdBefore?: Date;
+    },
+    scope?: { tenantId: string; userId: string } | null
+  ) {
+    const messages = await this.prisma.message.findMany({
+      select: this.reuseMessageListSelect,
+      where: {
+        conversationId,
+        ...(input.createdBefore == null
+          ? {}
+          : { createdAt: { lt: input.createdBefore } }),
+        ...(scope == null
+          ? {}
+          : {
+              conversation: {
+                tenantId: scope.tenantId,
+                userId: scope.userId
+              }
+            })
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: Math.max(1, input.limit)
+    });
+
+    return messages.slice().reverse();
   }
 
   listConversationMessagesForReuse(

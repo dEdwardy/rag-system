@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { IngestionService } from '../src/modules/ingestion/ingestion.service.ts';
 
-test("IngestionService records a terminal ingestion failure when worker retries are exhausted", async () => {
+test('IngestionService records a terminal ingestion failure when worker retries are exhausted', async () => {
   const documentUpdates = [];
   const failedRuns = [];
 
@@ -14,10 +14,10 @@ test("IngestionService records a terminal ingestion failure when worker retries 
       document: {
         findUnique: async () => ({
           version: 4,
-          status: "processing",
-          processingStage: "indexing"
+          status: 'processing',
+          processingStage: 'indexing'
         }),
-        updateMany: async args => {
+        updateMany: async (args) => {
           documentUpdates.push(args);
           return { count: 1 };
         }
@@ -33,9 +33,9 @@ test("IngestionService records a terminal ingestion failure when worker retries 
   await IngestionService.prototype.handleFailedJob.call(
     service,
     {
-      id: "ingest-document-job-1",
+      id: 'ingest-document-job-1',
       data: {
-        documentId: "document-terminal-failure-1",
+        documentId: 'document-terminal-failure-1',
         documentVersion: 4
       },
       attemptsMade: 3,
@@ -43,49 +43,49 @@ test("IngestionService records a terminal ingestion failure when worker retries 
         attempts: 3
       }
     },
-    new Error("Queue worker exhausted all attempts.")
+    new Error('Queue worker exhausted all attempts.')
   );
 
   assert.deepEqual(documentUpdates, [
     {
       where: {
-        id: "document-terminal-failure-1",
+        id: 'document-terminal-failure-1',
         version: 4,
         status: {
-          in: ["pending", "processing"]
+          in: ['pending', 'processing']
         }
       },
       data: {
-        status: "failed",
-        processingStage: "failed",
-        errorMessage: "Queue worker exhausted all attempts.",
+        status: 'failed',
+        processingStage: 'failed',
+        errorMessage: 'Queue worker exhausted all attempts.',
         diagnosticsJson: {
-          code: "INGESTION_QUEUE_JOB_FAILED",
-          failedStage: "indexing",
+          code: 'INGESTION_QUEUE_JOB_FAILED',
+          failedStage: 'indexing',
           retryable: true,
           documentVersion: 4,
-          message: "Queue worker exhausted all attempts."
+          message: 'Queue worker exhausted all attempts.'
         }
       }
     }
   ]);
   assert.deepEqual(failedRuns, [
     {
-      documentId: "document-terminal-failure-1",
+      documentId: 'document-terminal-failure-1',
       version: 4,
-      failedStage: "indexing",
+      failedStage: 'indexing',
       diagnosticsJson: {
-        code: "INGESTION_QUEUE_JOB_FAILED",
-        failedStage: "indexing",
+        code: 'INGESTION_QUEUE_JOB_FAILED',
+        failedStage: 'indexing',
         retryable: true,
         documentVersion: 4,
-        message: "Queue worker exhausted all attempts."
+        message: 'Queue worker exhausted all attempts.'
       }
     }
   ]);
 });
 
-test("IngestionService skips worker failure reconciliation until retries are exhausted", async () => {
+test('IngestionService skips worker failure reconciliation until retries are exhausted', async () => {
   const documentUpdates = [];
   const failedRuns = [];
 
@@ -97,10 +97,10 @@ test("IngestionService skips worker failure reconciliation until retries are exh
       document: {
         findUnique: async () => ({
           version: 4,
-          status: "processing",
-          processingStage: "parsing"
+          status: 'processing',
+          processingStage: 'parsing'
         }),
-        updateMany: async args => {
+        updateMany: async (args) => {
           documentUpdates.push(args);
           return { count: 1 };
         }
@@ -116,9 +116,9 @@ test("IngestionService skips worker failure reconciliation until retries are exh
   await IngestionService.prototype.handleFailedJob.call(
     service,
     {
-      id: "ingest-document-job-2",
+      id: 'ingest-document-job-2',
       data: {
-        documentId: "document-retry-pending-1",
+        documentId: 'document-retry-pending-1',
         documentVersion: 4
       },
       attemptsMade: 1,
@@ -126,14 +126,14 @@ test("IngestionService skips worker failure reconciliation until retries are exh
         attempts: 3
       }
     },
-    new Error("Queue worker still has retries left.")
+    new Error('Queue worker still has retries left.')
   );
 
   assert.deepEqual(documentUpdates, []);
   assert.deepEqual(failedRuns, []);
 });
 
-test("IngestionService skips run failure write when guarded document update affects zero rows", async () => {
+test('IngestionService skips run failure write when guarded document update affects zero rows', async () => {
   const documentUpdates = [];
   const failedRuns = [];
 
@@ -145,10 +145,10 @@ test("IngestionService skips run failure write when guarded document update affe
       document: {
         findUnique: async () => ({
           version: 7,
-          status: "processing",
-          processingStage: "chunking"
+          status: 'processing',
+          processingStage: 'chunking'
         }),
-        updateMany: async args => {
+        updateMany: async (args) => {
           documentUpdates.push(args);
           return { count: 0 };
         }
@@ -164,9 +164,9 @@ test("IngestionService skips run failure write when guarded document update affe
   await IngestionService.prototype.handleFailedJob.call(
     service,
     {
-      id: "ingest-document-job-3",
+      id: 'ingest-document-job-3',
       data: {
-        documentId: "document-race-guarded-1",
+        documentId: 'document-race-guarded-1',
         documentVersion: 7
       },
       attemptsMade: 2,
@@ -174,14 +174,14 @@ test("IngestionService skips run failure write when guarded document update affe
         attempts: 2
       }
     },
-    new Error("Queue worker failed after supersede race.")
+    new Error('Queue worker failed after supersede race.')
   );
 
   assert.equal(documentUpdates.length, 1);
   assert.deepEqual(failedRuns, []);
 });
 
-test("IngestionService logs and swallows worker poll failures", async () => {
+test('IngestionService logs and swallows worker poll failures', async () => {
   const loggedErrors = [];
   const service = Object.assign(Object.create(IngestionService.prototype), {
     logger: {
@@ -191,16 +191,23 @@ test("IngestionService logs and swallows worker poll failures", async () => {
     }
   });
 
-  await IngestionService.prototype.runWorkerPollSafely.call(service, "redis", async () => {
-    throw new Error("database temporarily unavailable");
-  });
+  await IngestionService.prototype.runWorkerPollSafely.call(
+    service,
+    'redis',
+    async () => {
+      throw new Error('database temporarily unavailable');
+    }
+  );
 
   assert.equal(loggedErrors.length, 1);
-  assert.match(loggedErrors[0].message, /Document ingestion redis worker poll failed/);
+  assert.match(
+    loggedErrors[0].message,
+    /Document ingestion redis worker poll failed/
+  );
   assert.match(loggedErrors[0].message, /database temporarily unavailable/);
 });
 
-test("IngestionService logs and swallows worker startup failures", async () => {
+test('IngestionService logs and swallows worker startup failures', async () => {
   const loggedErrors = [];
   const fakeService = Object.assign(Object.create(IngestionService.prototype), {
     logger: {
@@ -210,7 +217,7 @@ test("IngestionService logs and swallows worker startup failures", async () => {
       }
     },
     runtimeConfig: {
-      provider: "redis",
+      provider: 'redis',
       enableDocumentIngestionWorker: true,
       databasePollIntervalMs: 1000,
       databaseRetryDelayMs: 5000,
@@ -218,7 +225,7 @@ test("IngestionService logs and swallows worker startup failures", async () => {
     },
     queueRuntimeConfigService: {
       getConfig: () => ({
-        provider: "redis",
+        provider: 'redis',
         enableDocumentIngestionWorker: true,
         databasePollIntervalMs: 1000,
         databaseRetryDelayMs: 5000,
@@ -226,14 +233,42 @@ test("IngestionService logs and swallows worker startup failures", async () => {
       })
     },
     startRedisWorker: async () => {
-      throw new Error("database unavailable during queue startup");
+      throw new Error('database unavailable during queue startup');
     }
   });
 
   IngestionService.prototype.onModuleInit.call(fakeService);
-  await new Promise(resolve => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(loggedErrors.length, 1);
-  assert.match(loggedErrors[0].message, /Document ingestion redis startup worker poll failed/);
-  assert.match(loggedErrors[0].message, /database unavailable during queue startup/);
+  assert.match(
+    loggedErrors[0].message,
+    /Document ingestion redis startup worker poll failed/
+  );
+  assert.match(
+    loggedErrors[0].message,
+    /database unavailable during queue startup/
+  );
+});
+
+test('IngestionService reaps stale processing jobs before claiming', async () => {
+  const calls = [];
+  const service = Object.assign(Object.create(IngestionService.prototype), {
+    logger: {
+      warn: () => {}
+    },
+    runtimeConfig: {
+      maxTaskTimeoutMs: 1000
+    },
+    prisma: {
+      $executeRaw: async (query) => {
+        calls.push(query);
+        return calls.length === 1 ? 2 : 1;
+      }
+    }
+  });
+
+  await IngestionService.prototype.reapStaleDatabaseJobs.call(service);
+
+  assert.equal(calls.length, 2);
 });

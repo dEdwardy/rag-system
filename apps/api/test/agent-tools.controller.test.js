@@ -61,6 +61,51 @@ test('AgentToolsController rejects requests with an invalid tool secret', async 
   );
 });
 
+test('AgentToolsController accepts the tool secret from a request header', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+
+  let askCalls = 0;
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async () => {
+        throw new Error('should not be called');
+      },
+      askAssistant: async () => {
+        askCalls += 1;
+        return {
+          answer: 'header-authenticated answer',
+          traceId: 'trace-1',
+          conversationId: 'conversation-1'
+        };
+      }
+    },
+    {
+      getTrace: async () => ({})
+    },
+    {
+      getDocument: async () => ({ id: 'doc-1' }),
+      listDocumentChunks: async () => []
+    }
+  );
+
+  const result = await controller.ragAnswer(
+    {
+      secret: 'wrong-secret',
+      assistantId: 'assistant-1',
+      question: 'what is the answer?'
+    },
+    {
+      ...createToolRequest(),
+      headers: {
+        'x-agent-tool-secret': 'expected-secret'
+      }
+    }
+  );
+
+  assert.equal(askCalls, 1);
+  assert.equal(result.answer, 'header-authenticated answer');
+});
+
 test('AgentToolsController rejects trace lookup requests with an invalid tool secret', async () => {
   process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
 

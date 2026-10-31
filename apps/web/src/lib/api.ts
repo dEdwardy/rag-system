@@ -94,6 +94,7 @@ type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
+  headers?: Record<string, string>;
 };
 
 export type ApiRequestError = Error & {
@@ -157,7 +158,7 @@ export async function apiStreamRequest<TEvent>(
     onEvent: (event: TEvent) => void;
   }
 ) {
-  const response = await performApiFetch(path, options, {
+  let response = await performApiFetch(path, options, {
     allowRefreshRetry: true,
     stream: true
   });
@@ -182,10 +183,9 @@ export async function apiStreamRequest<TEvent>(
     });
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
   let lastEventId = 0;
+  let streamId = response.headers.get('x-sse-stream-id');
+  let resumeAttempts = 0;
 
   const emitFrame = (frame: string) => {
     const parsed = parseSseFrame(frame);
@@ -207,32 +207,84 @@ export async function apiStreamRequest<TEvent>(
   };
 
   while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
+    const reader = response.body?.getReader();
+    if (!reader) {
+      return;
     }
 
-    buffer += decoder.decode(value, { stream: true });
-    buffer = buffer.replace(/\r\n/g, '\n');
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let shouldResume = false;
 
-    while (true) {
-      const frameEndIndex = buffer.indexOf('\n\n');
-      if (frameEndIndex < 0) {
-        break;
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        buffer = buffer.replace(/\r\n/g, '\n');
+
+        while (true) {
+          const frameEndIndex = buffer.indexOf('\n\n');
+          if (frameEndIndex < 0) {
+            break;
+          }
+
+          const frame = buffer.slice(0, frameEndIndex);
+          buffer = buffer.slice(frameEndIndex + 2);
+          emitFrame(frame);
+        }
+      }
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
       }
 
-      const frame = buffer.slice(0, frameEndIndex);
-      buffer = buffer.slice(frameEndIndex + 2);
-      emitFrame(frame);
+      if (streamId != null && lastEventId > 0 && resumeAttempts < 2) {
+        shouldResume = true;
+      } else {
+        throw error;
+      }
     }
-  }
 
-  buffer += decoder.decode();
-  buffer = buffer.replace(/\r\n/g, '\n');
+    if (!shouldResume) {
+      buffer += decoder.decode();
+      buffer = buffer.replace(/\r\n/g, '\n');
+      const trailing = buffer.trim();
+      if (trailing) {
+        emitFrame(trailing);
+      }
+      return;
+    }
 
-  const trailing = buffer.trim();
-  if (trailing) {
-    emitFrame(trailing);
+    resumeAttempts += 1;
+    const retryResponse = await performApiFetch(
+      path,
+      {
+        ...options,
+        headers: {
+          ...options.headers,
+          'x-sse-stream-id': streamId as string,
+          'last-event-id': String(lastEventId)
+        }
+      },
+      {
+        allowRefreshRetry: true,
+        stream: true
+      }
+    );
+
+    if (!retryResponse.ok || !retryResponse.body) {
+      throw createApiRequestError(
+        `Stream resume failed with status ${retryResponse.status}.`,
+        { status: retryResponse.status }
+      );
+    }
+
+    response = retryResponse;
+    streamId = retryResponse.headers.get('x-sse-stream-id') ?? streamId;
   }
 }
 
@@ -319,7 +371,10 @@ async function executeFetch(
       method: options.method ?? 'GET',
       credentials: 'include',
       signal: options.signal,
-      headers: resolveRequestHeaders(options.body, stream),
+      headers: {
+        ...resolveRequestHeaders(options.body, stream),
+        ...options.headers
+      },
       body: resolveRequestBody(options.body)
     });
   } catch (error) {
