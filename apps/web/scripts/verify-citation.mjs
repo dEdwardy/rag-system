@@ -71,10 +71,12 @@ try {
 const chipTitle = await chip.getAttribute('title');
 await chip.click();
 
-const modalVisible = await page
-  .locator('text=引用来源')
-  .first()
-  .isVisible()
+// The panel renders in a portal, so wait for it instead of sampling visibility
+// immediately after the click: that raced the render and failed intermittently.
+const panel = page.locator('text=引用来源').first();
+const modalVisible = await panel
+  .waitFor({ state: 'visible', timeout: 8000 })
+  .then(() => true)
   .catch(() => false);
 const modalText = modalVisible
   ? (await page.evaluate(() => document.body.innerText)).slice(-500)
