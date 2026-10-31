@@ -1467,17 +1467,17 @@ export function ReportCenterPage() {
         fullMark: 100
       },
       {
-        subject: locale === 'zh' ? 'Grounded' : 'Grounded',
+        subject: locale === 'zh' ? '有依据率' : 'Grounded',
         A: summary.groundedRate * 100,
         fullMark: 100
       },
       {
-        subject: locale === 'zh' ? 'Strong' : 'Strong',
+        subject: locale === 'zh' ? '高质量率' : 'Strong',
         A: summary.strongRate * 100,
         fullMark: 100
       },
       {
-        subject: locale === 'zh' ? 'Fallback' : 'Fallback',
+        subject: locale === 'zh' ? '兜底率' : 'Fallback',
         A: summary.fallbackRate * 100,
         fullMark: 100
       },
@@ -2826,7 +2826,7 @@ export function ReportCenterPage() {
             </Paper>
             <Paper className="workspace-subpanel" p="md" radius="xl">
               <Text className="workspace-section-heading">
-                {locale === 'zh' ? 'Grounded' : 'Grounded'}
+                {locale === 'zh' ? '有依据率' : 'Grounded'}
               </Text>
               <Text c="var(--app-text)" fw={700} mt={6} size="xl">
                 {runEvalMutation.data.summary
@@ -2836,7 +2836,7 @@ export function ReportCenterPage() {
             </Paper>
             <Paper className="workspace-subpanel" p="md" radius="xl">
               <Text className="workspace-section-heading">
-                {locale === 'zh' ? 'Strong' : 'Strong'}
+                {locale === 'zh' ? '高质量率' : 'Strong'}
               </Text>
               <Text c="var(--app-text)" fw={700} mt={6} size="xl">
                 {runEvalMutation.data.summary
@@ -2846,7 +2846,7 @@ export function ReportCenterPage() {
             </Paper>
             <Paper className="workspace-subpanel" p="md" radius="xl">
               <Text className="workspace-section-heading">
-                {locale === 'zh' ? 'Fallback' : 'Fallback'}
+                {locale === 'zh' ? '兜底率' : 'Fallback'}
               </Text>
               <Text c="var(--app-text)" fw={700} mt={6} size="xl">
                 {runEvalMutation.data.summary
@@ -2866,7 +2866,7 @@ export function ReportCenterPage() {
             </Paper>
             <Paper className="workspace-subpanel" p="md" radius="xl">
               <Text className="workspace-section-heading">
-                {locale === 'zh' ? '检索召回 Recall@k' : 'Retrieval recall@k'}
+                {locale === 'zh' ? '检索召回率' : 'Retrieval recall'}
               </Text>
               <Text c="var(--app-text)" fw={700} mt={6} size="xl">
                 {runEvalMutation.data.summary?.retrievalRecallAtK != null
@@ -2876,11 +2876,11 @@ export function ReportCenterPage() {
               <Text c="var(--app-text-muted)" mt={2} size="xs">
                 {runEvalMutation.data.summary?.retrievalEvaluatedQuestionCount
                   ? locale === 'zh'
-                    ? `${runEvalMutation.data.summary.retrievalEvaluatedQuestionCount} 题有期望证据`
-                    : `${runEvalMutation.data.summary.retrievalEvaluatedQuestionCount} scored`
+                    ? `Recall@k · ${runEvalMutation.data.summary.retrievalEvaluatedQuestionCount} 题有期望证据`
+                    : `Recall@k · ${runEvalMutation.data.summary.retrievalEvaluatedQuestionCount} scored`
                   : locale === 'zh'
-                    ? '本题库未声明期望证据'
-                    : 'no expected evidence declared'}
+                    ? 'Recall@k · 本题库未声明期望证据'
+                    : 'Recall@k · no expected evidence declared'}
               </Text>
             </Paper>
             <Paper className="workspace-subpanel" p="md" radius="xl">
@@ -3356,7 +3356,7 @@ export function ReportCenterPage() {
                 <div className="grid gap-2 md:grid-cols-2">
                   <div className="workspace-meta-row">
                     <span className="workspace-meta-label">
-                      {locale === 'zh' ? 'Baseline' : 'Baseline'}
+                      {locale === 'zh' ? '基线' : 'Baseline'}
                     </span>
                     <span className="workspace-meta-value">
                       {firstRegressionDrilldownItem.baseline.status} ·{' '}
@@ -3369,7 +3369,7 @@ export function ReportCenterPage() {
                   </div>
                   <div className="workspace-meta-row">
                     <span className="workspace-meta-label">
-                      {locale === 'zh' ? 'Current' : 'Current'}
+                      {locale === 'zh' ? '当前' : 'Current'}
                     </span>
                     <span className="workspace-meta-value">
                       {firstRegressionDrilldownItem.current.status} ·{' '}
