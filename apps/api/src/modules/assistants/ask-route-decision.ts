@@ -22,14 +22,32 @@ type ExplicitSourceDescriptor = {
   context: string;
 };
 
+/**
+ * Patterns that identify questions about the assistant itself: its rules,
+ * limits, citation behaviour or refusal behaviour.
+ *
+ * Keep this list narrow. Bare words like 系统 / 助手 / 引用 used to live here and
+ * matched ordinary product questions ("这个系统支持哪些接入方式") that the
+ * knowledge base can answer. Those questions must reach retrieval, so the rule
+ * set only keeps phrasings that are unambiguously about the assistant.
+ *
+ * The trade-off is deliberate: when in doubt the router now falls through to
+ * `knowledge_base`, which is the safer default — retrieval plus the existing
+ * insufficient-context handling can still decline, while a policy short-circuit
+ * skips retrieval entirely.
+ */
 const POLICY_QUESTION_PATTERNS = [
-  /\b(system|policy|citation|citations|refusal|abstain|hallucination|prompt injection)\b/i,
-  /系统/,
-  /助手/,
-  /引用/,
+  // English meta vocabulary. `system` is intentionally absent: it also appears
+  // in ordinary product questions.
+  /\b(policy|policies|citation|citations|refusal|refusals|abstain|hallucination|prompt injection)\b/i,
+  // Chinese: explicit boundary / rule / refusal wording.
+  /能力边界/,
+  /(你的|您的)(能力|边界|规则|限制)/,
+  /(助手|你)(本身|自己)的?(规则|限制|边界|能力)/,
+  /你(能|可以)(访问|读取|看到)(什么|哪些|到)?/,
   /拒答/,
-  /策略/,
-  /能力边界/
+  /幻觉/,
+  /提示词注入/
 ] as const;
 
 export function resolveAskRouteDecision(question: string): AskRouteDecision {
