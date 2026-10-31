@@ -287,3 +287,46 @@ test('AgentToolsController keeps langgraph_answer on the default answer path for
   assert.equal(result.diagnostics.langGraph.retrieval.merged, null);
   assert.equal(result.diagnostics.langGraph.secondPassUsed, false);
 });
+
+test('AgentToolsController rejects langgraph_answer when the side path is disabled', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+  process.env.LANGGRAPH_AGENT_ENABLED = 'false';
+
+  try {
+    const unreachableAssistant = {
+      searchAssistant: async () => {
+        throw new Error('should not search when the side path is disabled');
+      },
+      askAssistant: async () => {
+        throw new Error('should not answer when the side path is disabled');
+      }
+    };
+    const controller = new AgentToolsController(
+      unreachableAssistant,
+      {
+        getTrace: async () => ({ id: 'trace-1' })
+      },
+      {
+        getDocument: async () => ({ id: 'doc-1', status: 'ready' }),
+        listDocumentChunks: async () => []
+      },
+      new LangGraphAnswerService(unreachableAssistant)
+    );
+
+    await assert.rejects(
+      () =>
+        controller.langGraphAnswer({
+          secret: 'expected-secret',
+          assistantId: 'assistant-1',
+          question: 'What does the knowledge base say?'
+        }),
+      (error) => {
+        assert.equal(error.getStatus(), 503);
+        assert.match(error.message, /LANGGRAPH_AGENT_ENABLED/);
+        return true;
+      }
+    );
+  } finally {
+    delete process.env.LANGGRAPH_AGENT_ENABLED;
+  }
+});

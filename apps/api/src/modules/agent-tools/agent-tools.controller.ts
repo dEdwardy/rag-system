@@ -4,6 +4,7 @@ import {
   NotFoundException,
   Post,
   Req,
+  ServiceUnavailableException,
   UnauthorizedException
 } from '@nestjs/common';
 import { DocumentStatus } from '@prisma/client';
@@ -24,6 +25,7 @@ import {
   traceLookupSchema
 } from './agent-tools.schemas';
 import { LangGraphAnswerService } from './langgraph-answer.service';
+import { isLangGraphAgentEnabled } from './agent-feature-flags';
 
 type ToolRequest = {
   authContext?: RequestAuthContext;
@@ -240,6 +242,11 @@ export class AgentToolsController {
     @Req() request?: ToolRequest
   ) {
     this.assertToolSecret(input.secret);
+    if (!isLangGraphAgentEnabled()) {
+      throw new ServiceUnavailableException(
+        'LangGraph agent side path is disabled. Set LANGGRAPH_AGENT_ENABLED=true to enable it.'
+      );
+    }
     if (this.langGraphAnswerService == null) {
       throw new Error('LangGraph answer service is not available.');
     }
