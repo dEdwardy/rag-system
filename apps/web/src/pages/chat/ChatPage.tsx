@@ -13,6 +13,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { IconActionButton, IconActionLink } from '../../components/IconAction';
 import { StatePanel } from '../../components/StatePanel';
+import { CitationAnswerText } from './CitationAnswerText';
 import {
   useAskAssistantStream,
   useAssistants,
@@ -1196,9 +1197,15 @@ export function ChatPage() {
                         ].join(' ')}
                       >
                         {message.content ? (
-                          <p className="whitespace-pre-wrap">
-                            {message.content}
-                          </p>
+                          <CitationAnswerText
+                            citations={
+                              'citations' in message && message.citations
+                                ? message.citations
+                                : []
+                            }
+                            locale={locale}
+                            text={message.content}
+                          />
                         ) : isStreamingAssistant ? (
                           <TypingIndicator />
                         ) : null}
