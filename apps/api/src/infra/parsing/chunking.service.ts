@@ -9,11 +9,46 @@ export type ParsedChunk = {
   isTableLike: boolean;
 };
 
+export const DEFAULT_TARGET_CHUNK_LENGTH = 900;
+export const DEFAULT_MAX_CHUNK_LENGTH = 1200;
+
+/**
+ * Chunk sizes were fixed constants, which made short documents collapse into a
+ * single coarse chunk and left retrieval nothing to rank. They are configurable
+ * now, with the historical values as defaults so existing behaviour is
+ * unchanged unless the env vars are set.
+ */
+export function resolveChunkLengths(env: NodeJS.ProcessEnv = process.env) {
+  const targetChunkLength = readPositiveInteger(
+    env.CHUNK_TARGET_LENGTH,
+    DEFAULT_TARGET_CHUNK_LENGTH
+  );
+  const configuredMax = readPositiveInteger(
+    env.CHUNK_MAX_LENGTH,
+    DEFAULT_MAX_CHUNK_LENGTH
+  );
+
+  return {
+    targetChunkLength,
+    // A max smaller than the target would make every chunk oversized.
+    maxChunkLength: Math.max(configuredMax, targetChunkLength)
+  };
+}
+
+function readPositiveInteger(value: string | undefined, fallback: number) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 @Injectable()
 export class ChunkingService {
   buildChunks(content: string): ParsedChunk[] {
-    const targetChunkLength = 900;
-    const maxChunkLength = 1200;
+    const { targetChunkLength, maxChunkLength } = resolveChunkLengths();
     const paragraphs = content
       .replace(/\r\n/g, "\n")
       .split(/\n\s*\n/g)
