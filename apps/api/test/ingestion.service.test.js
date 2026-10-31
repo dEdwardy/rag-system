@@ -1,6 +1,6 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
-const { IngestionService } = require("../src/modules/ingestion/ingestion.service.ts");
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import { IngestionService } from '../src/modules/ingestion/ingestion.service.ts';
 
 test("IngestionService records a terminal ingestion failure when worker retries are exhausted", async () => {
   const documentUpdates = [];

@@ -1,12 +1,12 @@
-const assert = require('node:assert/strict');
-const { test } = require('node:test');
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
 
-const {
+import {
   EvalQuestionSetsController
-} = require('../src/modules/eval-question-sets/eval-question-sets.controller.ts');
-const {
+} from '../src/modules/eval-question-sets/eval-question-sets.controller.ts';
+import {
   EvalQuestionSetsService
-} = require('../src/modules/eval-question-sets/eval-question-sets.service.ts');
+} from '../src/modules/eval-question-sets/eval-question-sets.service.ts';
 
 function buildRequest() {
   return {

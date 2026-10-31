@@ -1,16 +1,16 @@
-const assert = require('node:assert/strict');
-const { test } = require('node:test');
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
 
-const { AuthService } = require('../src/modules/auth/auth.service.ts');
-const {
+import { AuthService } from '../src/modules/auth/auth.service.ts';
+import {
   DocumentsService
-} = require('../src/modules/documents/documents.service.ts');
-const {
+} from '../src/modules/documents/documents.service.ts';
+import {
   KnowledgeBasesController
-} = require('../src/modules/knowledge-bases/knowledge-bases.controller.ts');
-const {
+} from '../src/modules/knowledge-bases/knowledge-bases.controller.ts';
+import {
   KnowledgeBasesService
-} = require('../src/modules/knowledge-bases/knowledge-bases.service.ts');
+} from '../src/modules/knowledge-bases/knowledge-bases.service.ts';
 
 function createTransactionalPrismaMock(prisma) {
   return {

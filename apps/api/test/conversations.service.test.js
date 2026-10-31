@@ -1,8 +1,6 @@
-const assert = require('node:assert/strict');
-const { test } = require('node:test');
-const {
-  ConversationsService
-} = require('../src/modules/conversations/conversations.service.ts');
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import { ConversationsService } from '../src/modules/conversations/conversations.service.ts';
 
 test('ConversationsService scopes list and lookup by identity when provided', async () => {
   const findManyCalls = [];

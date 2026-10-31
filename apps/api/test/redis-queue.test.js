@@ -1,9 +1,9 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
 
-const { QueueService } = require("../src/infra/queue/queue.service.ts");
-const { RedisQueueProviderService } = require("../src/infra/queue/queue-provider.service.ts");
-const { IngestionService } = require("../src/modules/ingestion/ingestion.service.ts");
+import { QueueService } from '../src/infra/queue/queue.service.ts';
+import { RedisQueueProviderService } from '../src/infra/queue/queue-provider.service.ts';
+import { IngestionService } from '../src/modules/ingestion/ingestion.service.ts';
 
 function createFakeRedisClient() {
   const pending = [];

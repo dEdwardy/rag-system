@@ -1,7 +1,8 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
 
-const { IngestionService } = require("../src/modules/ingestion/ingestion.service.ts");
+import { IngestionService } from '../src/modules/ingestion/ingestion.service.ts';
+import { resolveQueueRuntimeConfig } from '../src/infra/queue/queue-runtime-config.ts';
 
 test("IngestionService tracks active tasks with Set", async () => {
   const fakeService = Object.assign(Object.create(IngestionService.prototype), {
@@ -78,8 +79,6 @@ test("IngestionService cleans up tasks on completion", async () => {
 });
 
 test("QueueRuntimeConfig includes new concurrency config options", async () => {
-  const { resolveQueueRuntimeConfig } = require("../src/infra/queue/queue-runtime-config.ts");
-  
   const config = resolveQueueRuntimeConfig({
     QUEUE_MAX_CONCURRENT_TASKS: "5",
     QUEUE_TASK_TIMEOUT_MS: "600000"
@@ -90,8 +89,6 @@ test("QueueRuntimeConfig includes new concurrency config options", async () => {
 });
 
 test("QueueRuntimeConfig uses defaults for concurrency options", async () => {
-  const { resolveQueueRuntimeConfig } = require("../src/infra/queue/queue-runtime-config.ts");
-  
   const config = resolveQueueRuntimeConfig({});
 
   assert.equal(config.maxConcurrentIngestionTasks, 3);

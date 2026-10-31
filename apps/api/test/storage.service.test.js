@@ -1,14 +1,18 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
-
-const { StorageRuntimeConfigError, resolveStorageRuntimeConfig } = require("../src/infra/storage/storage-runtime-config.ts");
-const {
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import {
+  StorageRuntimeConfigError,
+  resolveStorageRuntimeConfig
+} from '../src/infra/storage/storage-runtime-config.ts';
+import {
   LocalStorageProviderService,
   SupabaseStorageProviderService,
   OssStorageProviderService
-} = require("../src/infra/storage/storage-provider.service.ts");
-const { StorageService } = require("../src/infra/storage/storage.service.ts");
-const { withEnv } = require("./support/llm-test-helpers.js");
+} from '../src/infra/storage/storage-provider.service.ts';
+import { StorageService } from '../src/infra/storage/storage.service.ts';
+import llmTestHelpers from './support/llm-test-helpers.js';
+
+const { withEnv } = llmTestHelpers;
 
 test("resolveStorageRuntimeConfig uses local storage when STORAGE_ROOT is provided", () => {
   const config = resolveStorageRuntimeConfig({ STORAGE_ROOT: "/tmp/rag-storage-test" });

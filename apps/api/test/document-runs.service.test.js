@@ -1,7 +1,7 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
-const { Prisma } = require("@prisma/client");
-const { DocumentRunsService } = require("../src/modules/document-runs/document-runs.service.ts");
+import assert from 'node:assert/strict';
+import { Prisma } from '@prisma/client';
+import { test } from 'vitest';
+import { DocumentRunsService } from '../src/modules/document-runs/document-runs.service.ts';
 
 test("DocumentRunsService reopens retryable failed runs but blocks non-retryable failed runs", async () => {
   const updateManyCalls = [];
