@@ -1,4 +1,4 @@
-﻿const assert = require('node:assert/strict');
+const assert = require('node:assert/strict');
 const {
   AskAssistantService
 } = require('../src/modules/assistants/ask-assistant.service.ts');

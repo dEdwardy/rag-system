@@ -1,4 +1,4 @@
-﻿const assert = require('node:assert/strict');
+const assert = require('node:assert/strict');
 const {
   PromptManagerService
 } = require('../src/infra/llm/prompt-manager.service.ts');
