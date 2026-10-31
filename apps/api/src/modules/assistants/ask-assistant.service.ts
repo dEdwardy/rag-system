@@ -6,6 +6,7 @@ import { PromptManagerService } from '../../infra/llm/prompt-manager.service';
 import { FeedSourceService } from '../../infra/feed-source/feed-source.service';
 import { SitemapSourceService } from '../../infra/sitemap-source/sitemap-source.service';
 import { WebPageService } from '../../infra/web-page/web-page.service';
+import { resolveReusableAnswerContent } from './reused-answer-content';
 import {
   ConcurrencyLimiter,
   ResultCache
@@ -3678,7 +3679,7 @@ export class AskAssistantService {
         userMessageId: candidate.id,
         assistantMessageId: nextMessage.id,
         traceId: trace.id,
-        answer: nextMessage.content,
+        answer: resolveReusableAnswerContent(nextMessage.content),
         citations: Array.isArray(trace.citationsJson)
           ? trace.citationsJson
           : [],

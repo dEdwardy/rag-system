@@ -44,6 +44,7 @@ const fastTestFiles = new Set([
   'test/auth-provider-boundary.test.js',
   'test/retrieval-profiles-auth-scope.test.js',
   'test/retrieval.test.js',
+  'test/reused-answer-content.test.js',
   'test/storage.service.test.js',
   'test/tool-calling.test.js',
   'test/traces.service.test.js',
