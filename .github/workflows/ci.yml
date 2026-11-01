@@ -53,5 +53,143 @@ jobs:
       - name: Run core API focused tests
         run: pnpm test:api:focus:ask
 
+      - name: Run API focused tests with coverage
+        run: pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 --coverage --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 test/answering.test.js test/ask-success.test.js test/ask-stream-service.test.js test/retrieval.test.js test/ask-quota.test.js test/route-accuracy-eval.test.js test/prompt-injection-eval.test.js
+
+      - name: Upload API coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-coverage
+          path: apps/api/test-results/coverage
+          if-no-files-found: ignore
+
       - name: Run web guard tests
         run: pnpm --filter @rag-system/web test:guard
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rag_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rag_ci?schema=public
+      AUTH_ACCESS_JWT_SECRET: ci-access-jwt-secret
+      NODE_ENV: test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.5.2
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @rag-system/api prisma:generate
+
+      - name: Apply database migrations
+        run: pnpm --filter @rag-system/api exec prisma migrate deploy
+
+      - name: Seed deterministic records
+        run: pnpm --filter @rag-system/api prisma:seed
+
+      - name: Build packages and API
+        run: |
+          pnpm --filter @rag-system/shared build
+          pnpm --filter @rag-system/api build
+
+      - name: Run API integration tests
+        run: pnpm --filter @rag-system/api test:integration
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rag_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rag_ci?schema=public
+      AUTH_ACCESS_JWT_SECRET: ci-access-jwt-secret
+      NODE_ENV: test
+      PLAYWRIGHT_SMOKE_EMAIL: default-user@example.com
+      PLAYWRIGHT_SMOKE_PASSWORD: local-password-1
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.5.2
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @rag-system/api prisma:generate
+
+      - name: Apply database migrations
+        run: pnpm --filter @rag-system/api exec prisma migrate deploy
+
+      - name: Seed deterministic records
+        run: pnpm --filter @rag-system/api prisma:seed
+
+      - name: Build packages and apps
+        run: |
+          pnpm --filter @rag-system/shared build
+          pnpm --filter @rag-system/api build
+          pnpm --filter @rag-system/web build
+
+      - name: Run browser smoke
+        run: pnpm --filter @rag-system/web test:smoke:legacy
