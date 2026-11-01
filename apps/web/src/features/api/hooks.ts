@@ -633,11 +633,26 @@ export function useDeleteConversation() {
   });
 }
 
-export function useConversationMessages(conversationId: string | null) {
+export function useConversationMessages(
+  conversationId: string | null,
+  options: { limit?: number; before?: string | null } = {}
+) {
+  const limit = options.limit ?? 80;
+  const before = options.before ?? null;
+
   return useQuery({
-    queryKey: ['conversation-messages', conversationId],
-    queryFn: () =>
-      apiRequest<Message[]>(`/conversations/${conversationId}/messages`),
+    queryKey: ['conversation-messages', conversationId, { limit, before }],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set('limit', String(limit));
+      if (before != null) {
+        params.set('before', before);
+      }
+
+      return apiRequest<Message[]>(
+        `/conversations/${conversationId}/messages?${params.toString()}`
+      );
+    },
     enabled: conversationId != null
   });
 }

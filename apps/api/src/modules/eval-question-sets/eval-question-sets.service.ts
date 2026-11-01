@@ -4,11 +4,16 @@ import {
   NotFoundException,
   Optional
 } from '@nestjs/common';
-import { Prisma, type EvalQuestionSetStatus } from '@prisma/client';
+import {
+  ConversationStatus,
+  Prisma,
+  type EvalQuestionSetStatus
+} from '@prisma/client';
 import { PrismaService } from '../../infra/database/prisma.service';
 import type { AuthIdentity } from '../auth/auth-identity.contract';
 import { LangGraphAnswerService } from '../agent-tools/langgraph-answer.service';
 import { AskAssistantService } from '../assistants/ask-assistant.service';
+import { ConversationsService } from '../conversations/conversations.service';
 import {
   type ChooseEvalQuestionSetBaselineInput,
   type CreateEvalQuestionSetInput,
@@ -274,7 +279,9 @@ export class EvalQuestionSetsService {
     private readonly prisma: PrismaService,
     private readonly askAssistantService: AskAssistantService,
     @Optional()
-    private readonly langGraphAnswerService?: LangGraphAnswerService
+    private readonly langGraphAnswerService?: LangGraphAnswerService,
+    @Optional()
+    private readonly conversationsService?: ConversationsService
   ) {}
 
   async createQuestionSet(
@@ -735,7 +742,7 @@ export class EvalQuestionSetsService {
     question: string;
     identity: AuthIdentity;
     executionMode: 'default' | 'agent';
-  }) {
+  }): Promise<EvalQuestionAskResultView> {
     const authContext = {
       identity: input.identity,
       currentIdentity: input.identity
@@ -753,14 +760,48 @@ export class EvalQuestionSetsService {
       if (result.answerResult == null) {
         throw new Error('Agent eval produced no answer result.');
       }
-      return result.answerResult;
+      const agentAnswerResult =
+        result.answerResult as EvalQuestionAskResultView;
+      await this.archiveEvalConversation(
+        this.readString(agentAnswerResult.conversationId),
+        input.identity
+      );
+      return agentAnswerResult;
     }
 
-    return this.askAssistantService.askAssistant({
+    const answerResult = (await this.askAssistantService.askAssistant({
       assistantId: input.assistantId,
       question: input.question,
-      authContext
-    });
+      authContext,
+      skipQuota: true
+    })) as EvalQuestionAskResultView;
+    await this.archiveEvalConversation(
+      this.readString(answerResult.conversationId),
+      input.identity
+    );
+    return answerResult;
+  }
+
+  private async archiveEvalConversation(
+    conversationId: string | null,
+    identity: AuthIdentity
+  ) {
+    if (this.conversationsService == null || conversationId == null) {
+      return;
+    }
+
+    try {
+      await this.conversationsService.updateConversation(
+        conversationId,
+        {
+          tenantId: identity.tenantId,
+          userId: identity.userId
+        },
+        { status: ConversationStatus.archived }
+      );
+    } catch {
+      // Eval results stay valid even if cleanup of the throwaway conversation fails.
+    }
   }
 
   async runP5V1DemoReplay(identity: AuthIdentity) {

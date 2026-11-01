@@ -169,22 +169,13 @@ test('ConversationsService returns not found for out-of-scope conversation looku
 });
 
 test('ConversationsService scopes conversation touch writes by owner identity', async () => {
-  const findUniqueCalls = [];
-  const updateCalls = [];
+  const updateManyCalls = [];
   const service = new ConversationsService({
     conversation: {
       findMany: async () => [],
-      findUnique: async (args) => {
-        findUniqueCalls.push(args);
-        return {
-          id: 'conversation-1',
-          tenantId: 'tenant-42',
-          userId: 'user-42'
-        };
-      },
-      update: async (args) => {
-        updateCalls.push(args);
-        return { id: 'conversation-1' };
+      updateMany: async (args) => {
+        updateManyCalls.push(args);
+        return { count: 1 };
       }
     }
   });
@@ -194,37 +185,23 @@ test('ConversationsService scopes conversation touch writes by owner identity', 
     userId: 'user-42'
   });
 
-  assert.deepEqual(findUniqueCalls, [
-    {
-      where: { id: 'conversation-1' },
-      select: {
-        id: true,
-        tenantId: true,
-        userId: true,
-        assistantId: true,
-        title: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true
-      }
-    }
-  ]);
-  assert.equal(updateCalls.length, 1);
-  assert.deepEqual(updateCalls[0].where, {
-    id: 'conversation-1'
+  assert.equal(updateManyCalls.length, 1);
+  assert.deepEqual(updateManyCalls[0].where, {
+    id: 'conversation-1',
+    tenantId: 'tenant-42',
+    userId: 'user-42'
   });
-  assert.equal(updateCalls[0].data.updatedAt instanceof Date, true);
+  assert.equal(updateManyCalls[0].data.updatedAt instanceof Date, true);
 });
 
 test('ConversationsService blocks out-of-scope conversation touch writes', async () => {
-  const updateCalls = [];
+  const updateManyCalls = [];
   const service = new ConversationsService({
     conversation: {
       findMany: async () => [],
-      findUnique: async () => null,
-      update: async (args) => {
-        updateCalls.push(args);
-        return { id: 'conversation-1' };
+      updateMany: async (args) => {
+        updateManyCalls.push(args);
+        return { count: 0 };
       }
     }
   });
@@ -237,7 +214,7 @@ test('ConversationsService blocks out-of-scope conversation touch writes', async
     /Conversation conversation-1 not found\./
   );
 
-  assert.equal(updateCalls.length, 0);
+  assert.equal(updateManyCalls.length, 1);
 });
 
 test('ConversationsService blocks conversation lookup when owner scope does not match', async () => {

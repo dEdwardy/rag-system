@@ -210,8 +210,30 @@ export const messages = {
       agentModeHint:
         'Agent mode adds a bounded retrieval plan and shows each step as it runs.',
       agentSteps: 'Agent steps',
+      uploadFromLibraryHint: 'Add documents from the library page',
+      recentHistoryHint:
+        'The sidebar starts with the latest {count} conversations and loads more on demand to keep chat responsive.',
+      loadMoreHistory: 'Load more conversations',
+      starterPromptHeading: 'Start with one of these first questions',
+      assistantAvatarLabel: 'A',
+      userAvatarLabel: 'Me',
+      agentModeOnShort: 'ON',
+      agentModeOffShort: 'OFF',
+      readiness: {
+        noKnowledgeBase:
+          'Create or restore the current library first, then start asking questions.',
+        noDocuments:
+          'Add the first files or links first, then start asking once the library is ready.',
+        processingDocuments:
+          'Library updates are still running. Start asking after the first ready items appear.',
+        failedDocuments:
+          'Some library items still need attention. Fix those items before asking.'
+      },
       starterPromptHint:
         'Click one to send it now, then refine the follow-up in chat.',
+      loadEarlierMessages: 'Load earlier messages',
+      loadEarlierMessagesCount: 'Load {count} earlier messages',
+      loadingEarlierMessages: 'Loading earlier messages...',
       noDocuments: 'Library still empty',
       libraryNeedsAttention: 'Library needs review',
       libraryUpdating: 'Library updating',

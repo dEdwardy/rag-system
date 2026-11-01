@@ -31,6 +31,7 @@ import {
   getPrimaryKnowledgeBase
 } from '../../features/api/workspace-selection';
 import { useI18n } from '../../i18n/I18nProvider';
+import { apiRequest } from '../../lib/api';
 import { readStorageItem, writeStorageItem } from '../../lib/browser-storage';
 import type {
   AskStreamEvent,
@@ -391,6 +392,9 @@ export function ChatPage() {
   const [isTranscriptNearBottom, setIsTranscriptNearBottom] = useState(true);
   const [transcriptVisibleCount, setTranscriptVisibleCount] =
     useState(TRANSCRIPT_PAGE_SIZE);
+  const [olderMessages, setOlderMessages] = useState<Message[]>([]);
+  const [olderMessagesExhausted, setOlderMessagesExhausted] = useState(false);
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [traceSummaryHintsByMessageId, setTraceSummaryHintsByMessageId] =
     useState<Record<string, string>>({});
@@ -424,6 +428,9 @@ export function ChatPage() {
 
   useEffect(() => {
     setTranscriptVisibleCount(TRANSCRIPT_PAGE_SIZE);
+    setOlderMessages([]);
+    setOlderMessagesExhausted(false);
+    setIsLoadingOlderMessages(false);
   }, [resolvedConversationId]);
 
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
@@ -435,7 +442,9 @@ export function ChatPage() {
     assistantsQuery.data,
     activeKnowledgeBase?.id ?? null
   );
-  const messagesQuery = useConversationMessages(resolvedConversationId);
+  const messagesQuery = useConversationMessages(resolvedConversationId, {
+    limit: TRANSCRIPT_PAGE_SIZE
+  });
   const askStreamMutation = useAskAssistantStream(activeAssistant?.id ?? '');
   const updateConversationMutation = useUpdateConversation();
   const deleteConversationMutation = useDeleteConversation();
@@ -456,10 +465,7 @@ export function ChatPage() {
       inputHelpCanAsk: t('chat.copy.inputHelpCanAsk'),
       inputHelpDisabled: t('chat.copy.inputHelpDisabled'),
       askInputPlaceholder: t('chat.copy.askInputPlaceholder'),
-      uploadFromLibrary:
-        locale === 'zh'
-          ? '请到资料库页面上传文档'
-          : 'Add documents from the library page',
+      uploadFromLibrary: t('chat.copy.uploadFromLibraryHint'),
       enterHint: t('chat.copy.enterHint'),
       history: t('chat.copy.history'),
       newChat: t('chat.copy.newChat'),
@@ -471,12 +477,11 @@ export function ChatPage() {
       renameConversationError: t('chat.copy.renameConversationError'),
       deleteConversationConfirm: t('chat.copy.deleteConversationConfirm'),
       deleteConversationError: t('chat.copy.deleteConversationError'),
-      recentHistoryHint:
-        locale === 'zh'
-          ? `这里先显示最近 ${chatHistoryVisibleCount} 个会话，按需继续加载，避免主聊天页一次性加载完整历史。`
-          : `The sidebar starts with the latest ${chatHistoryVisibleCount} conversations and loads more on demand to keep chat responsive.`,
-      loadMoreHistory:
-        locale === 'zh' ? '加载更多会话' : 'Load more conversations',
+      recentHistoryHint: t('chat.copy.recentHistoryHint').replace(
+        '{count}',
+        String(chatHistoryVisibleCount)
+      ),
+      loadMoreHistory: t('chat.copy.loadMoreHistory'),
       viewTrace: t('chat.copy.viewTrace'),
       regenerateAnswer: t('chat.copy.regenerateAnswer'),
       copyAnswer: t('chat.copy.copyAnswer'),
@@ -493,10 +498,7 @@ export function ChatPage() {
       agentModeHint: t('chat.copy.agentModeHint'),
       agentSteps: t('chat.copy.agentSteps'),
       answerSettingsNeeded: t('chat.copy.answerSettingsNeeded'),
-      starterPromptHeading:
-        locale === 'zh'
-          ? '可以直接从这些首问开始'
-          : 'Start with one of these first questions',
+      starterPromptHeading: t('chat.copy.starterPromptHeading'),
       starterPromptHint: t('chat.copy.starterPromptHint'),
       starterQuestions: buildStarterQuestions(locale, 'chat')
     }),
@@ -580,14 +582,18 @@ export function ChatPage() {
     setComposerValue(starterQuestionFromSearch);
   }, [starterQuestionFromSearch]);
 
+  const loadedMessages = useMemo(
+    () => [...olderMessages, ...(messagesQuery.data ?? [])],
+    [messagesQuery.data, olderMessages]
+  );
   const displayedMessages: DisplayedMessage[] = useMemo(
     () =>
       buildDisplayedMessages(
-        messagesQuery.data,
+        loadedMessages,
         activeStreamTurn,
         shouldRenderStreamTurn
       ),
-    [activeStreamTurn, messagesQuery.data, shouldRenderStreamTurn]
+    [activeStreamTurn, loadedMessages, shouldRenderStreamTurn]
   );
 
   const visibleMessages = useMemo(
@@ -595,6 +601,59 @@ export function ChatPage() {
     [displayedMessages, transcriptVisibleCount]
   );
   const hiddenMessageCount = displayedMessages.length - visibleMessages.length;
+  const canLoadOlderMessages =
+    hiddenMessageCount > 0 ||
+    (!olderMessagesExhausted &&
+      loadedMessages.length >= TRANSCRIPT_PAGE_SIZE &&
+      resolvedConversationId != null);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (hiddenMessageCount > 0) {
+      setTranscriptVisibleCount((current) => current + TRANSCRIPT_PAGE_SIZE);
+      return;
+    }
+
+    if (
+      resolvedConversationId == null ||
+      isLoadingOlderMessages ||
+      olderMessagesExhausted
+    ) {
+      return;
+    }
+
+    const oldestMessage = loadedMessages[0];
+    if (oldestMessage == null) {
+      setOlderMessagesExhausted(true);
+      return;
+    }
+
+    setIsLoadingOlderMessages(true);
+    try {
+      const olderPage = await apiRequest<Message[]>(
+        `/conversations/${resolvedConversationId}/messages?limit=${TRANSCRIPT_PAGE_SIZE}&before=${encodeURIComponent(oldestMessage.id)}`
+      );
+      if (olderPage.length === 0) {
+        setOlderMessagesExhausted(true);
+        return;
+      }
+
+      setOlderMessages((current) => [...olderPage, ...current]);
+      setTranscriptVisibleCount((current) => current + olderPage.length);
+      if (olderPage.length < TRANSCRIPT_PAGE_SIZE) {
+        setOlderMessagesExhausted(true);
+      }
+    } catch {
+      setOlderMessagesExhausted(true);
+    } finally {
+      setIsLoadingOlderMessages(false);
+    }
+  }, [
+    hiddenMessageCount,
+    isLoadingOlderMessages,
+    loadedMessages,
+    olderMessagesExhausted,
+    resolvedConversationId
+  ]);
 
   useEffect(() => {
     const target = transcriptRef.current;
@@ -934,27 +993,19 @@ export function ChatPage() {
     }
 
     if (chatReadinessState.kind === 'no_active_knowledge_base') {
-      return locale === 'zh'
-        ? '请先创建或恢复当前资料库，然后再开始提问。'
-        : 'Create or restore the current library first, then start asking questions.';
+      return t('chat.copy.readiness.noKnowledgeBase');
     }
 
     if (chatReadinessState.kind === 'no_documents') {
-      return locale === 'zh'
-        ? '请先添加第一批文件或链接，等资料可用后再开始提问。'
-        : 'Add the first files or links first, then start asking once the library is ready.';
+      return t('chat.copy.readiness.noDocuments');
     }
 
     if (chatReadinessState.kind === 'processing_documents') {
-      return locale === 'zh'
-        ? '资料仍在处理中；等第一批资料就绪后再开始提问。'
-        : 'Library updates are still running. Start asking after the first ready items appear.';
+      return t('chat.copy.readiness.processingDocuments');
     }
 
     if (chatReadinessState.kind === 'failed_documents') {
-      return locale === 'zh'
-        ? '还有资料需要修复；先处理失败项，再继续提问。'
-        : 'Some library items still need attention. Fix those items before asking.';
+      return t('chat.copy.readiness.failedDocuments');
     }
 
     return chatCopy.inputHelpDisabled;
@@ -963,7 +1014,7 @@ export function ChatPage() {
     chatCopy.inputHelpCanAsk,
     chatCopy.inputHelpDisabled,
     chatReadinessState.kind,
-    locale
+    t
   ]);
 
   return (
@@ -1182,19 +1233,23 @@ export function ChatPage() {
               />
             ) : displayedMessages.length ? (
               <>
-                {hiddenMessageCount > 0 ? (
+                {canLoadOlderMessages ? (
                   <button
                     className="mx-auto mb-2 inline-flex items-center rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-xs font-medium text-[var(--app-text-secondary)] transition hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
-                    onClick={() =>
-                      setTranscriptVisibleCount(
-                        (current) => current + TRANSCRIPT_PAGE_SIZE
-                      )
-                    }
+                    disabled={isLoadingOlderMessages}
+                    onClick={() => {
+                      void loadOlderMessages();
+                    }}
                     type="button"
                   >
-                    {locale === 'zh'
-                      ? `加载更早的 ${hiddenMessageCount} 条消息`
-                      : `Load ${hiddenMessageCount} earlier messages`}
+                    {isLoadingOlderMessages
+                      ? t('chat.copy.loadingEarlierMessages')
+                      : hiddenMessageCount > 0
+                        ? t('chat.copy.loadEarlierMessagesCount').replace(
+                            '{count}',
+                            String(hiddenMessageCount)
+                          )
+                        : t('chat.copy.loadEarlierMessages')}
                   </button>
                 ) : null}
                 {visibleMessages.map((message, visibleIndex) => {
@@ -1251,7 +1306,9 @@ export function ChatPage() {
                             : 'bg-[#059669] text-white'
                         ].join(' ')}
                       >
-                        {isAssistant ? '答' : '我'}
+                        {isAssistant
+                          ? t('chat.copy.assistantAvatarLabel')
+                          : t('chat.copy.userAvatarLabel')}
                       </div>
 
                       <div className="min-w-0 flex-1">
@@ -1525,12 +1582,8 @@ export function ChatPage() {
                 <span>{chatCopy.agentMode}</span>
                 <span className="text-[10px] uppercase tracking-[0.06em] opacity-80">
                   {agentModeEnabled
-                    ? locale === 'zh'
-                      ? '开'
-                      : 'ON'
-                    : locale === 'zh'
-                      ? '关'
-                      : 'OFF'}
+                    ? t('chat.copy.agentModeOnShort')
+                    : t('chat.copy.agentModeOffShort')}
                 </span>
               </button>
             </div>

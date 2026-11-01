@@ -24,8 +24,32 @@ export class MessagesService {
 
   async listConversationMessages(
     conversationId: string,
-    scope?: { tenantId: string; userId: string } | null
+    scope?: { tenantId: string; userId: string } | null,
+    page?: { limit?: number; before?: string } | null
   ) {
+    if (page?.limit == null && page?.before == null) {
+      const messages = await this.prisma.message.findMany({
+        select: this.messageListSelect,
+        where: {
+          conversationId,
+          ...(scope == null
+            ? {}
+            : {
+                conversation: {
+                  tenantId: scope.tenantId,
+                  userId: scope.userId
+                }
+              })
+        },
+        orderBy: {
+          createdAt: 'asc'
+        }
+      });
+
+      return this.withTraceCitations(messages);
+    }
+
+    const limit = Math.max(1, Math.min(200, page?.limit ?? 80));
     const messages = await this.prisma.message.findMany({
       select: this.messageListSelect,
       where: {
@@ -40,11 +64,19 @@ export class MessagesService {
             })
       },
       orderBy: {
-        createdAt: 'asc'
-      }
+        createdAt: 'desc'
+      },
+      take: limit + 1,
+      ...(page?.before == null
+        ? {}
+        : {
+            cursor: { id: page.before },
+            skip: 1
+          })
     });
+    const pageMessages = messages.slice(0, limit);
 
-    return this.withTraceCitations(messages);
+    return this.withTraceCitations(pageMessages.slice().reverse());
   }
 
   /**

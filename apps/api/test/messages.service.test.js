@@ -41,13 +41,24 @@ function buildMessage(overrides) {
 test('listConversationMessages attaches citations stored on the answer trace', async () => {
   const { service } = createService({
     messages: [buildMessage({ role: 'user', traceId: null }), buildMessage({})],
-    traces: [{ id: 'trace-1', citationsJson: [{ chunkId: 'chunk-1', documentTitle: 'doc.md' }] }]
+    traces: [
+      {
+        id: 'trace-1',
+        citationsJson: [{ chunkId: 'chunk-1', documentTitle: 'doc.md' }]
+      }
+    ]
   });
 
   const messages = await service.listConversationMessages('conversation-1');
 
-  assert.equal(messages[0].citations, undefined, 'user messages carry no citations');
-  assert.deepEqual(messages[1].citations, [{ chunkId: 'chunk-1', documentTitle: 'doc.md' }]);
+  assert.equal(
+    messages[0].citations,
+    undefined,
+    'user messages carry no citations'
+  );
+  assert.deepEqual(messages[1].citations, [
+    { chunkId: 'chunk-1', documentTitle: 'doc.md' }
+  ]);
 });
 
 test('listConversationMessages returns an empty citation list when the trace has none', async () => {
@@ -88,4 +99,39 @@ test('listConversationMessages skips the trace lookup when nothing is traceable'
 
   assert.equal(messages[0].citations, undefined);
   assert.deepEqual(getRequestedTraceIds(), []);
+});
+
+test('listConversationMessages returns the newest page in ascending order when paged', async () => {
+  const findManyCalls = [];
+  const service = new MessagesService({
+    message: {
+      findMany: async (args) => {
+        findManyCalls.push(args);
+        return [
+          buildMessage({ id: 'message-3' }),
+          buildMessage({ id: 'message-2' }),
+          buildMessage({ id: 'message-1' })
+        ];
+      }
+    },
+    answerTrace: {
+      findMany: async () => []
+    }
+  });
+
+  const messages = await service.listConversationMessages(
+    'conversation-1',
+    { tenantId: 'tenant-1', userId: 'user-1' },
+    { limit: 2, before: 'message-4' }
+  );
+
+  assert.deepEqual(
+    messages.map((message) => message.id),
+    ['message-2', 'message-3']
+  );
+  assert.equal(findManyCalls.length, 1);
+  assert.equal(findManyCalls[0].take, 3);
+  assert.deepEqual(findManyCalls[0].cursor, { id: 'message-4' });
+  assert.equal(findManyCalls[0].skip, 1);
+  assert.deepEqual(findManyCalls[0].orderBy, { createdAt: 'desc' });
 });

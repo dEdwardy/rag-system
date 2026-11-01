@@ -1604,3 +1604,52 @@ test('EvalQuestionSetsService can execute eval questions through the agent path'
   assert.equal(result.answer, 'agent answer');
   assert.equal(agentInput.question, 'compare the two documents');
 });
+
+test('EvalQuestionSetsService archives the throwaway eval conversation and skips ask quota', async () => {
+  let askInput = null;
+  const archiveCalls = [];
+  const service = new EvalQuestionSetsService(
+    {},
+    {
+      askAssistant: async (input) => {
+        askInput = input;
+        return {
+          conversationId: 'conversation-eval-1',
+          traceId: 'trace-eval-1',
+          answer: 'answer'
+        };
+      }
+    },
+    undefined,
+    {
+      updateConversation: async (id, scope, input) => {
+        archiveCalls.push({ id, scope, input });
+        return { id };
+      }
+    }
+  );
+
+  const result =
+    await EvalQuestionSetsService.prototype.executeEvalQuestion.call(service, {
+      assistantId: 'assistant-1',
+      question: 'eval question',
+      identity: {
+        userId: 'user-1',
+        tenantId: 'tenant-1',
+        role: 'owner',
+        sessionId: null,
+        authSource: 'local'
+      },
+      executionMode: 'default'
+    });
+
+  assert.equal(result.conversationId, 'conversation-eval-1');
+  assert.equal(askInput.skipQuota, true);
+  assert.deepEqual(archiveCalls, [
+    {
+      id: 'conversation-eval-1',
+      scope: { tenantId: 'tenant-1', userId: 'user-1' },
+      input: { status: 'archived' }
+    }
+  ]);
+});

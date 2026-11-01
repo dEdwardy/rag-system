@@ -133,16 +133,6 @@ export class ConversationsService {
     id: string,
     scope: { tenantId: string; userId: string }
   ) {
-    if (typeof this.prisma.conversation.updateMany !== 'function') {
-      await this.getConversation(id, scope);
-      return this.prisma.conversation.update({
-        where: { id },
-        data: {
-          updatedAt: new Date()
-        }
-      });
-    }
-
     const updateResult = await this.prisma.conversation.updateMany({
       where: {
         id,

@@ -33,8 +33,15 @@ const listPagedConversationsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(12),
   page: z.coerce.number().int().min(1).default(1)
 });
+const listConversationMessagesSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(80),
+  before: z.string().trim().min(1).max(100).optional()
+});
 
 type ListPagedConversationsInput = z.infer<typeof listPagedConversationsSchema>;
+type ListConversationMessagesInput = z.infer<
+  typeof listConversationMessagesSchema
+>;
 
 @AuthenticatedRoute()
 @Controller('conversations')
@@ -113,14 +120,17 @@ export class ConversationsController {
   @Get(':id/messages')
   async listConversationMessages(
     @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
-    @Req() request?: ApiRequestWithAuthContext
+    @Req() request?: ApiRequestWithAuthContext,
+    @Query(new ZodValidationPipe(listConversationMessagesSchema))
+    query?: ListConversationMessagesInput
   ) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
     const messages = await this.messagesService.listConversationMessages(
       id,
-      authContext.identity
+      authContext.identity,
+      query
     );
 
     if (messages.length === 0) {
