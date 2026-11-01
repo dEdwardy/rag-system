@@ -370,57 +370,13 @@ export class AskAssistantService {
 
     const startedAt = Date.now();
     const conversationHistory = await conversationHistoryPromise;
-    const routeDecision =
-      input.routeDecision ?? this.resolveRouteDecision(input.question);
-    const rewriteDecision = input.retrievalEvidence
-      ? {
-          shouldRewrite: false,
-          skippedReason: 'disabled_by_default' as const
-        }
-      : this.resolveRewriteDecision(input.question, retrievalStrategy, {
-          history: conversationHistory,
-          routeType: routeDecision.routeType
-        });
-    let rewritten: AskRewriteResult;
-
-    if (input.retrievalEvidence) {
-      rewritten = {
-        rewrittenQuery: input.retrievalEvidence.query.rewritten,
-        modelName: null,
-        usedFallback: null,
-        promptId: null,
-        skippedReason: null
-      };
-    } else if (rewriteDecision.shouldRewrite) {
-      try {
-        const rewriteResult = await this.llmLimiter.execute(() =>
-          this.llmService.rewriteQuery({
-            question: input.question,
-            history: conversationHistory
-          })
-        );
-        rewritten = {
-          ...rewriteResult,
-          skippedReason: null
-        };
-      } catch {
-        rewritten = {
-          rewrittenQuery: null,
-          modelName: null,
-          usedFallback: null,
-          promptId: null,
-          skippedReason: 'latency_budget_exceeded'
-        };
-      }
-    } else {
-      rewritten = {
-        rewrittenQuery: null,
-        modelName: null,
-        usedFallback: null,
-        promptId: null,
-        skippedReason: rewriteDecision.skippedReason
-      };
-    }
+    const { routeDecision, rewritten } = await this.resolveAskRewritePlan({
+      question: input.question,
+      history: conversationHistory,
+      retrievalStrategy,
+      routeDecision: input.routeDecision,
+      retrievalEvidence: input.retrievalEvidence
+    });
 
     const retrievalQuery =
       input.retrievalEvidence?.query.retrieval ||
@@ -741,65 +697,16 @@ export class AskAssistantService {
 
     const startedAt = Date.now();
     const conversationHistory = await conversationHistoryPromise;
-    const routeDecision =
-      input.routeDecision ?? this.resolveRouteDecision(input.question);
-    const rewriteDecision = input.retrievalEvidence
-      ? {
-          shouldRewrite: false,
-          skippedReason: 'disabled_by_default' as const
-        }
-      : this.resolveRewriteDecision(input.question, retrievalStrategy, {
-          history: conversationHistory,
-          routeType: routeDecision.routeType
-        });
-    let rewritten: AskRewriteResult;
-    let rewriteMs = 0;
-    let llmQueueWaitMs = 0;
-
-    if (input.retrievalEvidence) {
-      rewritten = {
-        rewrittenQuery: input.retrievalEvidence.query.rewritten,
-        modelName: null,
-        usedFallback: null,
-        promptId: null,
-        skippedReason: null
-      };
-    } else if (rewriteDecision.shouldRewrite) {
-      try {
-        const rewriteResult = await this.llmLimiter.executeMeasured(() =>
-          this.llmService.rewriteQuery({
-            question: input.question,
-            history: conversationHistory,
-            signal: input.signal
-          })
-        );
-        rewritten = {
-          ...rewriteResult.result,
-          skippedReason: null
-        };
-        rewriteMs = rewriteResult.runMs;
-        llmQueueWaitMs += rewriteResult.waitMs;
-      } catch (error) {
-        if (this.isAbortError(error)) {
-          throw error;
-        }
-        rewritten = {
-          rewrittenQuery: null,
-          modelName: null,
-          usedFallback: null,
-          promptId: null,
-          skippedReason: 'latency_budget_exceeded'
-        };
-      }
-    } else {
-      rewritten = {
-        rewrittenQuery: null,
-        modelName: null,
-        usedFallback: null,
-        promptId: null,
-        skippedReason: rewriteDecision.skippedReason
-      };
-    }
+    const { routeDecision, rewritten, rewriteMs, llmQueueWaitMs } =
+      await this.resolveAskRewritePlan({
+        question: input.question,
+        history: conversationHistory,
+        retrievalStrategy,
+        routeDecision: input.routeDecision,
+        retrievalEvidence: input.retrievalEvidence,
+        signal: input.signal,
+        measure: true
+      });
 
     const retrievalQuery =
       input.retrievalEvidence?.query.retrieval ||
@@ -911,6 +818,117 @@ export class AskAssistantService {
     });
     this.askQuota.recordUsage(authContext.identity, extractAskUsage(result));
     return result;
+  }
+
+  private async resolveAskRewritePlan(input: {
+    question: string;
+    history: ConversationHistoryMessage[];
+    retrievalStrategy: ReturnType<typeof resolveRetrievalStrategy>;
+    routeDecision?: AskRouteDecision | null;
+    retrievalEvidence?: RetrievalEvidence | null;
+    signal?: AbortSignal;
+    measure?: boolean;
+  }): Promise<{
+    routeDecision: AskRouteDecision;
+    rewritten: AskRewriteResult;
+    rewriteMs: number;
+    llmQueueWaitMs: number;
+  }> {
+    const routeDecision =
+      input.routeDecision ?? this.resolveRouteDecision(input.question);
+    const rewriteDecision = input.retrievalEvidence
+      ? {
+          shouldRewrite: false,
+          skippedReason: 'disabled_by_default' as const
+        }
+      : this.resolveRewriteDecision(input.question, input.retrievalStrategy, {
+          history: input.history,
+          routeType: routeDecision.routeType
+        });
+
+    if (input.retrievalEvidence) {
+      return {
+        routeDecision,
+        rewritten: {
+          rewrittenQuery: input.retrievalEvidence.query.rewritten,
+          modelName: null,
+          usedFallback: null,
+          promptId: null,
+          skippedReason: null
+        },
+        rewriteMs: 0,
+        llmQueueWaitMs: 0
+      };
+    }
+
+    if (!rewriteDecision.shouldRewrite) {
+      return {
+        routeDecision,
+        rewritten: {
+          rewrittenQuery: null,
+          modelName: null,
+          usedFallback: null,
+          promptId: null,
+          skippedReason: rewriteDecision.skippedReason
+        },
+        rewriteMs: 0,
+        llmQueueWaitMs: 0
+      };
+    }
+
+    try {
+      if (input.measure === true) {
+        const measured = await this.llmLimiter.executeMeasured(() =>
+          this.llmService.rewriteQuery({
+            question: input.question,
+            history: input.history,
+            signal: input.signal
+          })
+        );
+        return {
+          routeDecision,
+          rewritten: {
+            ...measured.result,
+            skippedReason: null
+          },
+          rewriteMs: measured.runMs,
+          llmQueueWaitMs: measured.waitMs
+        };
+      }
+
+      const result = await this.llmLimiter.execute(() =>
+        this.llmService.rewriteQuery({
+          question: input.question,
+          history: input.history
+        })
+      );
+      return {
+        routeDecision,
+        rewritten: {
+          ...result,
+          skippedReason: null
+        },
+        rewriteMs: 0,
+        llmQueueWaitMs: 0
+      };
+    } catch (error) {
+      if (input.measure === true && this.isAbortError(error)) {
+        throw error;
+      }
+
+      return {
+        routeDecision,
+        rewritten: {
+          rewrittenQuery: null,
+          modelName: null,
+          usedFallback: null,
+          promptId: null,
+          skippedReason: 'latency_budget_exceeded'
+        },
+        rewriteMs: 0,
+        llmQueueWaitMs: 0
+      };
+    }
   }
 
   private async prepareAssistantAsk(input: {

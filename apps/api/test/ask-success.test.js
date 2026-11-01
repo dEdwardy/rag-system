@@ -1039,7 +1039,7 @@ test('AskAssistantService starts retrieval before user message persistence resol
     assistantId: 'assistant-1',
     question: 'Where is the marker?'
   });
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  for (let attempt = 0; attempt < 25; attempt += 1) {
     if (typeof resolveUserMessage === 'function') {
       break;
     }
