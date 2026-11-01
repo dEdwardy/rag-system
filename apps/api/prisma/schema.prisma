@@ -194,6 +194,22 @@ model AuthIdentityLink {
   @@index([userId])
 }
 
+model AuthSession {
+  id         String   @id
+  userId     String
+  tenantId   String
+  userJson   Json
+  expiresAt  DateTime
+  lastSeenAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
 model KnowledgeBase {
   id          String               @id @default(cuid())
   tenantId    String

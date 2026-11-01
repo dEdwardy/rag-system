@@ -1,18 +1,39 @@
-import { Module } from "@nestjs/common";
-import { APP_GUARD } from "@nestjs/core";
-import { DatabaseModule } from "../../infra/database/database.module";
-import { AUTH_ACL_GUARD_HOOK, NOOP_AUTH_ACL_GUARD_HOOK } from "./auth-acl-guard-hook.contract";
-import { AuthRateLimitGuard } from "./auth-rate-limit.guard";
-import { AuthContextMiddleware } from "./auth-context.middleware";
-import { AUTH_IDENTITY_PROVIDER } from "./auth-provider.contract";
-import { AUTH_RUNTIME_CONFIG, AuthRuntimeConfigService, resolveAuthRuntimeConfig } from "./auth-runtime-config";
-import { AuthController } from "./auth.controller";
-import { AccessJwtAuthProvider } from "./access-jwt-auth.provider";
-import { GOOGLE_OAUTH_PROVIDER, HttpGoogleOauthProvider } from "./google-oauth.provider";
-import { GITHUB_OAUTH_PROVIDER, HttpGithubOauthProvider } from "./github-oauth.provider";
-import { HttpOidcOauthProvider, OIDC_OAUTH_PROVIDER } from "./oidc-oauth.provider";
-import { AuthRoutePolicyGuard } from "./auth-route-policy.guard";
-import { AuthService } from "./auth.service";
+import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { DatabaseModule } from '../../infra/database/database.module';
+import {
+  AUTH_ACL_GUARD_HOOK,
+  NOOP_AUTH_ACL_GUARD_HOOK
+} from './auth-acl-guard-hook.contract';
+import { AuthRateLimitGuard } from './auth-rate-limit.guard';
+import { AuthContextMiddleware } from './auth-context.middleware';
+import { AUTH_IDENTITY_PROVIDER } from './auth-provider.contract';
+import {
+  AUTH_RUNTIME_CONFIG,
+  AuthRuntimeConfigService,
+  resolveAuthRuntimeConfig
+} from './auth-runtime-config';
+import { AuthController } from './auth.controller';
+import { AccessJwtAuthProvider } from './access-jwt-auth.provider';
+import {
+  GOOGLE_OAUTH_PROVIDER,
+  HttpGoogleOauthProvider
+} from './google-oauth.provider';
+import {
+  GITHUB_OAUTH_PROVIDER,
+  HttpGithubOauthProvider
+} from './github-oauth.provider';
+import {
+  HttpOidcOauthProvider,
+  OIDC_OAUTH_PROVIDER
+} from './oidc-oauth.provider';
+import { AuthRoutePolicyGuard } from './auth-route-policy.guard';
+import { AuthService } from './auth.service';
+import { PrismaService } from '../../infra/database/prisma.service';
+import {
+  AUTH_SESSION_STORE,
+  createAuthSessionStore
+} from './auth-session.store';
 
 @Module({
   imports: [DatabaseModule],
@@ -26,6 +47,14 @@ import { AuthService } from "./auth.service";
     {
       provide: AUTH_RUNTIME_CONFIG,
       useFactory: () => resolveAuthRuntimeConfig()
+    },
+    {
+      provide: AUTH_SESSION_STORE,
+      useFactory: (
+        authRuntimeConfig: AuthRuntimeConfigService,
+        prisma: PrismaService
+      ) => createAuthSessionStore(authRuntimeConfig.getConfig(), prisma),
+      inject: [AuthRuntimeConfigService, PrismaService]
     },
     AuthService,
     {
@@ -58,6 +87,12 @@ import { AuthService } from "./auth.service";
     },
     AuthContextMiddleware
   ],
-  exports: [AUTH_IDENTITY_PROVIDER, AUTH_RUNTIME_CONFIG, AuthContextMiddleware, AuthRuntimeConfigService, AuthService]
+  exports: [
+    AUTH_IDENTITY_PROVIDER,
+    AUTH_RUNTIME_CONFIG,
+    AuthContextMiddleware,
+    AuthRuntimeConfigService,
+    AuthService
+  ]
 })
 export class AuthModule {}

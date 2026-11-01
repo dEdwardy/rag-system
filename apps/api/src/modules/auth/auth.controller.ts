@@ -1,16 +1,29 @@
-import { Body, Controller, Get, Param, Post, Query, Req, Res } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res
+} from '@nestjs/common';
 import {
   DEFAULT_AUTH_ACCESS_TOKEN_COOKIE_NAME,
   DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME,
   DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME,
   DEFAULT_AUTH_REFRESH_TOKEN_COOKIE_NAME
-} from "./auth.constants";
-import { buildCookie, buildExpiredCookie, readNamedCookie as readCookieValue } from "./auth-cookie.utils";
-import { AuthRateLimit } from "./auth-rate-limit.decorator";
-import type { ApiRequestWithAuthContext } from "./auth-identity.contract";
-import { AuthenticatedRoute, PublicRoute } from "./auth-route-policy";
-import { AuthRuntimeConfigService } from "./auth-runtime-config";
-import { ZodValidationPipe } from "../../common/zod-validation.pipe";
+} from './auth.constants';
+import {
+  buildCookie,
+  buildExpiredCookie,
+  readNamedCookie as readCookieValue
+} from './auth-cookie.utils';
+import { AuthRateLimit } from './auth-rate-limit.decorator';
+import type { ApiRequestWithAuthContext } from './auth-identity.contract';
+import { AuthenticatedRoute, PublicRoute } from './auth-route-policy';
+import { AuthRuntimeConfigService } from './auth-runtime-config';
+import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import {
   LoginInput,
   OauthCallbackQueryInput,
@@ -20,39 +33,46 @@ import {
   oauthProviderParamSchema,
   PermissionCheckInput,
   permissionCheckSchema
-} from "./auth.schemas";
-import { AuthService } from "./auth.service";
+} from './auth.schemas';
+import { AuthService } from './auth.service';
 
-const LOCAL_LOGIN_PROVENANCE_COOKIE_VALUE = "local";
+const LOCAL_LOGIN_PROVENANCE_COOKIE_VALUE = 'local';
 
 export const AUTH_OAUTH_PROVIDER_ROUTE_SHAPES = {
-  start: "/auth/oauth/:provider/start",
-  callback: "/auth/oauth/:provider/callback"
+  start: '/auth/oauth/:provider/start',
+  callback: '/auth/oauth/:provider/callback'
 } as const;
 
 @PublicRoute()
-@Controller("auth")
+@Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()
   ) {}
 
-  @Post("login")
-  @AuthRateLimit("login")
+  @Post('login')
+  @AuthRateLimit('login')
   async login(
     @Body(new ZodValidationPipe(loginSchema)) input: LoginInput,
-    @Res({ passthrough: true }) response: { setHeader: (name: string, value: string | string[]) => void }
+    @Res({ passthrough: true })
+    response: { setHeader: (name: string, value: string | string[]) => void }
   ) {
     const result = await this.authService.login({
       email: input.email,
       password: input.password
     });
 
-    response.setHeader("Set-Cookie", [
-      this.buildAccessTokenCookieValue(result.accessToken, result.accessTokenExpiresAt),
+    response.setHeader('Set-Cookie', [
+      this.buildAccessTokenCookieValue(
+        result.accessToken,
+        result.accessTokenExpiresAt
+      ),
       this.buildRefreshTokenCookieValue(result.refreshToken, result.expiresAt),
-      this.buildLoginProvenanceCookieValue(LOCAL_LOGIN_PROVENANCE_COOKIE_VALUE, result.expiresAt)
+      this.buildLoginProvenanceCookieValue(
+        LOCAL_LOGIN_PROVENANCE_COOKIE_VALUE,
+        result.expiresAt
+      )
     ]);
 
     return {
@@ -63,8 +83,8 @@ export class AuthController {
     };
   }
 
-  @Post("refresh")
-  @AuthRateLimit("refresh")
+  @Post('refresh')
+  @AuthRateLimit('refresh')
   async refresh(
     @Req()
     request: {
@@ -72,14 +92,21 @@ export class AuthController {
         cookie?: string | string[];
       };
     },
-    @Res({ passthrough: true }) response: { setHeader: (name: string, value: string | string[]) => void }
+    @Res({ passthrough: true })
+    response: { setHeader: (name: string, value: string | string[]) => void }
   ) {
     const result = await this.authService.refreshAccessToken({
-      refreshToken: this.readNamedCookie(request.headers, this.resolveRefreshTokenCookieName())
+      refreshToken: this.readNamedCookie(
+        request.headers,
+        this.resolveRefreshTokenCookieName()
+      )
     });
 
-    response.setHeader("Set-Cookie", [
-      this.buildAccessTokenCookieValue(result.accessToken, result.accessTokenExpiresAt),
+    response.setHeader('Set-Cookie', [
+      this.buildAccessTokenCookieValue(
+        result.accessToken,
+        result.accessTokenExpiresAt
+      ),
       this.buildRefreshTokenCookieValue(result.refreshToken, result.expiresAt)
     ]);
 
@@ -91,15 +118,30 @@ export class AuthController {
     };
   }
 
-  @Post("logout")
+  @Post('logout')
   async logout(
-    @Req() request?: ApiRequestWithAuthContext,
-    @Res({ passthrough: true }) response?: { setHeader: (name: string, value: string | string[]) => void }
+    @Req()
+    request?: ApiRequestWithAuthContext & {
+      headers?: {
+        cookie?: string | string[];
+      };
+    },
+    @Res({ passthrough: true })
+    response?: { setHeader: (name: string, value: string | string[]) => void }
   ) {
-    await this.authService.logout();
+    await this.authService.logout({
+      refreshToken: this.readNamedCookie(
+        request?.headers,
+        this.resolveRefreshTokenCookieName()
+      ),
+      accessToken: this.readNamedCookie(
+        request?.headers,
+        this.resolveAccessTokenCookieName()
+      )
+    });
 
     if (response != null) {
-      response.setHeader("Set-Cookie", [
+      response.setHeader('Set-Cookie', [
         this.buildClearAccessTokenCookieValue(),
         this.buildClearRefreshTokenCookieValue(),
         this.buildClearLoginProvenanceCookieValue()
@@ -111,16 +153,18 @@ export class AuthController {
     };
   }
 
-  @Get("providers")
+  @Get('providers')
   providers() {
     return this.authService.getAuthProviders();
   }
 
-  @Get("oauth/:provider/start")
-  @AuthRateLimit("oauth_start")
+  @Get('oauth/:provider/start')
+  @AuthRateLimit('oauth_start')
   async oauthProviderStart(
-    @Param(new ZodValidationPipe(oauthProviderParamSchema)) input: OauthProviderParamInput,
-    @Res() response: {
+    @Param(new ZodValidationPipe(oauthProviderParamSchema))
+    input: OauthProviderParamInput,
+    @Res()
+    response: {
       setHeader: (name: string, value: string | string[]) => void;
       redirect: (statusCode: number, url: string) => void;
     }
@@ -131,24 +175,27 @@ export class AuthController {
 
     const safeState = encodeURIComponent(start.state);
     response.setHeader(
-      "Set-Cookie",
+      'Set-Cookie',
       `${start.stateCookieName}=${safeState}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${start.stateTtlSeconds}`
     );
     response.redirect(302, start.redirectUrl);
   }
 
-  @Get("oauth/:provider/callback")
-  @AuthRateLimit("oauth_callback")
+  @Get('oauth/:provider/callback')
+  @AuthRateLimit('oauth_callback')
   async oauthProviderCallback(
-    @Param(new ZodValidationPipe(oauthProviderParamSchema)) params: OauthProviderParamInput,
-    @Query(new ZodValidationPipe(oauthCallbackQuerySchema)) query: OauthCallbackQueryInput,
+    @Param(new ZodValidationPipe(oauthProviderParamSchema))
+    params: OauthProviderParamInput,
+    @Query(new ZodValidationPipe(oauthCallbackQuerySchema))
+    query: OauthCallbackQueryInput,
     @Req()
     request: {
       headers?: {
         cookie?: string | string[];
       };
     },
-    @Res() response: {
+    @Res()
+    response: {
       setHeader: (name: string, value: string | string[]) => void;
       redirect: (statusCode: number, url: string) => void;
     }
@@ -156,22 +203,29 @@ export class AuthController {
     return this.completeOauthProviderCallback(params, query, request, response);
   }
 
-  @Get("github/callback")
-  @AuthRateLimit("oauth_callback")
+  @Get('github/callback')
+  @AuthRateLimit('oauth_callback')
   async githubOauthCallback(
-    @Query(new ZodValidationPipe(oauthCallbackQuerySchema)) query: OauthCallbackQueryInput,
+    @Query(new ZodValidationPipe(oauthCallbackQuerySchema))
+    query: OauthCallbackQueryInput,
     @Req()
     request: {
       headers?: {
         cookie?: string | string[];
       };
     },
-    @Res() response: {
+    @Res()
+    response: {
       setHeader: (name: string, value: string | string[]) => void;
       redirect: (statusCode: number, url: string) => void;
     }
   ) {
-    return this.completeOauthProviderCallback({ provider: "github" }, query, request, response);
+    return this.completeOauthProviderCallback(
+      { provider: 'github' },
+      query,
+      request,
+      response
+    );
   }
 
   private async completeOauthProviderCallback(
@@ -187,7 +241,10 @@ export class AuthController {
       redirect: (statusCode: number, url: string) => void;
     }
   ) {
-    const expectedState = this.readNamedCookie(request.headers, this.resolveOauthStateCookieName());
+    const expectedState = this.readNamedCookie(
+      request.headers,
+      this.resolveOauthStateCookieName()
+    );
     const result = await this.authService.completeOauthProviderCallback({
       provider: params.provider,
       code: query.code,
@@ -195,9 +252,12 @@ export class AuthController {
       expectedState
     });
 
-    response.setHeader("Set-Cookie", [
+    response.setHeader('Set-Cookie', [
       this.buildClearOauthStateCookieValue(),
-      this.buildAccessTokenCookieValue(result.accessToken, result.accessTokenExpiresAt),
+      this.buildAccessTokenCookieValue(
+        result.accessToken,
+        result.accessTokenExpiresAt
+      ),
       this.buildRefreshTokenCookieValue(result.refreshToken, result.expiresAt),
       this.buildLoginProvenanceCookieValue(params.provider, result.expiresAt)
     ]);
@@ -208,7 +268,7 @@ export class AuthController {
     return this.authRuntimeConfig.getConfig().oauthSuccessRedirectUrl;
   }
 
-  @Get("me")
+  @Get('me')
   @AuthenticatedRoute()
   me(
     @Req()
@@ -222,14 +282,18 @@ export class AuthController {
   ) {
     return this.authService.getMe({
       authContext: request?.authContext,
-      loginProvenanceHint: this.readNamedCookie(request?.headers, this.resolveLoginProvenanceCookieName())
+      loginProvenanceHint: this.readNamedCookie(
+        request?.headers,
+        this.resolveLoginProvenanceCookieName()
+      )
     });
   }
 
-  @Post("permissions/check")
+  @Post('permissions/check')
   @AuthenticatedRoute()
   checkPermission(
-    @Body(new ZodValidationPipe(permissionCheckSchema)) input: PermissionCheckInput,
+    @Body(new ZodValidationPipe(permissionCheckSchema))
+    input: PermissionCheckInput,
     @Req() request?: ApiRequestWithAuthContext
   ) {
     return this.authService.checkPermission({
@@ -240,9 +304,11 @@ export class AuthController {
   }
 
   private readNamedCookie(
-    headers: {
-      cookie?: string | string[];
-    } | undefined,
+    headers:
+      | {
+          cookie?: string | string[];
+        }
+      | undefined,
     cookieName: string
   ): string | null {
     return readCookieValue(headers, cookieName);
@@ -250,25 +316,38 @@ export class AuthController {
 
   private resolveAccessTokenCookieName() {
     const cookieName = this.authRuntimeConfig.getConfig().accessTokenCookieName;
-    return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_ACCESS_TOKEN_COOKIE_NAME;
+    return cookieName.length > 0
+      ? cookieName
+      : DEFAULT_AUTH_ACCESS_TOKEN_COOKIE_NAME;
   }
 
   private resolveRefreshTokenCookieName() {
-    const cookieName = this.authRuntimeConfig.getConfig().refreshTokenCookieName;
-    return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_REFRESH_TOKEN_COOKIE_NAME;
+    const cookieName =
+      this.authRuntimeConfig.getConfig().refreshTokenCookieName;
+    return cookieName.length > 0
+      ? cookieName
+      : DEFAULT_AUTH_REFRESH_TOKEN_COOKIE_NAME;
   }
 
   private resolveOauthStateCookieName() {
     const cookieName = this.authRuntimeConfig.getConfig().oauthStateCookieName;
-    return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME;
+    return cookieName.length > 0
+      ? cookieName
+      : DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME;
   }
 
   private resolveLoginProvenanceCookieName() {
-    const cookieName = this.authRuntimeConfig.getConfig().loginProvenanceCookieName;
-    return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME;
+    const cookieName =
+      this.authRuntimeConfig.getConfig().loginProvenanceCookieName;
+    return cookieName.length > 0
+      ? cookieName
+      : DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME;
   }
 
-  private buildRefreshTokenCookieValue(token: string, expiresAtIso: string): string {
+  private buildRefreshTokenCookieValue(
+    token: string,
+    expiresAtIso: string
+  ): string {
     return buildCookie({
       name: this.resolveRefreshTokenCookieName(),
       value: token,
@@ -279,7 +358,10 @@ export class AuthController {
     });
   }
 
-  private buildAccessTokenCookieValue(token: string, expiresAtIso: string): string {
+  private buildAccessTokenCookieValue(
+    token: string,
+    expiresAtIso: string
+  ): string {
     return buildCookie({
       name: this.resolveAccessTokenCookieName(),
       value: token,
@@ -306,7 +388,10 @@ export class AuthController {
     });
   }
 
-  private buildLoginProvenanceCookieValue(value: string, expiresAtIso: string): string {
+  private buildLoginProvenanceCookieValue(
+    value: string,
+    expiresAtIso: string
+  ): string {
     return buildCookie({
       name: this.resolveLoginProvenanceCookieName(),
       value,

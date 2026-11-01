@@ -1,9 +1,12 @@
-import { Injectable } from "@nestjs/common";
-import type { AuthIdentity } from "./auth-identity.contract";
-import type { AuthIdentityProvider, AuthProviderRequest } from "./auth-provider.contract";
-import { AuthRuntimeConfigService } from "./auth-runtime-config";
-import { readNamedCookie } from "./auth-cookie.utils";
-import { verifyAccessJwt } from "./access-jwt";
+import { Injectable } from '@nestjs/common';
+import type { AuthIdentity } from './auth-identity.contract';
+import type {
+  AuthIdentityProvider,
+  AuthProviderRequest
+} from './auth-provider.contract';
+import { AuthRuntimeConfigService } from './auth-runtime-config';
+import { readNamedCookie } from './auth-cookie.utils';
+import { verifyAccessJwt } from './access-jwt';
 
 @Injectable()
 export class AccessJwtAuthProvider implements AuthIdentityProvider {
@@ -11,13 +14,18 @@ export class AccessJwtAuthProvider implements AuthIdentityProvider {
     private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()
   ) {}
 
-  async resolveIdentity(input: { request: AuthProviderRequest }): Promise<AuthIdentity | null> {
+  async resolveIdentity(input: {
+    request: AuthProviderRequest;
+  }): Promise<AuthIdentity | null> {
     const config = this.authRuntimeConfig.getConfig();
     if (config.accessJwtSecret.length === 0) {
       return null;
     }
 
-    const token = readNamedCookie(input.request.headers, config.accessTokenCookieName);
+    const token = readNamedCookie(
+      input.request.headers,
+      config.accessTokenCookieName
+    );
     if (token == null) {
       return null;
     }
@@ -25,7 +33,7 @@ export class AccessJwtAuthProvider implements AuthIdentityProvider {
     const payload = verifyAccessJwt({
       token,
       secret: config.accessJwtSecret,
-      expectedType: "access"
+      expectedType: 'access'
     });
     if (payload == null) {
       return null;
@@ -35,7 +43,7 @@ export class AccessJwtAuthProvider implements AuthIdentityProvider {
       userId: payload.sub,
       tenantId: payload.tenantId,
       role: payload.role,
-      sessionId: null,
+      sessionId: payload.sid ?? null,
       authSource: payload.authSource
     };
   }

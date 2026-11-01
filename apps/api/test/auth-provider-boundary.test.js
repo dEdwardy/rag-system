@@ -1093,7 +1093,7 @@ test('AuthService completeOauthProviderCallback reuses local user by email and r
 
   assert.equal(result.identity.userId, 'user-existing');
   assert.equal(result.identity.tenantId, 'tenant-1');
-  assert.equal(result.identity.sessionId, null);
+  assert.equal(typeof result.identity.sessionId, 'string');
   assert.equal(result.identity.authSource, 'github');
   assert.deepEqual(calls.linkLookup, {
     provider_subject: {
@@ -1173,7 +1173,7 @@ test('AuthService completeOauthProviderCallback supports Google with the same id
 
   assert.equal(result.identity.userId, 'user-google-existing');
   assert.equal(result.identity.tenantId, 'tenant-google-1');
-  assert.equal(result.identity.sessionId, null);
+  assert.equal(typeof result.identity.sessionId, 'string');
   assert.equal(result.identity.authSource, 'google');
   assert.deepEqual(calls.linkLookup, {
     provider_subject: {
@@ -1256,7 +1256,7 @@ test('AuthService completeOauthProviderCallback supports OIDC with the same iden
 
   assert.equal(result.identity.userId, 'user-oidc-existing');
   assert.equal(result.identity.tenantId, 'tenant-oidc-1');
-  assert.equal(result.identity.sessionId, null);
+  assert.equal(typeof result.identity.sessionId, 'string');
   assert.equal(result.identity.authSource, 'oidc');
   assert.deepEqual(calls.linkLookup, {
     provider_subject: {
@@ -1370,7 +1370,7 @@ test('AuthService completeOauthProviderCallback provisions a default workspace f
 
   assert.equal(result.identity.userId, 'user-oauth-new-1');
   assert.equal(result.identity.tenantId, 'default-tenant');
-  assert.equal(result.identity.sessionId, null);
+  assert.equal(typeof result.identity.sessionId, 'string');
   assert.equal(result.identity.authSource, 'github');
   assert.deepEqual(calls.tenantLookup, { id: 'default-tenant' });
   assert.equal(calls.userCreate.tenantId, 'default-tenant');
@@ -1500,6 +1500,9 @@ test('AuthService completeOauthProviderCallback repairs the default assistant wh
         },
         {
           name: 'Default Assistant'
+        },
+        {
+          retrievalProfileId: 'rp-oauth-repair-1'
         }
       ]
     },
@@ -1513,6 +1516,9 @@ test('AuthService completeOauthProviderCallback repairs the default assistant wh
         },
         {
           name: 'Default Assistant'
+        },
+        {
+          retrievalProfileId: 'rp-oauth-repair-1'
         }
       ]
     }
@@ -1629,6 +1635,20 @@ test('AuthService completeOauthProviderCallback repairs a stale owner assistant 
         },
         {
           name: 'Default Assistant'
+        },
+        {
+          retrievalProfileId: 'rp-oauth-repair-owner-fallback-1'
+        }
+      ]
+    },
+    {
+      AND: [
+        {
+          tenantId: 'default-tenant',
+          kbId: 'kb-oauth-repair-owner-fallback-1'
+        },
+        {
+          name: 'Default Assistant'
         }
       ]
     },
@@ -1646,6 +1666,9 @@ test('AuthService completeOauthProviderCallback repairs a stale owner assistant 
         },
         {
           name: 'Default Assistant'
+        },
+        {
+          retrievalProfileId: 'rp-oauth-repair-owner-fallback-1'
         }
       ]
     }
@@ -2767,7 +2790,7 @@ test('AuthService completeOauthProviderCallback rejects mismatched state', async
   );
 });
 
-test('AuthService login returns JWT identity and logout is stateless', async () => {
+test('AuthService login returns JWT identity with a revocable session and logout rejects refresh', async () => {
   const loginEmail = 'default-user@example.com';
   const loginPassword = 'local-password-1';
   const loginPasswordHash = hashSync(loginPassword, 4);
@@ -2796,7 +2819,7 @@ test('AuthService login returns JWT identity and logout is stateless', async () 
     email: loginEmail,
     password: loginPassword
   });
-  assert.equal(login.identity.sessionId, null);
+  assert.equal(typeof login.identity.sessionId, 'string');
   assert.equal(login.identity.userId, 'default-user');
   assert.equal(login.identity.tenantId, 'tenant-1');
   assert.equal(login.identity.authSource, 'local');
@@ -2814,8 +2837,18 @@ test('AuthService login returns JWT identity and logout is stateless', async () 
   assert.ok(typeof login.accessToken === 'string');
   assert.ok(typeof login.refreshToken === 'string');
 
-  const logout = await authService.logout();
+  const logout = await authService.logout({
+    refreshToken: login.refreshToken
+  });
   assert.deepEqual(logout, { ok: true });
+
+  await assert.rejects(
+    () =>
+      authService.refreshAccessToken({
+        refreshToken: login.refreshToken
+      }),
+    /Refresh session is no longer active/
+  );
 });
 
 test('AuthService login rejects invalid email/password edges', async () => {
@@ -3372,6 +3405,43 @@ test('AuthRateLimitGuard throttles repeated login attempts from the same client'
   assert.equal(guard.canActivate(context), true);
   assert.throws(
     () => guard.canActivate(context),
+    /Too many authentication attempts/
+  );
+});
+
+test('AuthRateLimitGuard ignores spoofable left-most X-Forwarded-For hops', () => {
+  const guard = new AuthRateLimitGuard(
+    {
+      getAllAndOverride: () => 'login'
+    },
+    {
+      getConfig: () => ({
+        rateLimits: {
+          login: { windowMs: 60_000, maxAttempts: 2 },
+          oauth_start: { windowMs: 60_000, maxAttempts: 5 },
+          oauth_callback: { windowMs: 60_000, maxAttempts: 5 }
+        }
+      })
+    }
+  );
+
+  const buildContext = (spoofedFirstHop) => ({
+    getHandler: () => 'handler',
+    getClass: () => 'controller',
+    switchToHttp: () => ({
+      getRequest: () => ({
+        headers: {
+          'x-forwarded-for': `${spoofedFirstHop}, 10.0.0.1`
+        },
+        socket: { remoteAddress: '10.0.0.1' }
+      })
+    })
+  });
+
+  assert.equal(guard.canActivate(buildContext('203.0.113.8')), true);
+  assert.equal(guard.canActivate(buildContext('198.51.100.4')), true);
+  assert.throws(
+    () => guard.canActivate(buildContext('192.0.2.9')),
     /Too many authentication attempts/
   );
 });

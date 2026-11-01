@@ -1,7 +1,16 @@
-import { CanActivate, HttpException, HttpStatus, Injectable } from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import { AUTH_RATE_LIMIT_KEY } from "./auth-rate-limit.decorator";
-import { AuthRuntimeConfigService, type AuthRateLimitProfile } from "./auth-runtime-config";
+import {
+  CanActivate,
+  HttpException,
+  HttpStatus,
+  Injectable
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { isIP } from 'node:net';
+import { AUTH_RATE_LIMIT_KEY } from './auth-rate-limit.decorator';
+import {
+  AuthRuntimeConfigService,
+  type AuthRateLimitProfile
+} from './auth-runtime-config';
 
 type RateLimitBucket = {
   count: number;
@@ -17,11 +26,10 @@ export class AuthRateLimitGuard implements CanActivate {
     private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()
   ) {}
 
-  canActivate(context: Parameters<CanActivate["canActivate"]>[0]): boolean {
-    const profile = this.reflector.getAllAndOverride<AuthRateLimitProfile | undefined>(AUTH_RATE_LIMIT_KEY, [
-      context.getHandler(),
-      context.getClass()
-    ]);
+  canActivate(context: Parameters<CanActivate['canActivate']>[0]): boolean {
+    const profile = this.reflector.getAllAndOverride<
+      AuthRateLimitProfile | undefined
+    >(AUTH_RATE_LIMIT_KEY, [context.getHandler(), context.getClass()]);
 
     if (profile == null) {
       return true;
@@ -48,7 +56,10 @@ export class AuthRateLimitGuard implements CanActivate {
     }
 
     if (existingBucket.count >= policy.maxAttempts) {
-      throw new HttpException("Too many authentication attempts. Please try again later.", HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException(
+        'Too many authentication attempts. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS
+      );
     }
 
     existingBucket.count += 1;
@@ -56,16 +67,37 @@ export class AuthRateLimitGuard implements CanActivate {
     return true;
   }
 
-  private resolveClientId(request: {
-    ip?: string;
-    headers?: Record<string, string | string[] | undefined>;
-    socket?: { remoteAddress?: string };
-  } | undefined): string {
-    const forwardedFor = request?.headers?.["x-forwarded-for"];
-    const forwardedHeader = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
-    const forwardedIp = forwardedHeader?.split(",")[0]?.trim();
+  private resolveClientId(
+    request:
+      | {
+          ip?: string;
+          headers?: Record<string, string | string[] | undefined>;
+          socket?: { remoteAddress?: string };
+        }
+      | undefined
+  ): string {
+    // Only the address appended by the trusted reverse proxy is reliable.
+    // The left-most X-Forwarded-For value is attacker-controlled.
+    const forwardedFor = request?.headers?.['x-forwarded-for'];
+    const forwardedHeader = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : forwardedFor;
+    const forwardedChain = (forwardedHeader ?? '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+    const proxyAppendedIp = forwardedChain.at(-1);
+    if (proxyAppendedIp != null && isIP(proxyAppendedIp) !== 0) {
+      return proxyAppendedIp;
+    }
 
-    return forwardedIp || request?.ip?.trim() || request?.socket?.remoteAddress?.trim() || "unknown";
+    const socketIp = request?.socket?.remoteAddress?.trim();
+    if (socketIp != null && socketIp.length > 0) {
+      return socketIp;
+    }
+
+    const requestIp = request?.ip?.trim();
+    return requestIp != null && requestIp.length > 0 ? requestIp : 'unknown';
   }
 
   private pruneExpiredBuckets(now: number) {
