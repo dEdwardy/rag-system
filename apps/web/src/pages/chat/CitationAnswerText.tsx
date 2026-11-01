@@ -67,6 +67,8 @@ export function CitationAnswerText({
       <button
         key={key}
         type="button"
+        aria-haspopup="dialog"
+        aria-label={buildCitationLabel(citation, locale)}
         title={buildCitationLabel(citation, locale)}
         onClick={() => setOpenNumber(display.number)}
         className="mx-0.5 inline-flex h-5 min-w-5 cursor-pointer items-center justify-center rounded-full border border-[var(--app-border)] bg-[var(--app-bg-subtle)] px-1 align-super text-[11px] leading-none text-[var(--app-text-muted)] transition hover:border-[var(--app-accent)] hover:text-[var(--app-text)]"

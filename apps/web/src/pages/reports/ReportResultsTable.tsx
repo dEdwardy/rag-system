@@ -109,6 +109,31 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
     buildTraceReviewLink
   } = props;
   const { t } = useI18n();
+  const renderSortableHeader = (key: string, label: string) => {
+    const isActive = sortConfig?.key === key;
+    return (
+      <Table.Th
+        aria-sort={
+          isActive
+            ? sortConfig.direction === 'ascending'
+              ? 'ascending'
+              : 'descending'
+            : 'none'
+        }
+        onClick={() => requestSort(key)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            requestSort(key);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+      >
+        {label} {isActive && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+      </Table.Th>
+    );
+  };
   const [page, setPage] = useState(1);
   const totalPages = Math.max(
     1,
@@ -326,46 +351,32 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
         >
           <Table.Thead>
             <Table.Tr>
-              <Table.Th onClick={() => requestSort('index')}>
-                #{' '}
-                {sortConfig?.key === 'index' &&
-                  (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-              </Table.Th>
-              <Table.Th onClick={() => requestSort('status')}>
-                {t('reportResultsTable.status')}{' '}
-                {sortConfig?.key === 'status' &&
-                  (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-              </Table.Th>
-              <Table.Th onClick={() => requestSort('question')}>
-                {t('reportResultsTable.question')}{' '}
-                {sortConfig?.key === 'question' &&
-                  (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-              </Table.Th>
-              <Table.Th onClick={() => requestSort('answerStatus')}>
-                {t('reportResultsTable.answerStatus')}{' '}
-                {sortConfig?.key === 'answerStatus' &&
-                  (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-              </Table.Th>
-              <Table.Th onClick={() => requestSort('qualityOverall')}>
-                {t('reportResultsTable.quality')}{' '}
-                {sortConfig?.key === 'qualityOverall' &&
-                  (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-              </Table.Th>
-              <Table.Th onClick={() => requestSort('qualityPrimaryIssue')}>
-                {t('reportResultsTable.primaryIssue')}{' '}
-                {sortConfig?.key === 'qualityPrimaryIssue' &&
-                  (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-              </Table.Th>
-              <Table.Th onClick={() => requestSort('citationCount')}>
-                {t('reportResultsTable.citations')}{' '}
-                {sortConfig?.key === 'citationCount' &&
-                  (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-              </Table.Th>
-              <Table.Th onClick={() => requestSort('usedFallback')}>
-                {t('reportResultsTable.fallback')}{' '}
-                {sortConfig?.key === 'usedFallback' &&
-                  (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-              </Table.Th>
+              {renderSortableHeader('index', '#')}
+              {renderSortableHeader('status', t('reportResultsTable.status'))}
+              {renderSortableHeader(
+                'question',
+                t('reportResultsTable.question')
+              )}
+              {renderSortableHeader(
+                'answerStatus',
+                t('reportResultsTable.answerStatus')
+              )}
+              {renderSortableHeader(
+                'qualityOverall',
+                t('reportResultsTable.quality')
+              )}
+              {renderSortableHeader(
+                'qualityPrimaryIssue',
+                t('reportResultsTable.primaryIssue')
+              )}
+              {renderSortableHeader(
+                'citationCount',
+                t('reportResultsTable.citations')
+              )}
+              {renderSortableHeader(
+                'usedFallback',
+                t('reportResultsTable.fallback')
+              )}
               <Table.Th>{t('reportResultsTable.diagnosticsIssue')}</Table.Th>
             </Table.Tr>
           </Table.Thead>
