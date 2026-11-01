@@ -2,9 +2,23 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-> 更新时间：2026-10-31
+> 更新时间：2026-11-01
 
-## Latest Increment: Agent Chat And Evidence Closeout
+## Latest Increment: Production Boundary Hardening
+
+- `auth sessions` are now revocable: refresh tokens carry a `sessionId`, sessions are stored server-side (Prisma by default, Redis optional), refresh validates the session, and logout revokes it. Session id now flows through access JWT identity as well.
+- `rate limiting` now uses only the proxy-appended `X-Forwarded-For` hop instead of the spoofable left-most value; nginx overwrites the header with `$remote_addr`.
+- `ask quota` now enforces per-tenant/user asks-per-minute plus optional daily token and estimated-cost budgets, returning `429` with `ASK_*_EXCEEDED` codes.
+- `assistant cache` keys now include `tenantId` and `userId`, so a cached assistant record cannot cross an ACL scope.
+- `vector retrieval` gains an HNSW cosine index migration for `ChunkEmbedding.embedding`.
+- `messages` now support `limit` + `before` cursor pagination; chat loads the newest page and fetches older pages on demand.
+- `eval runs` archive their throwaway conversations and skip user ask quota.
+- `security hardening`: production unexpected errors no longer leak internal messages; the container runs as a non-root user; nginx sends HSTS/CSP/frame/referrer/permissions headers.
+- `CI` now gates on API focused coverage, integration tests with pgvector, web guard, and Playwright browser smoke; the legacy guard lane remains a local triage path until its Vitest migration is complete.
+- `contracts`: `AskResponse`, `AskStreamEvent`, citation/retrieval/answering metadata now live in `packages/shared`.
+- `eval coverage`: added a route-accuracy eval set and prompt-injection attack samples, plus table/citation accessibility fixes.
+
+## Previous Increment: Agent Chat And Evidence Closeout
 
 - `chat agent mode` is now available at `POST /assistants/:id/ask/agent/stream` and is gated by the existing `LANGGRAPH_AGENT_ENABLED` flag.
   - the same bounded LangGraph flow now supports SSE step events and forwards the final answer through `askAssistantStream` instead of re-running retrieval

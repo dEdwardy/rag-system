@@ -2,11 +2,11 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：日常问答 / 快速判断时优先看的项目总览入口。先看这一页，再决定是否下钻长文档。
-> 更新时间：2026-04-20
+> 更新时间：2026-11-01
 
 ## One-Line Status
 
-RAG 主链路、PC Web chat、external source 第一轮、auth/ACL 最小闭环、当前这轮 P4 web 收口、P5 eval baseline 工程化能力都已落地；默认助手 / 默认知识库 / 默认 retrieval profile 的 bootstrap 与 repair 也已经就位，当前更像是进入稳定维护和默认主路径收口期，而不是继续补基础能力。
+RAG 主链路、PC Web chat、external source 第一轮、auth/ACL 最小闭环、P4 web 收口、P5 eval baseline 工程化能力、P6 可观测性收口都已落地；默认助手 / 默认知识库 / 默认 retrieval profile 的 bootstrap 与 repair 已就位。2026-11 又补了一轮生产边界硬化：可撤销 refresh session、可信代理 IP 限流、用户级 ask 配额、向量 HNSW 索引、消息游标分页、评测会话归档、CI 集成/浏览器冒烟门禁。当前定位仍是稳定维护和默认主路径收口，而不是扩平台层。
 
 ## Completed
 

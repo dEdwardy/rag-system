@@ -50,13 +50,13 @@ Example pattern:
 ```tsx
 const { t } = useI18n();
 
-<Title order={2}>{t("chat.title")}</Title>
+<Title order={2}>{t('chat.title')}</Title>;
 ```
 
 Interpolated values are supported:
 
 ```tsx
-t("documents.uploadSuccess", { fileName: file.name })
+t('documents.uploadSuccess', { fileName: file.name });
 ```
 
 ## Scope covered today
@@ -89,15 +89,18 @@ Recent document-detail additions from trace deep links also follow the same dict
 
 - The current dictionary is static and local to the repo
 - No ICU pluralization support
-- No per-route lazy loading of locale bundles
+- Locale bundles are split per locale with dynamic `import()`, but they are not further split per route
 - Some low-level API/server error messages still come from backend raw strings and are not normalized through frontend i18n
+- High-density report/trace/usage pages still carry a few inline bilingual labels; these are being moved into the dictionary incrementally
 
 ## Validation
 
 Useful checks for dictionary changes:
 
 ```bash
-node --test apps/web/test/*.test.js
+pnpm --filter @rag-system/web test:guard
 pnpm --filter @rag-system/web typecheck
 pnpm --filter @rag-system/web build
 ```
+
+`test:guard` now runs in CI, so dictionary drift is a merge gate rather than a manual check. The older `test:guard:legacy` lane remains a local triage path until its Vitest migration is complete.
