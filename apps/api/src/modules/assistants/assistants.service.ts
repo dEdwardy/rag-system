@@ -85,62 +85,19 @@ export class AssistantsService {
   }
 
   async getAssistant(id: string, scope?: AssistantAccessScope | null) {
-    if (scope && typeof this.prisma.assistant.findFirst !== 'function') {
-      const existingAssistant = await this.prisma.assistant.findUnique({
-        where: { id },
-        include: {
-          knowledgeBase: {
-            select: {
-              id: true,
-              tenantId: true,
-              ownerId: true
+    const assistant = scope
+      ? await this.prisma.assistant.findFirst({
+          where: {
+            id,
+            tenantId: scope.tenantId,
+            knowledgeBase: {
+              ownerId: scope.userId
             }
           },
-          retrievalProfile: true
-        }
-      });
-
-      if (!existingAssistant) {
-        throw new NotFoundException(`Assistant ${id} not found.`);
-      }
-
-      const accessDecision = evaluateOwnerResourceAccess({
-        identity: scope,
-        action: 'read',
-        resource: {
-          kind: 'knowledge_base',
-          resourceId: existingAssistant.knowledgeBase.id,
-          tenantId: existingAssistant.knowledgeBase.tenantId,
-          ownerId: existingAssistant.knowledgeBase.ownerId
-        }
-      });
-
-      if (!accessDecision.allowed) {
-        throw new ForbiddenException(
-          buildResourceAccessDeniedHint(accessDecision)
-        );
-      }
-
-      const { knowledgeBase, ...scopedAssistant } = existingAssistant;
-      void knowledgeBase;
-      return scopedAssistant;
-    }
-
-    const assistant = scope
-      ? typeof this.prisma.assistant.findFirst === 'function'
-        ? await this.prisma.assistant.findFirst({
-            where: {
-              id,
-              tenantId: scope.tenantId,
-              knowledgeBase: {
-                ownerId: scope.userId
-              }
-            },
-            include: {
-              retrievalProfile: true
-            }
-          })
-        : null
+          include: {
+            retrievalProfile: true
+          }
+        })
       : await this.prisma.assistant.findUnique({
           where: { id },
           include: {

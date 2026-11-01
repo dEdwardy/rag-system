@@ -68,6 +68,7 @@ import { TracesService } from '../traces/traces.service';
 import { answerPolicySchema } from './assistant.schemas';
 import { AssistantsService } from './assistants.service';
 import { AskAssistantError } from './ask-assistant.error';
+import { AskQuotaService } from './ask-quota';
 import {
   isPolicyQuestion,
   resolveAskRouteDecision,
@@ -254,6 +255,44 @@ const POLICY_LIKE_TEXT_PATTERNS = [
   /不要伪造答案/,
   /没有依据/
 ] as const;
+function extractAskUsage(result: unknown): {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  estimatedCostUsd?: number | null;
+} | null {
+  if (typeof result !== 'object' || result === null) {
+    return null;
+  }
+
+  const record = result as Record<string, unknown>;
+  const answeringMetadata =
+    typeof record.answeringMetadata === 'object' &&
+    record.answeringMetadata !== null
+      ? (record.answeringMetadata as Record<string, unknown>)
+      : null;
+  const usage =
+    (typeof record.llmUsage === 'object' && record.llmUsage !== null
+      ? (record.llmUsage as Record<string, unknown>)
+      : null) ??
+    (answeringMetadata != null &&
+    typeof answeringMetadata.llmUsage === 'object' &&
+    answeringMetadata.llmUsage !== null
+      ? (answeringMetadata.llmUsage as Record<string, unknown>)
+      : null);
+  if (usage == null) {
+    return null;
+  }
+
+  return {
+    promptTokens: readFiniteNumber(usage.promptTokens),
+    completionTokens: readFiniteNumber(usage.completionTokens)
+  };
+}
+
+function readFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 @Injectable()
 export class AskAssistantService {
   private readonly logger = new Logger(AskAssistantService.name);
@@ -263,6 +302,7 @@ export class AskAssistantService {
     100,
     60000
   );
+  private readonly askQuota = new AskQuotaService();
 
   constructor(
     private readonly assistantsService: AssistantsService,
@@ -286,10 +326,14 @@ export class AskAssistantService {
     documentVersions?: Record<string, number>;
     retrievalEvidence?: RetrievalEvidence | null;
     routeDecision?: AskRouteDecision | null;
+    skipQuota?: boolean;
   }) {
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
+    if (input.skipQuota !== true && input.retrievalEvidence == null) {
+      this.askQuota.assertAllowed(authContext.identity);
+    }
     const requestStartedAt = Date.now();
     const conversationHistoryPromise =
       input.conversationId == null
@@ -300,19 +344,16 @@ export class AskAssistantService {
             createdBefore: new Date(requestStartedAt)
           });
 
-    const assistant = await this.assistantCache.getOrSet(
-      input.assistantId,
-      () =>
-        this.assistantsService.getAssistant(
-          input.assistantId,
-          authContext.identity
-        )
-    );
-
-    const retrievalProfile =
-      assistant.retrievalProfile as typeof assistant.retrievalProfile & {
-        strategyJson?: unknown;
-      };
+    const {
+      assistant,
+      retrievalProfile,
+      retrievalStrategy,
+      retrievalFilters,
+      normalizedAnswerPolicy
+    } = await this.prepareAssistantAsk({
+      assistantId: input.assistantId,
+      identity: authContext.identity
+    });
 
     const conversation =
       input.conversationId != null
@@ -328,15 +369,6 @@ export class AskAssistantService {
           });
 
     const startedAt = Date.now();
-    const retrievalStrategy = resolveRetrievalStrategy({
-      topK: retrievalProfile.topK,
-      enableHybrid: retrievalProfile.enableHybrid,
-      enableRerank: retrievalProfile.enableRerank,
-      strategyJson: retrievalProfile.strategyJson as
-        | RetrievalStrategy
-        | undefined
-    });
-
     const conversationHistory = await conversationHistoryPromise;
     const routeDecision =
       input.routeDecision ?? this.resolveRouteDecision(input.question);
@@ -394,15 +426,6 @@ export class AskAssistantService {
       input.retrievalEvidence?.query.retrieval ||
       rewritten.rewrittenQuery ||
       input.question;
-    const retrievalFilters = retrievalProfileFiltersSchema
-      .optional()
-      .parse(assistant.retrievalProfile.filtersJson ?? undefined);
-    const answerPolicy =
-      answerPolicySchema
-        .nullable()
-        .optional()
-        .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
-    const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const reusableConversationAnswer =
       input.conversationId != null &&
       routeDecision.routeType === 'knowledge_base' &&
@@ -431,7 +454,7 @@ export class AskAssistantService {
           durationMs: 0
         }));
 
-    return this.dispatchRouteAsk({
+    const result = await this.dispatchRouteAsk({
       routeDecision,
       executors: this.buildAskRouteToolAdapters({
         assistant,
@@ -463,6 +486,8 @@ export class AskAssistantService {
           conversationHistory
         })
     });
+    this.askQuota.recordUsage(authContext.identity, extractAskUsage(result));
+    return result;
   }
 
   async searchAssistant(input: {
@@ -484,7 +509,7 @@ export class AskAssistantService {
           });
 
     const assistant = await this.assistantCache.getOrSet(
-      input.assistantId,
+      `${authContext.identity.tenantId}:${authContext.identity.userId}:${input.assistantId}`,
       () =>
         this.assistantsService.getAssistant(
           input.assistantId,
@@ -653,6 +678,9 @@ export class AskAssistantService {
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
+    if (input.retrievalEvidence == null) {
+      this.askQuota.assertAllowed(authContext.identity);
+    }
     const emitEvent = async (
       event:
         | { type: 'status'; phase: 'started' | 'retrieving' | 'generating' }
@@ -682,19 +710,16 @@ export class AskAssistantService {
             createdBefore: new Date(requestStartedAt)
           });
 
-    const assistant = await this.assistantCache.getOrSet(
-      input.assistantId,
-      () =>
-        this.assistantsService.getAssistant(
-          input.assistantId,
-          authContext.identity
-        )
-    );
-
-    const retrievalProfile =
-      assistant.retrievalProfile as typeof assistant.retrievalProfile & {
-        strategyJson?: unknown;
-      };
+    const {
+      assistant,
+      retrievalProfile,
+      retrievalStrategy,
+      retrievalFilters,
+      normalizedAnswerPolicy
+    } = await this.prepareAssistantAsk({
+      assistantId: input.assistantId,
+      identity: authContext.identity
+    });
 
     const conversationStartedAt = Date.now();
     const conversationPromise: Promise<TimedResult<AskConversationRef>> = (
@@ -715,15 +740,6 @@ export class AskAssistantService {
     }));
 
     const startedAt = Date.now();
-    const retrievalStrategy = resolveRetrievalStrategy({
-      topK: retrievalProfile.topK,
-      enableHybrid: retrievalProfile.enableHybrid,
-      enableRerank: retrievalProfile.enableRerank,
-      strategyJson: retrievalProfile.strategyJson as
-        | RetrievalStrategy
-        | undefined
-    });
-
     const conversationHistory = await conversationHistoryPromise;
     const routeDecision =
       input.routeDecision ?? this.resolveRouteDecision(input.question);
@@ -789,15 +805,6 @@ export class AskAssistantService {
       input.retrievalEvidence?.query.retrieval ||
       rewritten.rewrittenQuery ||
       input.question;
-    const retrievalFilters = retrievalProfileFiltersSchema
-      .optional()
-      .parse(assistant.retrievalProfile.filtersJson ?? undefined);
-    const answerPolicy =
-      answerPolicySchema
-        .nullable()
-        .optional()
-        .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
-    const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const reusableConversationAnswerPromise: Promise<Record<
       string,
       unknown
@@ -863,7 +870,7 @@ export class AskAssistantService {
     };
     const eagerUserMessagePromise = getUserMessagePromise();
 
-    return this.dispatchRouteAsk({
+    const result = await this.dispatchRouteAsk({
       routeDecision,
       executors: this.buildAskStreamRouteToolAdapters({
         assistant,
@@ -902,6 +909,47 @@ export class AskAssistantService {
           signal: input.signal
         })
     });
+    this.askQuota.recordUsage(authContext.identity, extractAskUsage(result));
+    return result;
+  }
+
+  private async prepareAssistantAsk(input: {
+    assistantId: string;
+    identity: AuthIdentity;
+  }) {
+    const assistant = await this.assistantCache.getOrSet(
+      `${input.identity.tenantId}:${input.identity.userId}:${input.assistantId}`,
+      () =>
+        this.assistantsService.getAssistant(input.assistantId, input.identity)
+    );
+    const retrievalProfile =
+      assistant.retrievalProfile as typeof assistant.retrievalProfile & {
+        strategyJson?: unknown;
+      };
+    const retrievalStrategy = resolveRetrievalStrategy({
+      topK: retrievalProfile.topK,
+      enableHybrid: retrievalProfile.enableHybrid,
+      enableRerank: retrievalProfile.enableRerank,
+      strategyJson: retrievalProfile.strategyJson as
+        | RetrievalStrategy
+        | undefined
+    });
+    const retrievalFilters = retrievalProfileFiltersSchema
+      .optional()
+      .parse(retrievalProfile.filtersJson ?? undefined);
+    const answerPolicy =
+      answerPolicySchema
+        .nullable()
+        .optional()
+        .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
+
+    return {
+      assistant,
+      retrievalProfile,
+      retrievalStrategy,
+      retrievalFilters,
+      normalizedAnswerPolicy: this.normalizeAnswerPolicy(answerPolicy)
+    };
   }
 
   private async loadConversationHistory(input: {
@@ -909,24 +957,19 @@ export class AskAssistantService {
     authContext: AuthIdentity;
     createdBefore: Date;
   }): Promise<ConversationHistoryMessage[]> {
-    const listRecent = this.messagesService.listRecentConversationMessages;
-    if (typeof listRecent !== 'function') {
-      return [];
-    }
-
     try {
-      const messages = await listRecent.call(
-        this.messagesService,
-        input.conversationId,
-        {
-          limit: 6,
-          createdBefore: input.createdBefore
-        },
-        {
-          tenantId: input.authContext.tenantId,
-          userId: input.authContext.userId
-        }
-      );
+      const messages =
+        await this.messagesService.listRecentConversationMessages(
+          input.conversationId,
+          {
+            limit: 6,
+            createdBefore: input.createdBefore
+          },
+          {
+            tenantId: input.authContext.tenantId,
+            userId: input.authContext.userId
+          }
+        );
       return buildConversationHistory(messages);
     } catch (error) {
       this.logger.warn(
