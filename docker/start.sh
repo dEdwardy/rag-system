@@ -4,7 +4,7 @@ set -eu
 node /app/apps/api/scripts/start-prod.mjs &
 api_pid=$!
 
-nginx -g 'daemon off;' &
+nginx -g 'daemon off; pid /tmp/nginx.pid;' &
 nginx_pid=$!
 
 cleanup() {

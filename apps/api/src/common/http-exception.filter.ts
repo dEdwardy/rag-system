@@ -23,6 +23,21 @@ function resolveHttpExceptionResponseBody(
   return { message: fallbackMessage };
 }
 
+function deleteInternalErrorDetails(body: Record<string, unknown>) {
+  const details = body.details;
+  if (
+    typeof details !== 'object' ||
+    details === null ||
+    Array.isArray(details)
+  ) {
+    return;
+  }
+
+  const mutableDetails = details as Record<string, unknown>;
+  delete mutableDetails.cause;
+  delete mutableDetails.errorMessage;
+}
+
 export function buildHttpExceptionResponse(exception: unknown, path: string) {
   if (exception instanceof ZodError) {
     return {
@@ -46,27 +61,36 @@ export function buildHttpExceptionResponse(exception: unknown, path: string) {
       exception.message
     );
 
-    return {
+    const body = {
       statusCode,
-      body: {
-        statusCode,
-        error: HttpStatus[statusCode] ?? 'Error',
-        path,
-        timestamp: new Date().toISOString(),
-        ...responseBody
-      }
+      error: HttpStatus[statusCode] ?? 'Error',
+      path,
+      timestamp: new Date().toISOString(),
+      ...responseBody
     };
+
+    if (
+      statusCode >= HttpStatus.INTERNAL_SERVER_ERROR &&
+      process.env.NODE_ENV === 'production'
+    ) {
+      deleteInternalErrorDetails(body);
+    }
+
+    return { statusCode, body };
   }
 
   const error =
     exception instanceof Error ? exception : new Error('Unknown server error.');
+  const exposeInternalMessage = process.env.NODE_ENV !== 'production';
 
   return {
     statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
     body: {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       error: 'Internal Server Error',
-      message: error.message,
+      message: exposeInternalMessage
+        ? error.message
+        : 'An unexpected server error occurred.',
       path,
       timestamp: new Date().toISOString()
     },

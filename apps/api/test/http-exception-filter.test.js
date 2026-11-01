@@ -57,3 +57,94 @@ test('GlobalHttpExceptionFilter preserves structured HttpException fields', () =
   assert.equal(jsonCalls[0].path, '/assistants/default-assistant/ask');
   assert.equal(typeof jsonCalls[0].timestamp, 'string');
 });
+
+test('GlobalHttpExceptionFilter hides internal causes from 5xx details in production', () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    const filter = new GlobalHttpExceptionFilter();
+    const jsonCalls = [];
+    const response = {
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(payload) {
+        jsonCalls.push(payload);
+        return this;
+      }
+    };
+    const host = {
+      switchToHttp() {
+        return {
+          getResponse() {
+            return response;
+          },
+          getRequest() {
+            return { url: '/assistants/default-assistant/ask' };
+          }
+        };
+      }
+    };
+
+    filter.catch(
+      new HttpException(
+        {
+          statusCode: HttpStatus.BAD_GATEWAY,
+          error: 'Bad Gateway',
+          message: 'Ask pipeline failed.',
+          code: 'ASK_PIPELINE_FAILED',
+          details: {
+            stage: 'retrieval',
+            cause: 'connect ECONNREFUSED 10.0.0.5:5432'
+          }
+        },
+        HttpStatus.BAD_GATEWAY
+      ),
+      host
+    );
+
+    assert.equal(jsonCalls[0].message, 'Ask pipeline failed.');
+    assert.equal(jsonCalls[0].code, 'ASK_PIPELINE_FAILED');
+    assert.deepEqual(jsonCalls[0].details, { stage: 'retrieval' });
+  } finally {
+    process.env.NODE_ENV = previousNodeEnv;
+  }
+});
+
+test('GlobalHttpExceptionFilter hides unexpected error messages in production', () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    const filter = new GlobalHttpExceptionFilter();
+    const jsonCalls = [];
+    const response = {
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(payload) {
+        jsonCalls.push(payload);
+        return this;
+      }
+    };
+    const host = {
+      switchToHttp() {
+        return {
+          getResponse() {
+            return response;
+          },
+          getRequest() {
+            return { url: '/api/test' };
+          }
+        };
+      }
+    };
+
+    filter.catch(new Error('relation "Thing" does not exist'), host);
+
+    assert.equal(jsonCalls[0].message, 'An unexpected server error occurred.');
+  } finally {
+    process.env.NODE_ENV = previousNodeEnv;
+  }
+});

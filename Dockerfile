@@ -45,9 +45,15 @@ COPY --from=build /app/apps/api/scripts ./apps/api/scripts
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
+COPY docker/security-headers.conf /etc/nginx/security-headers.conf
 COPY docker/start.sh /app/docker/start.sh
 
-RUN chmod +x /app/docker/start.sh
+RUN chmod +x /app/docker/start.sh \
+  && addgroup -S appgroup \
+  && adduser -S appuser -G appgroup \
+  && chown -R appuser:appgroup /app /var/log/nginx /var/lib/nginx /run
+
+USER appuser
 
 EXPOSE 8080
 
